@@ -32,3 +32,25 @@
         transform: rotate(360deg);
     }
 }
+
+/* Fire Department Specific Styles */
+.fire-red {
+    color: #dc2626;
+}
+
+.fire-gold {
+    color: #ca8a04;
+}
+
+/* Status indicators */
+.status-active {
+    @apply bg-green-500/10 text-green-500 border-green-500/30;
+}
+
+.status-inactive {
+    @apply bg-red-500/10 text-red-500 border-red-500/30;
+}
+
+.status-pending {
+    @apply bg-yellow-500/10 text-yellow-500 border-yellow-500/30;
+}

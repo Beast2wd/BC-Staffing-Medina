@@ -1,53 +1,126 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { StaffingProvider } from "./context/StaffingContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Pages
+import { LoginPage } from "./pages/LoginPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
+import { LeaveManagementPage } from "./pages/battalion-chief/LeaveManagementPage";
+import { OvertimePage } from "./pages/battalion-chief/OvertimePage";
+import { DeploymentPage } from "./pages/battalion-chief/DeploymentPage";
+import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
+import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+// Protected Route Component
+const ProtectedRoute = ({ children, adminOnly = false }) => {
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// App Content with Routing
+const AppContent = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <StaffingProvider>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        
+        {/* Protected Routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute><DashboardPage /></ProtectedRoute>
+        } />
+        
+        {/* Battalion Chief Routes */}
+        <Route path="/battalion-chief/apparatus" element={
+          <ProtectedRoute><ApparatusPage /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/sick" element={
+          <ProtectedRoute><LeaveManagementPage leaveType="sick" /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/vacation" element={
+          <ProtectedRoute><LeaveManagementPage leaveType="vacation" /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/holiday" element={
+          <ProtectedRoute><LeaveManagementPage leaveType="holiday" /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/deployment" element={
+          <ProtectedRoute><DeploymentPage /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/overtime" element={
+          <ProtectedRoute><OvertimePage /></ProtectedRoute>
+        } />
+        
+        {/* Deputy Chief Routes */}
+        <Route path="/deputy-chief/day-of-staffing" element={
+          <ProtectedRoute><DayOfStaffingPage /></ProtectedRoute>
+        } />
+        
+        {/* Tools Routes (Admin Only) */}
+        <Route path="/tools/personnel" element={
+          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+        } />
+        <Route path="/tools/stations" element={
+          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+        } />
+        <Route path="/tools/users" element={
+          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+        } />
+        
+        {/* Reports */}
+        <Route path="/reports" element={
+          <ProtectedRoute><ReportsPage /></ProtectedRoute>
+        } />
+        
+        {/* Default Redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </StaffingProvider>
   );
 };
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+          <Toaster position="top-right" richColors />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

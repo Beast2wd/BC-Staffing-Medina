@@ -1,0 +1,283 @@
+import { useEffect, useState } from 'react';
+import { Navbar } from '../../components/layout/Navbar';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { useAuth } from '../../context/AuthContext';
+import { useStaffing } from '../../context/StaffingContext';
+import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
+import { toast } from 'sonner';
+import { Plus, Save, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
+import { Badge } from '../../components/ui/badge';
+
+export const LeaveManagementPage = ({ leaveType }) => {
+  const { api, canEdit } = useAuth();
+  const { personnel, fetchAllData, selectedBattalion } = useStaffing();
+  const [leaveRecords, setLeaveRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    personnel_id: '',
+    start_date: '',
+    end_date: '',
+    status: 'approved',
+    notes: ''
+  });
+
+  const pageConfig = {
+    sick: { title: 'Sick Leave', color: 'bg-red-500' },
+    vacation: { title: 'Vacation', color: 'bg-blue-500' },
+    holiday: { title: 'Holiday', color: 'bg-green-500' }
+  };
+
+  const config = pageConfig[leaveType] || pageConfig.sick;
+
+  useEffect(() => {
+    fetchAllData();
+    fetchLeaveRecords();
+  }, [selectedBattalion, leaveType]);
+
+  const fetchLeaveRecords = async () => {
+    try {
+      const response = await api.get('/leave-records', {
+        params: { leave_type: leaveType }
+      });
+      // Filter by battalion personnel
+      const battalionPersonnelIds = personnel.map(p => p.id);
+      const filtered = response.data.filter(r => battalionPersonnelIds.includes(r.personnel_id));
+      setLeaveRecords(filtered);
+    } catch (error) {
+      console.error('Error fetching leave records:', error);
+    }
+  };
+
+  const handleAddRecord = async () => {
+    if (!formData.personnel_id || !formData.start_date || !formData.end_date) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await api.post('/leave-records', {
+        ...formData,
+        leave_type: leaveType
+      });
+      toast.success('Leave record created');
+      setShowAddDialog(false);
+      fetchLeaveRecords();
+      setFormData({ personnel_id: '', start_date: '', end_date: '', status: 'approved', notes: '' });
+    } catch (error) {
+      toast.error('Failed to create leave record');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRecord = async (recordId) => {
+    if (!confirm('Are you sure you want to delete this record?')) return;
+    
+    try {
+      await api.delete(`/leave-records/${recordId}`);
+      toast.success('Record deleted');
+      fetchLeaveRecords();
+    } catch (error) {
+      toast.error('Failed to delete record');
+    }
+  };
+
+  const getPersonnelName = (personnelId) => {
+    const person = personnel.find(p => p.id === personnelId);
+    return person ? `${person.rank} ${person.name}` : personnelId;
+  };
+
+  const getStatusBadge = (status) => {
+    const colors = {
+      approved: 'bg-green-500',
+      pending: 'bg-yellow-500',
+      denied: 'bg-red-500'
+    };
+    return <Badge className={colors[status] || 'bg-gray-500'}>{status}</Badge>;
+  };
+
+  return (
+    <div className="min-h-screen bg-background" data-testid={`${leaveType}-page`}>
+      <Navbar />
+      
+      <main className="container mx-auto px-4 py-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="font-heading text-3xl uppercase tracking-wider font-bold">
+              {config.title} Management
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Manage {leaveType} records for personnel
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <BattalionSelector />
+            {canEdit && (
+              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                <DialogTrigger asChild>
+                  <Button data-testid="add-leave-btn">
+                    <Plus className="h-4 w-4 mr-2" /> Add {config.title}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="font-heading uppercase">New {config.title} Record</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Personnel</Label>
+                      <Select 
+                        value={formData.personnel_id} 
+                        onValueChange={(v) => setFormData({...formData, personnel_id: v})}
+                      >
+                        <SelectTrigger data-testid="personnel-select">
+                          <SelectValue placeholder="Select Personnel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {personnel.map(person => (
+                            <SelectItem key={person.id} value={person.id}>
+                              {person.rank} {person.name} ({person.shift} Shift)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Input
+                          type="date"
+                          value={formData.start_date}
+                          onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                          data-testid="start-date-input"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>End Date</Label>
+                        <Input
+                          type="date"
+                          value={formData.end_date}
+                          onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                          data-testid="end-date-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select 
+                        value={formData.status} 
+                        onValueChange={(v) => setFormData({...formData, status: v})}
+                      >
+                        <SelectTrigger data-testid="status-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="denied">Denied</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <Textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                        placeholder="Optional notes..."
+                        data-testid="notes-input"
+                      />
+                    </div>
+
+                    <Button onClick={handleAddRecord} disabled={loading} className="w-full" data-testid="save-leave-btn">
+                      <Save className="h-4 w-4 mr-2" /> Save Record
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </div>
+
+        <Card data-testid="leave-records-card">
+          <CardHeader>
+            <CardTitle className="font-heading uppercase">{config.title} Records</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Personnel</TableHead>
+                  <TableHead>Station</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead>End Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Notes</TableHead>
+                  {canEdit && <TableHead className="w-20">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leaveRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-8">
+                      No {leaveType} records found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  leaveRecords.map(record => {
+                    const person = personnel.find(p => p.id === record.personnel_id);
+                    return (
+                      <TableRow key={record.id} data-testid={`leave-row-${record.id}`}>
+                        <TableCell className="font-medium">{getPersonnelName(record.personnel_id)}</TableCell>
+                        <TableCell>{person?.station_id?.replace('sta-', 'Station ') || '-'}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            person?.shift === 'A' ? 'bg-red-500/20 text-red-500' :
+                            person?.shift === 'B' ? 'bg-green-500/20 text-green-500' :
+                            'bg-blue-500/20 text-blue-500'
+                          }`}>
+                            {person?.shift || '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell>{record.start_date}</TableCell>
+                        <TableCell>{record.end_date}</TableCell>
+                        <TableCell>{getStatusBadge(record.status)}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{record.notes || '-'}</TableCell>
+                        {canEdit && (
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-500"
+                              onClick={() => handleDeleteRecord(record.id)}
+                              data-testid={`delete-leave-${record.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
