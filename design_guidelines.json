@@ -1,0 +1,111 @@
+{
+  "project_name": "Medina County BC Staffing",
+  "theme_strategy": "hybrid",
+  "default_theme": "dark",
+  "typography": {
+    "font_family_headings": "Barlow Condensed, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-bold tracking-tight uppercase",
+      "h2": "text-3xl md:text-4xl font-bold tracking-tight uppercase",
+      "h3": "text-2xl font-semibold tracking-normal",
+      "body": "text-base leading-relaxed",
+      "label": "text-xs font-semibold tracking-wider uppercase text-muted-foreground"
+    },
+    "imports": [
+      "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    ]
+  },
+  "colors": {
+    "primary": "#ef4444",
+    "primary_foreground": "#ffffff",
+    "secondary": "#27272a",
+    "secondary_foreground": "#ffffff",
+    "accent": "#ef4444",
+    "background": "#09090b",
+    "foreground": "#fafafa",
+    "card": "#18181b",
+    "card_foreground": "#fafafa",
+    "border": "#27272a",
+    "shifts": {
+      "A": {
+        "color": "#ef4444",
+        "bg": "bg-red-500",
+        "text": "text-red-500",
+        "border": "border-red-500/50",
+        "subtle": "bg-red-500/10"
+      },
+      "B": {
+        "color": "#22c55e",
+        "bg": "bg-green-500",
+        "text": "text-green-500",
+        "border": "border-green-500/50",
+        "subtle": "bg-green-500/10"
+      },
+      "C": {
+        "color": "#3b82f6",
+        "bg": "bg-blue-500",
+        "text": "text-blue-500",
+        "border": "border-blue-500/50",
+        "subtle": "bg-blue-500/10"
+      }
+    }
+  },
+  "layout_strategy": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-12 gap-4 p-4 md:p-6",
+    "sidebar_width": "w-64",
+    "header_height": "h-16",
+    "bento_grid": {
+      "calendar": "col-span-12 lg:col-span-3 h-full",
+      "staffing_grid": "col-span-12 lg:col-span-9 h-full",
+      "stats_row": "grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+    }
+  },
+  "components": {
+    "StaffingGrid": {
+      "path": "src/components/dashboard/StaffingGrid.jsx",
+      "description": "The core component. A dense table/grid showing Stations (Cols) vs Categories (Rows).",
+      "style": "border border-border rounded-lg bg-card/50 backdrop-blur-sm overflow-hidden"
+    },
+    "ShiftCalendar": {
+      "path": "src/components/dashboard/ShiftCalendar.jsx",
+      "description": "Calendar showing A/B/C shifts with color-coded dots/backgrounds.",
+      "style": "shadcn calendar customized with day-content modifiers"
+    },
+    "BattalionSelector": {
+      "path": "src/components/dashboard/BattalionSelector.jsx",
+      "description": "Dropdown to switch between Battalions (8110, 8114).",
+      "style": "Large text, heavy font-weight, highly visible"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "bg-black/40 backdrop-blur-xl border-white/5",
+    "textures": {
+      "login_bg": "url('https://images.unsplash.com/photo-1768685318695-13499e5412c1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwzfHxmaXJlJTIwdHJ1Y2slMjBuaWdodCUyMGVtZXJnZW5jeSUyMGxpZ2h0c3xlbnwwfHx8fDE3NzQzODI3Mzd8MA&ixlib=rb-4.1.0&q=85')",
+      "hero_texture": "url('https://images.unsplash.com/photo-1741119064982-c740f83dbc3e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwyfHxmaXJlZmlnaHRlciUyMHNpbGhvdWV0dGUlMjBzbW9rZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzc0MzgyNzM5fDA&ixlib=rb-4.1.0&q=85')"
+    },
+    "logo_url": "https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png"
+  },
+  "accessibility": {
+    "contrast_check": "Ensure white text on red/green/blue backgrounds is legible. Use darker shades of shift colors for text on light backgrounds.",
+    "interactive_elements": "Min target size 44px on mobile."
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' for icons.",
+    "Use 'Barlow Condensed' for all headings to give that tactical/fire dept look.",
+    "Create a 'ShiftContext' to manage global shift state (A/B/C).",
+    "The Staffing Grid must be responsive. On mobile, stack stations vertically.",
+    "Use the provided logo in the Login screen and Top Navigation.",
+    "For the 'Staffing Categories' table, ensure rows like 'Min Staffing' and 'Personnel Assigned' are clearly distinct.",
+    "Battalion dropdown is critical context. Changing it should filter the grid.",
+    "Dark mode is default. Ensure inputs have high contrast borders."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use gradients for backgrounds, use solid dark colors with subtle textures.",
+    "Use 2-3x more spacing than typical designs.",
+    "Every interaction needs micro-animations.",
+    "Use 'sonner' for toasts.",
+    "Components MUST use named exports.",
+    "All interactive elements MUST include data-testid attribute."
+  ]
+}
