@@ -14,6 +14,8 @@ import { OvertimePage } from "./pages/battalion-chief/OvertimePage";
 import { DeploymentPage } from "./pages/battalion-chief/DeploymentPage";
 import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
 import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
+import { UserManagementPage } from "./pages/tools/UserManagementPage";
+import { StationManagementPage } from "./pages/tools/StationManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
 
 // Protected Route Component
@@ -92,10 +94,10 @@ const AppContent = () => {
           <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
         } />
         <Route path="/tools/stations" element={
-          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+          <ProtectedRoute adminOnly><StationManagementPage /></ProtectedRoute>
         } />
         <Route path="/tools/users" element={
-          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+          <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
         } />
         
         {/* Reports */}

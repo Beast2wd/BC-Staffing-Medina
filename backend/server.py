@@ -883,13 +883,23 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_role([U
 # ===================== SHIFT CALCULATION =====================
 
 def get_shift_for_date(date_str: str) -> str:
-    """Calculate which shift (A, B, or C) is working on a given date"""
-    # Reference date: Jan 1, 2026 is A shift
-    reference_date = datetime(2026, 1, 1)
+    """Calculate which shift (A, B, or C) is working on a given date
+    Shift rotation: 48 hours on, 96 hours off (2 days on, 4 days off)
+    Reference: C shift on 3/24/2026 and 3/25/2026
+    """
+    reference_date = datetime(2026, 3, 24)
     target_date = datetime.strptime(date_str, "%Y-%m-%d")
     days_diff = (target_date - reference_date).days
-    shifts = ["A", "B", "C"]
-    return shifts[days_diff % 3]
+    
+    # Pattern repeats every 6 days: C,C,A,A,B,B,C,C,A,A,B,B...
+    normalized_day = days_diff % 6
+    
+    if normalized_day < 2:
+        return "C"
+    elif normalized_day < 4:
+        return "A"
+    else:
+        return "B"
 
 @api_router.get("/shift-calendar")
 async def get_shift_calendar(year: int, month: int):

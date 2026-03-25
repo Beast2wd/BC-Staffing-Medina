@@ -1,35 +1,31 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Input } from '../ui/input';
 import { useStaffing } from '../../context/StaffingContext';
+import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/badge';
+import { toast } from 'sonner';
 
 const STAFFING_CATEGORIES = [
-  { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true },
-  { key: 'personnel_assigned', label: 'Personnel Assigned (+)', className: 'font-semibold' },
-  { key: 'debit_day', label: 'Debit Day(+)' },
-  { key: 'overtime_cr', label: 'Overtime/CR Personnel(P) (+)', className: 'text-blue-500' },
-  { key: 'hold_over', label: 'Hold Over* (+)' },
-  { key: 'out_of_district_fill_in_plus', label: 'Out Of District Fill In (+)', className: 'text-blue-500' },
-  { key: 'out_of_district_fill_in_minus', label: 'Out Of District Fill In (-)', className: 'text-blue-500' },
-  { key: 'prescheduled_holidays', label: 'Prescheduled Holidays (-)', className: 'text-red-500' },
-  { key: 'guaranteed_holiday', label: 'Guaranteed Holiday* (-)', className: 'text-red-500' },
-  { key: 'day_of_holidays', label: 'Day-of Holidays (-)', className: 'text-red-500' },
-  { key: 'fmla', label: 'FMLA (-)', className: 'text-red-500' },
-  { key: 'vac_emergency', label: 'Vac-Emergency (-)', className: 'text-red-500' },
-  { key: 'vac_scheduled', label: 'Vac-Scheduled (-)', className: 'text-red-500' },
-  { key: 'vac_scheduled_debit', label: 'Vac-Scheduled Debit (-)', className: 'text-red-500' },
-  { key: 'sick_member', label: 'Sick-member (-)', className: 'text-red-500' },
-  { key: 'sick_family', label: 'Sick-family (-)', className: 'text-red-500' },
-  { key: 'injured_on_duty', label: 'scheduled or unScheduled Injured On Duty (-)', className: 'text-red-500' },
-  { key: 'scheduled_other', label: 'Scheduled Other (-)', className: 'text-red-500' },
-  { key: 'unscheduled_other', label: 'UnScheduled Other (-)', className: 'text-red-500' },
-  { key: 'ems_adjusted', label: 'EMS Adjusted Personnel (-)', className: 'text-red-500' },
-  { key: 'sap_adjusted', label: 'SAP Adjusted Personnel (+/-)', className: 'text-yellow-500' },
-  { key: 'in_district_fill_in_minus', label: 'IN DISTRICT Fill In (-)', className: 'text-blue-500' },
-  { key: 'in_district_fill_in_plus', label: 'IN DISTRICT Fill In (+)', className: 'text-blue-500' },
-  { key: 'total_on_duty', label: 'Total Personnel On Duty:', isFooter: true, className: 'font-bold' },
-  { key: 'variance', label: 'Stations Even/Over/Under:', isFooter: true },
+  { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: false },
+  { key: 'personnel_assigned', label: 'Personnel Assigned (+)', className: 'font-semibold', editable: false },
+  { key: 'overtime', label: 'Overtime (+)', className: 'text-blue-500', editable: true },
+  { key: 'hold_over', label: 'Hold Over* (+)', editable: true },
+  { key: 'out_of_battalion_fill_in_plus', label: 'Out of Battalion Fill In (+)', className: 'text-blue-500', editable: true },
+  { key: 'out_of_battalion_fill_in_minus', label: 'Out of Battalion Fill In (-)', className: 'text-blue-500', editable: true },
+  { key: 'holiday', label: 'HOLIDAY (-)', className: 'text-red-500', editable: true },
+  { key: 'fmla', label: 'FMLA (-)', className: 'text-red-500', editable: true },
+  { key: 'vacation', label: 'VACATION (-)', className: 'text-red-500', editable: true },
+  { key: 'sick', label: 'SICK (-)', className: 'text-red-500', editable: true },
+  { key: 'injured_on_duty', label: 'Injured On Duty (-)', className: 'text-red-500', editable: true },
+  { key: 'scheduled_other', label: 'Scheduled Other (-)', className: 'text-red-500', editable: true },
+  { key: 'unscheduled_other', label: 'UnScheduled Other (-)', className: 'text-red-500', editable: true },
+  { key: 'sap_adjusted', label: 'SAP Adjusted Personnel (+/-)', className: 'text-yellow-500', editable: true },
+  { key: 'in_battalion_fill_in_minus', label: 'In Battalion Fill In (-)', className: 'text-blue-500', editable: true },
+  { key: 'in_battalion_fill_in_plus', label: 'In Battalion Fill In (+)', className: 'text-blue-500', editable: true },
+  { key: 'total_on_duty', label: 'Total Personnel On Duty:', isFooter: true, className: 'font-bold', editable: false },
+  { key: 'variance', label: 'Stations Even/Over/Under:', isFooter: true, editable: false },
 ];
 
 export const StaffingGrid = () => {
@@ -38,8 +34,13 @@ export const StaffingGrid = () => {
     staffingRecords, 
     personnel,
     currentShift,
-    selectedDate 
+    selectedDate,
+    selectedBattalion,
+    fetchStaffingRecords
   } = useStaffing();
+  const { api, canEdit } = useAuth();
+  const [editingCell, setEditingCell] = useState(null);
+  const [editValue, setEditValue] = useState('');
 
   // Calculate data for each station
   const gridData = useMemo(() => {
@@ -66,6 +67,9 @@ export const StaffingGrid = () => {
       stationData.personnel_assigned = stationPersonnel.length;
       totals.personnel_assigned += stationData.personnel_assigned;
 
+      // Store record ID for updates
+      stationData._recordId = record?.id;
+
       // Get categories from record or default to 0
       STAFFING_CATEGORIES.forEach(cat => {
         if (cat.key !== 'minimum_staffing' && cat.key !== 'personnel_assigned' && 
@@ -77,27 +81,20 @@ export const StaffingGrid = () => {
 
       // Calculate total on duty
       const additions = (stationData.personnel_assigned || 0) +
-        (stationData.debit_day || 0) +
-        (stationData.overtime_cr || 0) +
+        (stationData.overtime || 0) +
         (stationData.hold_over || 0) +
-        (stationData.out_of_district_fill_in_plus || 0) +
-        (stationData.in_district_fill_in_plus || 0);
+        (stationData.out_of_battalion_fill_in_plus || 0) +
+        (stationData.in_battalion_fill_in_plus || 0);
 
-      const subtractions = (stationData.out_of_district_fill_in_minus || 0) +
-        (stationData.prescheduled_holidays || 0) +
-        (stationData.guaranteed_holiday || 0) +
-        (stationData.day_of_holidays || 0) +
+      const subtractions = (stationData.out_of_battalion_fill_in_minus || 0) +
+        (stationData.holiday || 0) +
         (stationData.fmla || 0) +
-        (stationData.vac_emergency || 0) +
-        (stationData.vac_scheduled || 0) +
-        (stationData.vac_scheduled_debit || 0) +
-        (stationData.sick_member || 0) +
-        (stationData.sick_family || 0) +
+        (stationData.vacation || 0) +
+        (stationData.sick || 0) +
         (stationData.injured_on_duty || 0) +
         (stationData.scheduled_other || 0) +
         (stationData.unscheduled_other || 0) +
-        (stationData.ems_adjusted || 0) +
-        (stationData.in_district_fill_in_minus || 0);
+        (stationData.in_battalion_fill_in_minus || 0);
 
       stationData.total_on_duty = additions - subtractions + (stationData.sap_adjusted || 0);
       stationData.variance = stationData.total_on_duty - stationData.minimum_staffing;
@@ -110,6 +107,60 @@ export const StaffingGrid = () => {
 
     return { data, totals };
   }, [stations, staffingRecords, personnel, currentShift]);
+
+  const handleCellClick = (stationId, categoryKey, currentValue) => {
+    if (!canEdit) return;
+    const category = STAFFING_CATEGORIES.find(c => c.key === categoryKey);
+    if (!category?.editable) return;
+    
+    setEditingCell({ stationId, categoryKey });
+    setEditValue(currentValue?.toString() || '0');
+  };
+
+  const handleCellSave = async () => {
+    if (!editingCell) return;
+    
+    const { stationId, categoryKey } = editingCell;
+    const newValue = parseInt(editValue) || 0;
+    const record = staffingRecords.find(r => r.station_id === stationId);
+    
+    try {
+      if (record) {
+        // Update existing record
+        const updatedCategories = { ...record.categories, [categoryKey]: newValue };
+        await api.put(`/staffing/${record.id}`, { categories: updatedCategories });
+      } else {
+        // Create new record
+        await api.post('/staffing', {
+          date: selectedDate,
+          station_id: stationId,
+          battalion_id: selectedBattalion,
+          shift: currentShift,
+          personnel_assigned: [],
+          categories: { [categoryKey]: newValue },
+          remarks: ''
+        });
+      }
+      
+      toast.success('Staffing updated');
+      fetchStaffingRecords();
+    } catch (error) {
+      toast.error('Failed to update staffing');
+      console.error(error);
+    }
+    
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleCellSave();
+    } else if (e.key === 'Escape') {
+      setEditingCell(null);
+      setEditValue('');
+    }
+  };
 
   const getShiftBadgeClass = (shift) => {
     switch (shift) {
@@ -168,15 +219,32 @@ export const StaffingGrid = () => {
                   {stations.map(station => {
                     const value = gridData.data[station.id]?.[category.key] || 0;
                     const displayValue = value !== 0 || category.isHeader || category.isFooter ? value : '';
+                    const isEditing = editingCell?.stationId === station.id && editingCell?.categoryKey === category.key;
+                    const isEditable = category.editable && canEdit;
                     
                     return (
                       <TableCell 
                         key={station.id} 
                         className={`text-center ${
                           category.key === 'variance' ? getVarianceClass(value) : ''
-                        }`}
+                        } ${isEditable ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
+                        onClick={() => handleCellClick(station.id, category.key, value)}
+                        data-testid={`cell-${station.id}-${category.key}`}
                       >
-                        {displayValue}
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={handleCellSave}
+                            onKeyDown={handleKeyDown}
+                            className="w-12 h-6 text-center p-0 text-xs"
+                            autoFocus
+                            data-testid={`edit-input-${station.id}-${category.key}`}
+                          />
+                        ) : (
+                          displayValue
+                        )}
                       </TableCell>
                     );
                   })}

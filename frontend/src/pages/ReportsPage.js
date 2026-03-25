@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Navbar } from '../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Download, FileText, Calendar } from 'lucide-react';
+import { Download, FileText, Calendar, Printer } from 'lucide-react';
 import { Label } from '../components/ui/label';
 
 export const ReportsPage = () => {
@@ -19,6 +19,7 @@ export const ReportsPage = () => {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const reportRef = useRef(null);
 
   useEffect(() => {
     fetchBattalions();
@@ -54,6 +55,174 @@ export const ReportsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePrint = () => {
+    if (!reportData) {
+      toast.error('Please generate a report first');
+      return;
+    }
+    
+    const printContent = reportRef.current;
+    const printWindow = window.open('', '_blank');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Medina County BC Staffing - ${reportType === 'daily' ? 'Daily Summary' : 'Overtime Summary'}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: Arial, sans-serif; 
+              padding: 20px; 
+              color: #000;
+              background: #fff;
+            }
+            .header { 
+              text-align: center; 
+              margin-bottom: 30px; 
+              border-bottom: 2px solid #000;
+              padding-bottom: 20px;
+            }
+            .header h1 { 
+              font-size: 24px; 
+              text-transform: uppercase; 
+              margin-bottom: 5px;
+            }
+            .header p { 
+              color: #666; 
+              font-size: 14px;
+            }
+            .stats-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 15px;
+              margin-bottom: 30px;
+            }
+            .stat-box {
+              border: 1px solid #ddd;
+              padding: 15px;
+              text-align: center;
+              border-radius: 4px;
+            }
+            .stat-box .value {
+              font-size: 28px;
+              font-weight: bold;
+            }
+            .stat-box .label {
+              font-size: 12px;
+              color: #666;
+              text-transform: uppercase;
+            }
+            .stat-box .positive { color: #22c55e; }
+            .stat-box .negative { color: #ef4444; }
+            .section { margin-bottom: 25px; }
+            .section h2 {
+              font-size: 16px;
+              text-transform: uppercase;
+              border-bottom: 1px solid #ddd;
+              padding-bottom: 8px;
+              margin-bottom: 15px;
+            }
+            .station-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 10px;
+              border-bottom: 1px solid #eee;
+            }
+            .station-row:nth-child(even) { background: #f9f9f9; }
+            .station-name { font-weight: bold; }
+            .station-stats { display: flex; gap: 20px; }
+            .positive { color: #22c55e; }
+            .negative { color: #ef4444; }
+            .footer {
+              margin-top: 40px;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+              border-top: 1px solid #ddd;
+              padding-top: 15px;
+            }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${reportType === 'daily' ? 'Daily Staffing Summary' : 'Overtime Summary'}</h1>
+            <p>${getBattalionName()} - ${reportType === 'daily' ? reportData.date : `${reportData.start_date} to ${reportData.end_date}`}</p>
+          </div>
+          
+          ${reportType === 'daily' ? `
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="value">${reportData.total_stations}</div>
+                <div class="label">Total Stations</div>
+              </div>
+              <div class="stat-box">
+                <div class="value">${reportData.total_minimum_staffing}</div>
+                <div class="label">Min Required</div>
+              </div>
+              <div class="stat-box">
+                <div class="value positive">${reportData.total_personnel_assigned}</div>
+                <div class="label">Assigned</div>
+              </div>
+              <div class="stat-box">
+                <div class="value ${reportData.staffing_variance >= 0 ? 'positive' : 'negative'}">
+                  ${reportData.staffing_variance >= 0 ? '+' : ''}${reportData.staffing_variance}
+                </div>
+                <div class="label">Variance</div>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2>Station Breakdown</h2>
+              ${reportData.station_details?.map(station => `
+                <div class="station-row">
+                  <span class="station-name">Station ${station.station_number}</span>
+                  <div class="station-stats">
+                    <span>Min: ${station.minimum_staffing}</span>
+                    <span class="${station.assigned >= station.minimum_staffing ? 'positive' : 'negative'}">
+                      Assigned: ${station.assigned}
+                    </span>
+                  </div>
+                </div>
+              `).join('') || ''}
+            </div>
+          ` : `
+            <div class="section">
+              <h2>Overtime Records</h2>
+              ${reportData.personnel_overtime?.length > 0 ? 
+                reportData.personnel_overtime.map(item => `
+                  <div class="station-row">
+                    <span>Personnel ID: ${item._id}</span>
+                    <div class="station-stats">
+                      <span>Hours: <strong>${item.total_hours}</strong></span>
+                      <span>Entries: <strong>${item.count}</strong></span>
+                    </div>
+                  </div>
+                `).join('') : 
+                '<p style="text-align:center;color:#666;padding:20px;">No overtime records found</p>'
+              }
+            </div>
+          `}
+          
+          <div class="footer">
+            <p>Medina County BC Staffing System</p>
+            <p>Generated: ${new Date().toLocaleString()}</p>
+          </div>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   const getBattalionName = () => {
@@ -139,13 +308,19 @@ export const ReportsPage = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-heading uppercase">Report Preview</CardTitle>
                 {reportData && (
-                  <Button variant="outline" size="sm" data-testid="export-report-btn">
-                    <Download className="h-4 w-4 mr-2" /> Export
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handlePrint} data-testid="print-report-btn">
+                      <Printer className="h-4 w-4 mr-2" /> Print
+                    </Button>
+                    <Button variant="outline" size="sm" data-testid="export-report-btn">
+                      <Download className="h-4 w-4 mr-2" /> Export
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
             <CardContent>
+              <div ref={reportRef}>
               {!reportData ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -249,6 +424,7 @@ export const ReportsPage = () => {
                   )}
                 </div>
               )}
+              </div>
             </CardContent>
           </Card>
         </div>

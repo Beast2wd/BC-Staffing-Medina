@@ -17,12 +17,21 @@ export const StaffingProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   // Calculate shift for a date (A, B, or C)
+  // Shift rotation: 48 hours on, 96 hours off (2 days on, 4 days off)
+  // Reference: C shift on 3/24/2026 and 3/25/2026
   const getShiftForDate = useCallback((dateStr) => {
-    const referenceDate = new Date('2026-01-01');
+    // Reference date: March 24, 2026 is C shift (first day of C's 2-day block)
+    const referenceDate = new Date('2026-03-24');
     const targetDate = new Date(dateStr);
     const daysDiff = Math.floor((targetDate - referenceDate) / (1000 * 60 * 60 * 24));
-    const shifts = ['A', 'B', 'C'];
-    return shifts[((daysDiff % 3) + 3) % 3];
+    
+    // Pattern repeats every 6 days: C,C,A,A,B,B,C,C,A,A,B,B...
+    // Day 0,1 = C; Day 2,3 = A; Day 4,5 = B; Day 6,7 = C; etc.
+    const normalizedDay = ((daysDiff % 6) + 6) % 6; // Handle negative days
+    
+    if (normalizedDay < 2) return 'C';
+    if (normalizedDay < 4) return 'A';
+    return 'B';
   }, []);
 
   const currentShift = getShiftForDate(selectedDate);
