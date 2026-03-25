@@ -240,6 +240,7 @@ class OvertimeRecord(BaseModel):
     battalion_id: str
     status: str = "available"  # available, assigned, declined
     notes: str = ""
+    phone_number: str = ""
 
 class OvertimeRecordCreate(BaseModel):
     personnel_id: str
@@ -249,6 +250,7 @@ class OvertimeRecordCreate(BaseModel):
     battalion_id: str
     status: str = "available"
     notes: str = ""
+    phone_number: str = ""
 
 class DeploymentRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")

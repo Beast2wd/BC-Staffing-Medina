@@ -9,21 +9,19 @@ import { toast } from 'sonner';
 import { Edit2, Save, X } from 'lucide-react';
 
 const REMARK_TABS = [
-  { id: 'debit', label: 'Debit' },
-  { id: 'otcr', label: 'OT/CR' },
-  { id: 'schd_vac', label: 'Schd Vac' },
-  { id: 'schd_absence', label: 'Schd Absence' },
-  { id: 'unsched_absence', label: 'Unsched Absence' },
+  { id: 'overtime', label: 'Overtime' },
+  { id: 'holiday', label: 'HOLIDAY' },
+  { id: 'vacation', label: 'VACATION' },
+  { id: 'sick', label: 'SICK' },
   { id: 'remarks', label: 'Remarks' },
   { id: 'district_fill_in', label: 'District Fill-In' },
   { id: 'sap_adjust', label: 'SAP Adjust' },
-  { id: 'holidays', label: 'Holidays' },
 ];
 
 export const RemarksPanel = () => {
   const { api, canEdit } = useAuth();
   const { selectedDate, selectedBattalion } = useStaffing();
-  const [activeTab, setActiveTab] = useState('remarks');
+  const [activeTab, setActiveTab] = useState('overtime');
   const [remarks, setRemarks] = useState({});
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState('');

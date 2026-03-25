@@ -17,6 +17,7 @@ import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
 import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -103,6 +104,11 @@ const AppContent = () => {
         {/* Reports */}
         <Route path="/reports" element={
           <ProtectedRoute><ReportsPage /></ProtectedRoute>
+        } />
+        
+        {/* Overtime Availability - Available to ALL users including firefighters */}
+        <Route path="/overtime" element={
+          <ProtectedRoute><OvertimeAvailabilityPage /></ProtectedRoute>
         } />
         
         {/* Default Redirect */}

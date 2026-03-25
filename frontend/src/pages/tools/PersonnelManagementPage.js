@@ -9,8 +9,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Plus, Save, Edit2, Trash2, Search, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 
@@ -19,23 +19,60 @@ export const PersonnelManagementPage = () => {
   const { personnel, stations, fetchPersonnel, selectedBattalion, fetchAllData } = useStaffing();
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterShift, setFilterShift] = useState('all');
   const [filterStation, setFilterStation] = useState('all');
+  const [certInput, setCertInput] = useState('');
   const [formData, setFormData] = useState({
     payroll_number: '',
     name: '',
     rank: 'Firefighter',
     station_id: '',
     shift: 'A',
-    certifications: []
+    certifications: [],
+    contact_phone: '',
+    contact_email: ''
   });
 
-  const ranks = ['Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Engineer', 'Paramedic'];
+  const ranks = [
+    'Fire Chief', 
+    'Asst. Chief', 
+    'Deputy Chief', 
+    'Battalion Chief', 
+    'Captain', 
+    'Lieutenant', 
+    'Driver Operator', 
+    'Paramedic',
+    'Firefighter'
+  ];
+
+  const commonCertifications = [
+    'EMT-B', 'EMT-P', 'AEMT', 'Firefighter I', 'Firefighter II', 
+    'Fire Officer I', 'Fire Officer II', 'Hazmat Ops', 'Hazmat Tech',
+    'Rescue Tech', 'Swift Water', 'Rope Rescue', 'Confined Space',
+    'TCFP Structure', 'TCFP Wildland', 'ACLS', 'PALS', 'PHTLS'
+  ];
 
   useEffect(() => {
     fetchAllData();
   }, [selectedBattalion]);
+
+  const resetForm = () => {
+    setFormData({
+      payroll_number: '',
+      name: '',
+      rank: 'Firefighter',
+      station_id: '',
+      shift: 'A',
+      certifications: [],
+      contact_phone: '',
+      contact_email: ''
+    });
+    setCertInput('');
+    setEditingPerson(null);
+  };
 
   const handleAddPersonnel = async () => {
     if (!formData.payroll_number || !formData.name || !formData.station_id) {
@@ -52,12 +89,52 @@ export const PersonnelManagementPage = () => {
       toast.success('Personnel added');
       setShowAddDialog(false);
       fetchPersonnel();
-      setFormData({ payroll_number: '', name: '', rank: 'Firefighter', station_id: '', shift: 'A', certifications: [] });
+      resetForm();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to add personnel');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditPersonnel = async () => {
+    if (!editingPerson) return;
+    
+    setLoading(true);
+    try {
+      await api.put(`/personnel/${editingPerson.id}`, {
+        name: formData.name,
+        rank: formData.rank,
+        station_id: formData.station_id,
+        shift: formData.shift,
+        certifications: formData.certifications,
+        contact_phone: formData.contact_phone,
+        contact_email: formData.contact_email
+      });
+      toast.success('Personnel updated');
+      setShowEditDialog(false);
+      fetchPersonnel();
+      resetForm();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update personnel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditDialog = (person) => {
+    setEditingPerson(person);
+    setFormData({
+      payroll_number: person.payroll_number,
+      name: person.name,
+      rank: person.rank,
+      station_id: person.station_id,
+      shift: person.shift,
+      certifications: person.certifications || [],
+      contact_phone: person.contact_phone || '',
+      contact_email: person.contact_email || ''
+    });
+    setShowEditDialog(true);
   };
 
   const handleDeletePersonnel = async (personnelId) => {
@@ -70,6 +147,17 @@ export const PersonnelManagementPage = () => {
     } catch (error) {
       toast.error('Failed to deactivate personnel');
     }
+  };
+
+  const addCertification = (cert) => {
+    if (cert && !formData.certifications.includes(cert)) {
+      setFormData({...formData, certifications: [...formData.certifications, cert]});
+    }
+    setCertInput('');
+  };
+
+  const removeCertification = (cert) => {
+    setFormData({...formData, certifications: formData.certifications.filter(c => c !== cert)});
   };
 
   const filteredPersonnel = personnel.filter(person => {
@@ -94,6 +182,139 @@ export const PersonnelManagementPage = () => {
     return <Badge className={colors[shift] || 'bg-gray-500'}>{shift} Shift</Badge>;
   };
 
+  const PersonnelForm = ({ isEdit = false }) => (
+    <div className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label>Payroll Number *</Label>
+        <Input
+          value={formData.payroll_number}
+          onChange={(e) => setFormData({...formData, payroll_number: e.target.value})}
+          placeholder="Enter payroll number"
+          disabled={isEdit}
+          data-testid="payroll-input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Full Name *</Label>
+        <Input
+          value={formData.name}
+          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          placeholder="Enter full name"
+          data-testid="name-input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Rank *</Label>
+        <Select 
+          value={formData.rank} 
+          onValueChange={(v) => setFormData({...formData, rank: v})}
+        >
+          <SelectTrigger data-testid="rank-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ranks.map(rank => (
+              <SelectItem key={rank} value={rank}>{rank}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Station *</Label>
+          <Select 
+            value={formData.station_id || "none"} 
+            onValueChange={(v) => setFormData({...formData, station_id: v === "none" ? "" : v})}
+          >
+            <SelectTrigger data-testid="station-select">
+              <SelectValue placeholder="Select Station" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {stations.map(station => (
+                <SelectItem key={station.id} value={station.id}>
+                  Station {station.station_number}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Shift *</Label>
+          <Select 
+            value={formData.shift} 
+            onValueChange={(v) => setFormData({...formData, shift: v})}
+          >
+            <SelectTrigger data-testid="shift-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A">A Shift</SelectItem>
+              <SelectItem value="B">B Shift</SelectItem>
+              <SelectItem value="C">C Shift</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Phone Number</Label>
+        <Input
+          value={formData.contact_phone}
+          onChange={(e) => setFormData({...formData, contact_phone: e.target.value})}
+          placeholder="(555) 555-5555"
+          data-testid="phone-input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Certifications</Label>
+        <div className="flex gap-2">
+          <Select value={certInput} onValueChange={(v) => { setCertInput(v); addCertification(v); }}>
+            <SelectTrigger className="flex-1" data-testid="cert-select">
+              <SelectValue placeholder="Select or type certification" />
+            </SelectTrigger>
+            <SelectContent>
+              {commonCertifications.filter(c => !formData.certifications.includes(c)).map(cert => (
+                <SelectItem key={cert} value={cert}>{cert}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            value={certInput}
+            onChange={(e) => setCertInput(e.target.value)}
+            placeholder="Or type custom"
+            className="w-32"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addCertification(certInput);
+              }
+            }}
+          />
+          <Button type="button" variant="outline" onClick={() => addCertification(certInput)}>
+            Add
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {formData.certifications.map((cert, idx) => (
+            <Badge key={idx} variant="secondary" className="flex items-center gap-1">
+              {cert}
+              <X 
+                className="h-3 w-3 cursor-pointer hover:text-red-500" 
+                onClick={() => removeCertification(cert)}
+              />
+            </Badge>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background" data-testid="personnel-management-page">
       <Navbar />
@@ -111,98 +332,37 @@ export const PersonnelManagementPage = () => {
           
           <div className="flex items-center gap-4">
             <BattalionSelector />
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button data-testid="add-personnel-btn">
                   <Plus className="h-4 w-4 mr-2" /> Add Personnel
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-heading uppercase">Add New Personnel</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Payroll Number *</Label>
-                    <Input
-                      value={formData.payroll_number}
-                      onChange={(e) => setFormData({...formData, payroll_number: e.target.value})}
-                      placeholder="Enter payroll number"
-                      data-testid="payroll-input"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Full Name *</Label>
-                    <Input
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      placeholder="Enter full name"
-                      data-testid="name-input"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Rank *</Label>
-                    <Select 
-                      value={formData.rank} 
-                      onValueChange={(v) => setFormData({...formData, rank: v})}
-                    >
-                      <SelectTrigger data-testid="rank-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ranks.map(rank => (
-                          <SelectItem key={rank} value={rank}>{rank}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Station *</Label>
-                    <Select 
-                      value={formData.station_id} 
-                      onValueChange={(v) => setFormData({...formData, station_id: v})}
-                    >
-                      <SelectTrigger data-testid="station-select">
-                        <SelectValue placeholder="Select Station" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stations.map(station => (
-                          <SelectItem key={station.id} value={station.id}>
-                            Station {station.station_number}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Shift *</Label>
-                    <Select 
-                      value={formData.shift} 
-                      onValueChange={(v) => setFormData({...formData, shift: v})}
-                    >
-                      <SelectTrigger data-testid="shift-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="A">A Shift</SelectItem>
-                        <SelectItem value="B">B Shift</SelectItem>
-                        <SelectItem value="C">C Shift</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button onClick={handleAddPersonnel} disabled={loading} className="w-full" data-testid="save-personnel-btn">
-                    <Save className="h-4 w-4 mr-2" /> Save Personnel
-                  </Button>
-                </div>
+                <PersonnelForm isEdit={false} />
+                <Button onClick={handleAddPersonnel} disabled={loading} className="w-full" data-testid="save-personnel-btn">
+                  <Save className="h-4 w-4 mr-2" /> Save Personnel
+                </Button>
               </DialogContent>
             </Dialog>
           </div>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={(open) => { setShowEditDialog(open); if (!open) resetForm(); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Edit Personnel</DialogTitle>
+            </DialogHeader>
+            <PersonnelForm isEdit={true} />
+            <Button onClick={handleEditPersonnel} disabled={loading} className="w-full" data-testid="update-personnel-btn">
+              <Save className="h-4 w-4 mr-2" /> Update Personnel
+            </Button>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters */}
         <Card className="mb-6">
@@ -294,7 +454,12 @@ export const PersonnelManagementPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" data-testid={`edit-${person.id}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => openEditDialog(person)}
+                            data-testid={`edit-${person.id}`}
+                          >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button 

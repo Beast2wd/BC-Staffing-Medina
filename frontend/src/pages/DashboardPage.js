@@ -89,15 +89,6 @@ export const DashboardPage = () => {
         <div className="mt-6">
           <RemarksPanel />
         </div>
-
-        {/* Footer Note */}
-        <div className="mt-6 p-4 bg-muted rounded-lg text-xs text-muted-foreground">
-          <p>
-            * Holdovers and Guaranteed Holidays that are less than 24 hours will display on the 
-            worksheet only during the shift they apply to. A night shift holdover/holiday will 
-            show a '1' on the worksheet only after 1830 hours. Day shift will show after 0630.
-          </p>
-        </div>
       </main>
     </div>
   );

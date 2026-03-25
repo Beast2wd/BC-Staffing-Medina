@@ -30,6 +30,8 @@ export const DeploymentPage = () => {
   });
 
   const deploymentTypes = [
+    'TIFMAS',
+    'TX-TF1',
     'Mutual Aid',
     'Strike Team',
     'Task Force',

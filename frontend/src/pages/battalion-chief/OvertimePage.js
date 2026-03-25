@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -17,7 +17,7 @@ import { Badge } from '../../components/ui/badge';
 
 export const OvertimePage = () => {
   const { api, canEdit } = useAuth();
-  const { personnel, stations, fetchAllData, selectedDate, selectedBattalion } = useStaffing();
+  const { personnel, stations, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift, fetchStaffingRecords, staffingRecords } = useStaffing();
   const [overtimeRecords, setOvertimeRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -27,13 +27,18 @@ export const OvertimePage = () => {
     hours: 12,
     station_id: '',
     status: 'available',
-    notes: ''
+    notes: '',
+    phone_number: ''
   });
 
   useEffect(() => {
     fetchAllData();
+  }, [selectedBattalion]);
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, date: selectedDate }));
     fetchOvertimeRecords();
-  }, [selectedDate, selectedBattalion]);
+  }, [selectedDate]);
 
   const fetchOvertimeRecords = async () => {
     try {
@@ -44,6 +49,12 @@ export const OvertimePage = () => {
     } catch (error) {
       console.error('Error fetching overtime records:', error);
     }
+  };
+
+  const navigateDate = (direction) => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + direction);
+    setSelectedDate(current.toISOString().split('T')[0]);
   };
 
   const handleAddRecord = async () => {
@@ -61,7 +72,7 @@ export const OvertimePage = () => {
       toast.success('Overtime record created');
       setShowAddDialog(false);
       fetchOvertimeRecords();
-      setFormData({ personnel_id: '', date: selectedDate, hours: 12, station_id: '', status: 'available', notes: '' });
+      setFormData({ personnel_id: '', date: selectedDate, hours: 12, station_id: '', status: 'available', notes: '', phone_number: '' });
     } catch (error) {
       toast.error('Failed to create overtime record');
     } finally {
@@ -72,20 +83,66 @@ export const OvertimePage = () => {
   const handleUpdateStatus = async (recordId, newStatus) => {
     try {
       const record = overtimeRecords.find(r => r.id === recordId);
+      const prevStatus = record.status;
+      
+      // Update the overtime record
       await api.put(`/overtime/${recordId}`, {
         ...record,
         status: newStatus
       });
+      
+      // Sync with daily worksheet
+      if (newStatus === 'assigned' && prevStatus !== 'assigned') {
+        // Add to daily worksheet overtime cell
+        await syncOvertimeToWorksheet(record.station_id, 1);
+      } else if (newStatus === 'declined' && prevStatus === 'assigned') {
+        // Remove from daily worksheet overtime cell
+        await syncOvertimeToWorksheet(record.station_id, -1);
+      }
+      
       toast.success('Status updated');
       fetchOvertimeRecords();
+      fetchStaffingRecords();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const syncOvertimeToWorksheet = async (stationId, change) => {
+    try {
+      // Find existing staffing record for the station
+      const existingRecord = staffingRecords.find(r => r.station_id === stationId);
+      
+      if (existingRecord) {
+        const currentOT = existingRecord.categories?.overtime || 0;
+        await api.put(`/staffing/${existingRecord.id}`, {
+          categories: { ...existingRecord.categories, overtime: Math.max(0, currentOT + change) }
+        });
+      } else {
+        // Create new staffing record
+        await api.post('/staffing', {
+          date: selectedDate,
+          station_id: stationId,
+          battalion_id: selectedBattalion,
+          shift: currentShift,
+          personnel_assigned: [],
+          categories: { overtime: Math.max(0, change) },
+          remarks: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing overtime to worksheet:', error);
     }
   };
 
   const getPersonnelName = (personnelId) => {
     const person = personnel.find(p => p.id === personnelId);
     return person ? `${person.rank} ${person.name}` : personnelId;
+  };
+
+  const getPersonnelPhone = (personnelId) => {
+    const person = personnel.find(p => p.id === personnelId);
+    return person?.contact_phone || '-';
   };
 
   const getStationName = (stationId) => {
@@ -104,6 +161,7 @@ export const OvertimePage = () => {
 
   const availableCount = overtimeRecords.filter(r => r.status === 'available').length;
   const assignedCount = overtimeRecords.filter(r => r.status === 'assigned').length;
+  const totalHoursAssigned = overtimeRecords.filter(r => r.status === 'assigned').reduce((sum, r) => sum + r.hours, 0);
 
   return (
     <div className="min-h-screen bg-background" data-testid="overtime-page">
@@ -116,7 +174,7 @@ export const OvertimePage = () => {
               Overtime Available
             </h1>
             <p className="text-muted-foreground mt-1">
-              Personnel available for overtime on {selectedDate}
+              Personnel available for overtime
             </p>
           </div>
           
@@ -138,7 +196,14 @@ export const OvertimePage = () => {
                       <Label>Personnel</Label>
                       <Select 
                         value={formData.personnel_id} 
-                        onValueChange={(v) => setFormData({...formData, personnel_id: v})}
+                        onValueChange={(v) => {
+                          const person = personnel.find(p => p.id === v);
+                          setFormData({
+                            ...formData, 
+                            personnel_id: v,
+                            phone_number: person?.contact_phone || ''
+                          });
+                        }}
                       >
                         <SelectTrigger data-testid="personnel-select">
                           <SelectValue placeholder="Select Personnel" />
@@ -151,6 +216,20 @@ export const OvertimePage = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Phone Number</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={formData.phone_number}
+                          onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                          placeholder="(555) 555-5555"
+                          className="pl-10"
+                          data-testid="phone-input"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -212,8 +291,33 @@ export const OvertimePage = () => {
           </div>
         </div>
 
+        {/* Date Navigation */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center gap-4">
+              <Button variant="outline" onClick={() => navigateDate(-1)} data-testid="prev-date">
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div className="text-center min-w-[200px]">
+                <p className="text-lg font-heading font-semibold">
+                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </p>
+                <p className="text-sm text-muted-foreground">{currentShift} Shift</p>
+              </div>
+              <Button variant="outline" onClick={() => navigateDate(1)} data-testid="next-date">
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
@@ -227,6 +331,14 @@ export const OvertimePage = () => {
               <div className="text-center">
                 <p className="text-3xl font-bold text-blue-500">{assignedCount}</p>
                 <p className="text-sm text-muted-foreground">Assigned</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-yellow-500">{totalHoursAssigned}</p>
+                <p className="text-sm text-muted-foreground">Hours Assigned</p>
               </div>
             </CardContent>
           </Card>
@@ -249,6 +361,7 @@ export const OvertimePage = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Personnel</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Regular Station</TableHead>
                   <TableHead>Shift</TableHead>
                   <TableHead>OT Station</TableHead>
@@ -261,7 +374,7 @@ export const OvertimePage = () => {
               <TableBody>
                 {overtimeRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={canEdit ? 9 : 8} className="text-center text-muted-foreground py-8">
                       No overtime records for this date
                     </TableCell>
                   </TableRow>
@@ -271,6 +384,12 @@ export const OvertimePage = () => {
                     return (
                       <TableRow key={record.id} data-testid={`overtime-row-${record.id}`}>
                         <TableCell className="font-medium">{getPersonnelName(record.personnel_id)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {record.phone_number || getPersonnelPhone(record.personnel_id)}
+                          </div>
+                        </TableCell>
                         <TableCell>{person?.station_id?.replace('sta-', 'Station ') || '-'}</TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 rounded text-xs ${

@@ -29,7 +29,7 @@ import {
 const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png';
 
 export const Navbar = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isFirefighter } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,14 +42,20 @@ export const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const NavLink = ({ to, children, active }) => (
+  // Check if user can view/access a menu item (all roles except firefighters for most items)
+  const canAccessFullMenu = !isFirefighter;
+
+  const NavLink = ({ to, children, active, disabled }) => (
     <Link
-      to={to}
+      to={disabled ? '#' : to}
       className={`px-4 py-2 font-heading text-sm uppercase tracking-wider transition-colors ${
         active 
           ? 'text-red-500 border-b-2 border-red-500' 
-          : 'text-foreground/80 hover:text-red-500'
+          : disabled
+            ? 'text-muted-foreground/50 cursor-not-allowed'
+            : 'text-foreground/80 hover:text-red-500'
       }`}
+      onClick={(e) => disabled && e.preventDefault()}
       data-testid={`nav-link-${to.replace('/', '') || 'home'}`}
     >
       {children}
@@ -72,75 +78,79 @@ export const Navbar = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center gap-1">
-          <NavLink to="/dashboard" active={isActive('/dashboard')}>
+          <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu}>
             Daily Worksheet
           </NavLink>
 
           {/* Battalion Chief Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="font-heading text-sm uppercase tracking-wider gap-1"
-                data-testid="battalion-chief-dropdown"
-              >
-                Battalion Chief <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/apparatus" className="flex items-center gap-2" data-testid="nav-apparatus">
-                  <Truck className="h-4 w-4" /> Apparatus Assignments
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/sick" className="flex items-center gap-2" data-testid="nav-sick">
-                  <AlertCircle className="h-4 w-4" /> Sick
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/vacation" className="flex items-center gap-2" data-testid="nav-vacation">
-                  <Calendar className="h-4 w-4" /> Vacation
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/holiday" className="flex items-center gap-2" data-testid="nav-holiday">
-                  <Calendar className="h-4 w-4" /> Holiday
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/deployment" className="flex items-center gap-2" data-testid="nav-deployment">
-                  <Plane className="h-4 w-4" /> Deployment
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/battalion-chief/overtime" className="flex items-center gap-2" data-testid="nav-overtime">
-                  <Clock className="h-4 w-4" /> Overtime Available
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canAccessFullMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="font-heading text-sm uppercase tracking-wider gap-1"
+                  data-testid="battalion-chief-dropdown"
+                >
+                  Battalion Chief <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/apparatus" className="flex items-center gap-2" data-testid="nav-apparatus">
+                    <Truck className="h-4 w-4" /> Apparatus Assignments
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/sick" className="flex items-center gap-2" data-testid="nav-sick">
+                    <AlertCircle className="h-4 w-4" /> Sick
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/vacation" className="flex items-center gap-2" data-testid="nav-vacation">
+                    <Calendar className="h-4 w-4" /> Vacation
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/holiday" className="flex items-center gap-2" data-testid="nav-holiday">
+                    <Calendar className="h-4 w-4" /> Holiday
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/deployment" className="flex items-center gap-2" data-testid="nav-deployment">
+                    <Plane className="h-4 w-4" /> Deployment
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/overtime" className="flex items-center gap-2" data-testid="nav-overtime">
+                    <Clock className="h-4 w-4" /> Overtime Available
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Deputy Chief Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="font-heading text-sm uppercase tracking-wider gap-1"
-                data-testid="deputy-chief-dropdown"
-              >
-                Deputy Chief <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link to="/deputy-chief/day-of-staffing" className="flex items-center gap-2" data-testid="nav-day-of-staffing">
-                  <ClipboardList className="h-4 w-4" /> Day of Staffing
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canAccessFullMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="font-heading text-sm uppercase tracking-wider gap-1"
+                  data-testid="deputy-chief-dropdown"
+                >
+                  Deputy Chief <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/deputy-chief/day-of-staffing" className="flex items-center gap-2" data-testid="nav-day-of-staffing">
+                    <ClipboardList className="h-4 w-4" /> Day of Staffing
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Tools Dropdown (Admin Only) */}
           {isAdmin && (
@@ -174,9 +184,16 @@ export const Navbar = () => {
             </DropdownMenu>
           )}
 
-          <NavLink to="/reports" active={isActive('/reports')}>
-            Reports
+          {/* Overtime Tab - Available to ALL users including firefighters */}
+          <NavLink to="/overtime" active={isActive('/overtime')}>
+            Overtime
           </NavLink>
+
+          {canAccessFullMenu && (
+            <NavLink to="/reports" active={isActive('/reports')}>
+              Reports
+            </NavLink>
+          )}
         </nav>
 
         {/* Right side actions */}
@@ -239,21 +256,34 @@ export const Navbar = () => {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-border bg-card p-4 animate-slide-in">
           <nav className="flex flex-col gap-2">
-            <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard">
-              Daily Worksheet
+            {canAccessFullMenu && (
+              <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard">
+                Daily Worksheet
+              </Link>
+            )}
+            {canAccessFullMenu && (
+              <Link to="/battalion-chief/apparatus" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-apparatus">
+                Apparatus Assignments
+              </Link>
+            )}
+            {canAccessFullMenu && (
+              <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-overtime-bc">
+                Overtime Available (BC)
+              </Link>
+            )}
+            <Link to="/overtime" className="px-4 py-2 hover:bg-muted rounded-md font-semibold text-red-500" data-testid="mobile-nav-overtime">
+              Overtime
             </Link>
-            <Link to="/battalion-chief/apparatus" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-apparatus">
-              Apparatus Assignments
-            </Link>
-            <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-overtime">
-              Overtime Available
-            </Link>
-            <Link to="/deputy-chief/day-of-staffing" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-day-staffing">
-              Day of Staffing
-            </Link>
-            <Link to="/reports" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-reports">
-              Reports
-            </Link>
+            {canAccessFullMenu && (
+              <Link to="/deputy-chief/day-of-staffing" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-day-staffing">
+                Day of Staffing
+              </Link>
+            )}
+            {canAccessFullMenu && (
+              <Link to="/reports" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-reports">
+                Reports
+              </Link>
+            )}
             {isAdmin && (
               <Link to="/tools/personnel" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-tools">
                 Tools
