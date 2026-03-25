@@ -204,18 +204,18 @@ export const UserManagementPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Station</Label>
                     <Select 
-                      value={formData.station_id} 
-                      onValueChange={(v) => setFormData({...formData, station_id: v})}
+                      value={formData.station_id || "none"} 
+                      onValueChange={(v) => setFormData({...formData, station_id: v === "none" ? "" : v})}
                     >
                       <SelectTrigger data-testid="station-select">
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {stations.map(station => (
                           <SelectItem key={station.id} value={station.id}>
                             Station {station.station_number}
