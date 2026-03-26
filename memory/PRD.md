@@ -64,7 +64,12 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Date navigation arrows
 - ✅ Status tracking (Available, Assigned, Declined)
 - ✅ Sync with daily worksheet Overtime (+) cell
-- ✅ Important notice about decline responsibility
+- ✅ **Delete function** - BC can delete overtime records from list (March 26, 2026)
+- ✅ **Hours worked tracking** - Running total of OT hours per personnel, updates on assign/decline (March 26, 2026)
+- ✅ **12/24 hour shift types** - Option to select shift duration when submitting availability (March 26, 2026)
+- ✅ **144 hour limit** - Availability can only be submitted up to 3 tours (144 hours) in advance (March 26, 2026)
+- ✅ **Updated notice** - Decline responsibility includes "via department email and phone call" (March 26, 2026)
+- ✅ **Removed station selection** - Uses personnel's home station automatically (March 26, 2026)
 
 ### Station Management
 - ✅ Add/Edit stations
@@ -102,3 +107,5 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - `POST /api/auth/set-temporary-password` - Admin sets temp password for personnel (creates user account)
 - `POST /api/auth/change-password` - User changes password (clears must_change_password flag)
 - `PUT /api/personnel/{id}` - Now accepts payroll_number updates
+- `DELETE /api/overtime/{id}` - Delete overtime record (deducts hours if was assigned)
+- `PUT /api/overtime/{id}` - Now tracks personnel overtime_hours_worked (add on assign, deduct on decline)
