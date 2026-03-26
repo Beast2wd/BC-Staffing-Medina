@@ -1,12 +1,43 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Lock, Eye, EyeOff, AlertTriangle, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
+
+// Password strength calculation
+const calculatePasswordStrength = (password) => {
+  if (!password) return { score: 0, label: '', color: '', tips: [] };
+  
+  let score = 0;
+  const tips = [];
+  
+  // Length checks
+  if (password.length >= 6) score += 1;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  
+  // Character variety checks
+  if (/[a-z]/.test(password)) score += 1;
+  if (/[A-Z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password)) score += 1;
+  if (/[^a-zA-Z0-9]/.test(password)) score += 1;
+  
+  // Tips for improvement
+  if (password.length < 8) tips.push('Use 8+ characters');
+  if (!/[A-Z]/.test(password)) tips.push('Add uppercase letter');
+  if (!/[0-9]/.test(password)) tips.push('Add a number');
+  if (!/[^a-zA-Z0-9]/.test(password)) tips.push('Add special character');
+  
+  // Determine strength level
+  if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500', textColor: 'text-red-500', tips };
+  if (score <= 4) return { score, label: 'Fair', color: 'bg-yellow-500', textColor: 'text-yellow-500', tips };
+  if (score <= 5) return { score, label: 'Good', color: 'bg-blue-500', textColor: 'text-blue-500', tips };
+  return { score, label: 'Strong', color: 'bg-green-500', textColor: 'text-green-500', tips: [] };
+};
 
 export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => {
   const { changePassword } = useAuth();
@@ -17,6 +48,9 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
   const [showNew, setShowNew] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Calculate password strength
+  const passwordStrength = useMemo(() => calculatePasswordStrength(newPassword), [newPassword]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,6 +158,31 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
                 {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            
+            {/* Password Strength Indicator */}
+            {newPassword && (
+              <div className="space-y-2" data-testid="password-strength-indicator">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                      style={{ width: `${Math.min((passwordStrength.score / 7) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <div className={`flex items-center gap-1 text-xs font-medium ${passwordStrength.textColor}`}>
+                    {passwordStrength.label === 'Weak' && <ShieldAlert className="h-3.5 w-3.5" />}
+                    {passwordStrength.label === 'Fair' && <Shield className="h-3.5 w-3.5" />}
+                    {(passwordStrength.label === 'Good' || passwordStrength.label === 'Strong') && <ShieldCheck className="h-3.5 w-3.5" />}
+                    {passwordStrength.label}
+                  </div>
+                </div>
+                {passwordStrength.tips.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Tips: {passwordStrength.tips.join(' • ')}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

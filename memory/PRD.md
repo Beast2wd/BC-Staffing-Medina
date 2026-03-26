@@ -55,6 +55,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Edit Payroll Number** - Payroll field now editable in Edit Personnel dialog (March 26, 2026)
 - ✅ **Set Temporary Password** - Admin can assign temp password to personnel, creating user account (March 26, 2026)
 - ✅ **Forced Password Change** - Users with temp password must change it on first login (ChangePasswordModal blocks access)
+- ✅ **Password Strength Indicator** - Visual feedback (Weak/Fair/Good/Strong) with tips as users type new password (March 26, 2026)
 
 ### Overtime System
 - ✅ **Overtime tab** - All users can submit availability
