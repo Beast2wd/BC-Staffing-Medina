@@ -57,6 +57,7 @@ class UserCreate(BaseModel):
     role: str = UserRole.FIREFIGHTER
     station_id: Optional[str] = None
     shift: Optional[str] = None
+    must_change_password: bool = False
 
 class UserLogin(BaseModel):
     payroll_number: str
@@ -72,11 +73,21 @@ class UserResponse(BaseModel):
     station_id: Optional[str] = None
     shift: Optional[str] = None
     is_active: bool
+    must_change_password: bool = False
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    must_change_password: bool = False
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+class SetTemporaryPassword(BaseModel):
+    personnel_id: str
+    temporary_password: str
 
 class PersonnelBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -104,6 +115,7 @@ class PersonnelCreate(BaseModel):
     contact_email: Optional[str] = None
 
 class PersonnelUpdate(BaseModel):
+    payroll_number: Optional[str] = None
     name: Optional[str] = None
     rank: Optional[str] = None
     station_id: Optional[str] = None
@@ -322,6 +334,7 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Account disabled")
     
     token = create_token(user["id"], user["role"])
+    must_change = user.get("must_change_password", False)
     
     return TokenResponse(
         access_token=token,
@@ -333,8 +346,10 @@ async def login(credentials: UserLogin):
             role=user["role"],
             station_id=user.get("station_id"),
             shift=user.get("shift"),
-            is_active=user.get("is_active", True)
-        )
+            is_active=user.get("is_active", True),
+            must_change_password=must_change
+        ),
+        must_change_password=must_change
     )
 
 @api_router.post("/auth/register", response_model=UserResponse)
@@ -380,8 +395,87 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         role=current_user["role"],
         station_id=current_user.get("station_id"),
         shift=current_user.get("shift"),
-        is_active=current_user.get("is_active", True)
+        is_active=current_user.get("is_active", True),
+        must_change_password=current_user.get("must_change_password", False)
     )
+
+@api_router.post("/auth/change-password")
+async def change_password(data: PasswordChange, current_user: dict = Depends(get_current_user)):
+    """Change password for current user"""
+    # Verify current password
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not verify_password(data.current_password, user.get("password_hash", "")):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Update password and clear must_change_password flag
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {
+            "password_hash": hash_password(data.new_password),
+            "must_change_password": False
+        }}
+    )
+    
+    return {"message": "Password changed successfully"}
+
+@api_router.post("/auth/set-temporary-password")
+async def set_temporary_password(
+    data: SetTemporaryPassword,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Set a temporary password for a personnel member and create/update their user account"""
+    # Get the personnel record
+    person = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+    if not person:
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Check if user already exists
+    existing_user = await db.users.find_one({"payroll_number": person["payroll_number"]})
+    
+    if existing_user:
+        # Update existing user's password
+        await db.users.update_one(
+            {"payroll_number": person["payroll_number"]},
+            {"$set": {
+                "password_hash": hash_password(data.temporary_password),
+                "must_change_password": True
+            }}
+        )
+        return {"message": "Temporary password set. User will be prompted to change on next login.", "user_exists": True}
+    else:
+        # Create new user account
+        user_id = str(uuid.uuid4())
+        
+        # Determine role based on rank
+        rank_to_role = {
+            "Fire Chief": UserRole.ADMIN,
+            "Asst. Chief": UserRole.ADMIN,
+            "Deputy Chief": UserRole.BATTALION_CHIEF,
+            "Battalion Chief": UserRole.BATTALION_CHIEF,
+            "Captain": UserRole.CAPTAIN,
+            "Lieutenant": UserRole.LIEUTENANT,
+        }
+        role = rank_to_role.get(person.get("rank"), UserRole.FIREFIGHTER)
+        
+        user_doc = {
+            "id": user_id,
+            "payroll_number": person["payroll_number"],
+            "password_hash": hash_password(data.temporary_password),
+            "name": person["name"],
+            "rank": person.get("rank", "Firefighter"),
+            "role": role,
+            "station_id": person.get("station_id"),
+            "shift": person.get("shift"),
+            "is_active": True,
+            "must_change_password": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.users.insert_one(user_doc)
+        return {"message": "User account created with temporary password. User will be prompted to change on first login.", "user_exists": False}
 
 # ===================== PERSONNEL ROUTES =====================
 

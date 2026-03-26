@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, X } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
@@ -115,7 +115,6 @@ const PersonnelFormDialog = memo(({
               value={payrollNumber}
               onChange={(e) => setPayrollNumber(e.target.value)}
               placeholder="Enter payroll number"
-              disabled={isEdit}
               data-testid="payroll-input"
             />
           </div>
@@ -254,7 +253,10 @@ export const PersonnelManagementPage = () => {
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
+  const [passwordPerson, setPasswordPerson] = useState(null);
+  const [tempPassword, setTempPassword] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterShift, setFilterShift] = useState('all');
   const [filterStation, setFilterStation] = useState('all');
@@ -291,6 +293,7 @@ export const PersonnelManagementPage = () => {
     setLoading(true);
     try {
       await api.put(`/personnel/${editingPerson.id}`, {
+        payroll_number: formData.payroll_number,
         name: formData.name,
         rank: formData.rank,
         station_id: formData.station_id,
@@ -325,6 +328,40 @@ export const PersonnelManagementPage = () => {
       toast.error('Failed to deactivate personnel');
     }
   }, [api, fetchPersonnel]);
+
+  const openPasswordDialog = useCallback((person) => {
+    setPasswordPerson(person);
+    setTempPassword('');
+    setShowPasswordDialog(true);
+  }, []);
+
+  const handleSetPassword = useCallback(async () => {
+    if (!passwordPerson || !tempPassword) {
+      toast.error('Please enter a temporary password');
+      return;
+    }
+    
+    if (tempPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await api.post('/auth/set-temporary-password', {
+        personnel_id: passwordPerson.id,
+        temporary_password: tempPassword
+      });
+      toast.success(response.data.message);
+      setShowPasswordDialog(false);
+      setPasswordPerson(null);
+      setTempPassword('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to set password');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, passwordPerson, tempPassword]);
 
   const filteredPersonnel = personnel.filter(person => {
     const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -392,6 +429,62 @@ export const PersonnelManagementPage = () => {
           isEdit={true}
           loading={loading}
         />
+
+        {/* Set Password Dialog */}
+        <Dialog open={showPasswordDialog} onOpenChange={(open) => { setShowPasswordDialog(open); if (!open) { setPasswordPerson(null); setTempPassword(''); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-heading uppercase">
+                <Key className="h-5 w-5" />
+                Set Temporary Password
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {passwordPerson && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{passwordPerson.rank} {passwordPerson.name}</p>
+                  <p className="text-sm text-muted-foreground">Payroll: {passwordPerson.payroll_number}</p>
+                </div>
+              )}
+              
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <UserCheck className="h-5 w-5 text-yellow-500 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-500">First Login Requirement</p>
+                    <p className="text-muted-foreground">
+                      The user will be prompted to change this password on their first login.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Temporary Password *</Label>
+                <Input
+                  type="text"
+                  value={tempPassword}
+                  onChange={(e) => setTempPassword(e.target.value)}
+                  placeholder="Enter temporary password (min 6 chars)"
+                  data-testid="temp-password-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum 6 characters. Share this password with the personnel member securely.
+                </p>
+              </div>
+
+              <Button 
+                onClick={handleSetPassword} 
+                disabled={loading || !tempPassword} 
+                className="w-full"
+                data-testid="set-password-btn"
+              >
+                <Key className="h-4 w-4 mr-2" />
+                {loading ? 'Setting...' : 'Set Password & Create Account'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters */}
         <Card className="mb-6">
@@ -487,15 +580,27 @@ export const PersonnelManagementPage = () => {
                             variant="ghost" 
                             size="sm" 
                             onClick={() => openEditDialog(person)}
+                            title="Edit Personnel"
                             data-testid={`edit-${person.id}`}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
+                            size="sm"
+                            onClick={() => openPasswordDialog(person)}
+                            title="Set Password"
+                            className="text-blue-500"
+                            data-testid={`password-${person.id}`}
+                          >
+                            <Key className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
                             size="sm" 
                             className="text-red-500"
                             onClick={() => handleDeletePersonnel(person.id)}
+                            title="Deactivate"
                             data-testid={`delete-${person.id}`}
                           >
                             <Trash2 className="h-4 w-4" />

@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const api = axios.create({
     baseURL: `${API_URL}/api`,
@@ -22,11 +23,12 @@ export const AuthProvider = ({ children }) => {
         password: password
       });
       
-      const { access_token, user: userData } = response.data;
+      const { access_token, user: userData, must_change_password } = response.data;
       localStorage.setItem('token', access_token);
       setToken(access_token);
       setUser(userData);
-      return { success: true };
+      setMustChangePassword(must_change_password || false);
+      return { success: true, mustChangePassword: must_change_password };
     } catch (error) {
       return { 
         success: false, 
@@ -35,10 +37,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      await api.post('/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      });
+      setMustChangePassword(false);
+      if (user) {
+        setUser({ ...user, must_change_password: false });
+      }
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Failed to change password'
+      };
+    }
+  };
+
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    setMustChangePassword(false);
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -52,6 +74,7 @@ export const AuthProvider = ({ children }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data);
+      setMustChangePassword(response.data.must_change_password || false);
     } catch (error) {
       logout();
     } finally {
@@ -78,13 +101,15 @@ export const AuthProvider = ({ children }) => {
       loading,
       login,
       logout,
+      changePassword,
       api,
       isAdmin,
       isBattalionChief,
       isCaptain,
       isLieutenant,
       isFirefighter,
-      canEdit
+      canEdit,
+      mustChangePassword
     }}>
       {children}
     </AuthContext.Provider>

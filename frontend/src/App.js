@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StaffingProvider } from "./context/StaffingContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 
 // Pages
 import { LoginPage } from "./pages/LoginPage";
@@ -44,7 +45,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
 // App Content with Routing
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, mustChangePassword } = useAuth();
 
   if (loading) {
     return (
@@ -56,6 +57,14 @@ const AppContent = () => {
 
   return (
     <StaffingProvider>
+      {/* Force password change modal - blocks all navigation until password is changed */}
+      {user && mustChangePassword && (
+        <ChangePasswordModal 
+          isOpen={true} 
+          onClose={() => {}} 
+          isRequired={true} 
+        />
+      )}
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
