@@ -131,6 +131,35 @@ export const OvertimePage = () => {
     }
   };
 
+  const handleUpdateStation = async (recordId, newStationId) => {
+    try {
+      const record = overtimeRecords.find(r => r.id === recordId);
+      if (!record) return;
+      
+      const oldStationId = record.station_id;
+      
+      // Update the overtime record with new station
+      await api.put(`/overtime/${recordId}`, {
+        ...record,
+        station_id: newStationId
+      });
+      
+      // If the record is assigned, update the daily worksheet
+      if (record.status === 'assigned') {
+        // Remove from old station
+        await syncOvertimeToWorksheet(oldStationId, -1);
+        // Add to new station
+        await syncOvertimeToWorksheet(newStationId, 1);
+      }
+      
+      toast.success('OT Station updated');
+      fetchOvertimeRecords();
+      fetchStaffingRecords();
+    } catch (error) {
+      toast.error('Failed to update station');
+    }
+  };
+
   const syncOvertimeToWorksheet = async (stationId, change) => {
     try {
       // Find existing staffing record for the station
@@ -440,7 +469,27 @@ export const OvertimePage = () => {
                             {person?.shift || '-'}
                           </span>
                         </TableCell>
-                        <TableCell>{getStationName(record.station_id)}</TableCell>
+                        <TableCell>
+                          {canEdit ? (
+                            <Select 
+                              value={record.station_id} 
+                              onValueChange={(v) => handleUpdateStation(record.id, v)}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28" data-testid={`ot-station-select-${record.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {stations.map(station => (
+                                  <SelectItem key={station.id} value={station.id}>
+                                    Station {station.station_number}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            getStationName(record.station_id)
+                          )}
+                        </TableCell>
                         <TableCell>{record.hours} hrs</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">

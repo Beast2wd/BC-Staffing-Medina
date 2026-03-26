@@ -71,6 +71,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Updated notice** - Decline responsibility includes "via department email and phone call" (March 26, 2026)
 - ✅ **Removed station selection** - Uses personnel's home station automatically (March 26, 2026)
 - ✅ **Self-remove from list** - Personnel can remove themselves via "Remove" option before being assigned (March 26, 2026)
+- ✅ **OT Station dropdown** - Admin/BC/Captain/Lieutenant can select overtime station; syncs to daily worksheet (March 26, 2026)
 
 ### Station Management
 - ✅ Add/Edit stations
