@@ -52,6 +52,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Fields: Payroll, Name, Rank, Station, Shift, Phone, Certifications
 - ✅ Updated ranks list
 - ✅ Certification management with predefined options
+- ✅ **Edit Payroll Number** - Payroll field now editable in Edit Personnel dialog (March 26, 2026)
+- ✅ **Set Temporary Password** - Admin can assign temp password to personnel, creating user account (March 26, 2026)
+- ✅ **Forced Password Change** - Users with temp password must change it on first login (ChangePasswordModal blocks access)
 
 ### Overtime System
 - ✅ **Overtime tab** - All users can submit availability
@@ -89,7 +92,12 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 | Lieutenant | Edit | View | View | - | Submit | View |
 | Firefighter | View | - | - | - | Submit | - |
 
-## Next Tasks
-1. Shift notification alerts when below minimum staffing
-2. Export reports to PDF/Excel
-3. Real-time WebSocket updates
+## Next Tasks (Backlog)
+1. Shift notification alerts when below minimum staffing (P2)
+2. Export reports to PDF/Excel (P2)
+3. Real-time WebSocket updates (P3)
+
+## API Endpoints Added (March 26, 2026)
+- `POST /api/auth/set-temporary-password` - Admin sets temp password for personnel (creates user account)
+- `POST /api/auth/change-password` - User changes password (clears must_change_password flag)
+- `PUT /api/personnel/{id}` - Now accepts payroll_number updates
