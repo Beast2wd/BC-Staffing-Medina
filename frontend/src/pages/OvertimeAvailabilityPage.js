@@ -54,6 +54,15 @@ export const OvertimeAvailabilityPage = () => {
     fetchOvertimeRecords();
   }, [selectedDate]);
 
+  // Update myRecords when overtimeRecords or myPersonnel changes
+  useEffect(() => {
+    if (myPersonnel && overtimeRecords.length > 0) {
+      setMyRecords(overtimeRecords.filter(r => r.personnel_id === myPersonnel.id));
+    } else {
+      setMyRecords([]);
+    }
+  }, [overtimeRecords, myPersonnel]);
+
   // Validate date is within allowed range
   const isDateAllowed = (dateStr) => {
     const today = new Date();
@@ -70,11 +79,6 @@ export const OvertimeAvailabilityPage = () => {
         params: { date: selectedDate, battalion_id: selectedBattalion }
       });
       setOvertimeRecords(response.data);
-      
-      // Filter my records
-      if (myPersonnel) {
-        setMyRecords(response.data.filter(r => r.personnel_id === myPersonnel.id));
-      }
     } catch (error) {
       console.error('Error fetching overtime records:', error);
     }
@@ -124,6 +128,12 @@ export const OvertimeAvailabilityPage = () => {
   };
 
   const handleUpdateMyStatus = async (recordId, newStatus) => {
+    // Handle remove action
+    if (newStatus === 'remove') {
+      await handleRemoveMyRecord(recordId);
+      return;
+    }
+    
     try {
       const record = overtimeRecords.find(r => r.id === recordId);
       
@@ -136,6 +146,18 @@ export const OvertimeAvailabilityPage = () => {
       fetchOvertimeRecords();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleRemoveMyRecord = async (recordId) => {
+    if (!confirm('Are you sure you want to remove yourself from the overtime list?')) return;
+    
+    try {
+      await api.delete(`/overtime/${recordId}`);
+      toast.success('Removed from overtime list');
+      fetchOvertimeRecords();
+    } catch (error) {
+      toast.error('Failed to remove from list');
     }
   };
 
@@ -320,12 +342,15 @@ export const OvertimeAvailabilityPage = () => {
                           onValueChange={(v) => handleUpdateMyStatus(record.id, v)}
                           disabled={record.status === 'assigned'}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs" data-testid={`status-select-${record.id}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="available">Available</SelectItem>
                             <SelectItem value="declined">Decline</SelectItem>
+                            {record.status !== 'assigned' && (
+                              <SelectItem value="remove" className="text-red-500">Remove</SelectItem>
+                            )}
                             {record.status === 'assigned' && (
                               <SelectItem value="assigned" disabled>Assigned</SelectItem>
                             )}

@@ -869,13 +869,27 @@ async def update_overtime_record(
 @api_router.delete("/overtime/{record_id}")
 async def delete_overtime_record(
     record_id: str,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+    current_user: dict = Depends(get_current_user)
 ):
-    """Delete an overtime record from the list"""
-    # Get the record first to check if it was assigned
+    """Delete an overtime record from the list. Users can delete their own records, BC/Admin can delete any."""
+    # Get the record first
     record = await db.overtime_records.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Overtime record not found")
+    
+    # Check permissions - users can only delete their own non-assigned records
+    is_admin_or_bc = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF]
+    
+    # Find if this is the user's own record
+    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+    is_own_record = user_personnel and user_personnel.get("id") == record.get("personnel_id")
+    
+    if not is_admin_or_bc and not is_own_record:
+        raise HTTPException(status_code=403, detail="You can only remove your own overtime availability")
+    
+    # Regular users cannot remove themselves if already assigned
+    if not is_admin_or_bc and record.get("status") == "assigned":
+        raise HTTPException(status_code=400, detail="Cannot remove yourself after being assigned. Contact your Battalion Chief.")
     
     # If the record was assigned, deduct hours from personnel
     if record.get("status") == "assigned":
