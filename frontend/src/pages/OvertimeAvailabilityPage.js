@@ -24,15 +24,26 @@ export const OvertimeAvailabilityPage = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formData, setFormData] = useState({
     date: selectedDate,
-    hours: 12,
-    station_id: '',
+    hours: 24,
     status: 'available',
     notes: '',
-    phone_number: ''
+    phone_number: '',
+    shift_type: '24'
   });
 
   // Find the current user's personnel record
   const myPersonnel = personnel.find(p => p.payroll_number === user?.payroll_number);
+  
+  // Calculate max allowed date (144 hours / 3 tours from today)
+  const getMaxAllowedDate = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setHours(maxDate.getHours() + 144); // 144 hours = 6 days
+    return maxDate.toISOString().split('T')[0];
+  };
+  
+  const maxDate = getMaxAllowedDate();
 
   useEffect(() => {
     fetchAllData();
@@ -42,6 +53,16 @@ export const OvertimeAvailabilityPage = () => {
     setFormData(prev => ({ ...prev, date: selectedDate }));
     fetchOvertimeRecords();
   }, [selectedDate]);
+
+  // Validate date is within allowed range
+  const isDateAllowed = (dateStr) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDateObj = new Date(dateStr + 'T00:00:00');
+    const maxDateObj = new Date(today);
+    maxDateObj.setHours(maxDateObj.getHours() + 144);
+    return selectedDateObj >= today && selectedDateObj <= maxDateObj;
+  };
 
   const fetchOvertimeRecords = async () => {
     try {
@@ -67,33 +88,36 @@ export const OvertimeAvailabilityPage = () => {
 
   const handleAddAvailability = async () => {
     if (!myPersonnel) {
-      toast.error('Your personnel record was not found');
+      toast.error('Your personnel record was not found. Please contact your administrator.');
       return;
     }
     
-    if (!formData.station_id) {
-      toast.error('Please select a station');
+    // Validate date is within 144 hours (3 tours)
+    if (!isDateAllowed(formData.date)) {
+      toast.error('You can only submit availability up to 3 tours (144 hours) in advance');
       return;
     }
     
     setLoading(true);
     try {
+      // Use the personnel's assigned station from their record
       await api.post('/overtime', {
         personnel_id: myPersonnel.id,
         date: formData.date,
         hours: formData.hours,
-        station_id: formData.station_id,
+        station_id: myPersonnel.station_id, // Use personnel's home station
         battalion_id: selectedBattalion,
         status: 'available',
         notes: formData.notes,
-        phone_number: formData.phone_number || myPersonnel.contact_phone
+        phone_number: formData.phone_number || myPersonnel.contact_phone,
+        shift_type: formData.shift_type
       });
       toast.success('Availability submitted');
       setShowAddDialog(false);
       fetchOvertimeRecords();
-      setFormData({ date: selectedDate, hours: 12, station_id: '', status: 'available', notes: '', phone_number: '' });
+      setFormData({ date: selectedDate, hours: 24, status: 'available', notes: '', phone_number: '', shift_type: '24' });
     } catch (error) {
-      toast.error('Failed to submit availability');
+      toast.error(error.response?.data?.detail || 'Failed to submit availability');
     } finally {
       setLoading(false);
     }
@@ -158,6 +182,7 @@ export const OvertimeAvailabilityPage = () => {
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm font-medium">{myPersonnel?.rank} {myPersonnel?.name}</p>
                   <p className="text-xs text-muted-foreground">Payroll: {user?.payroll_number}</p>
+                  <p className="text-xs text-muted-foreground">Home Station: Station {stations.find(s => s.id === myPersonnel?.station_id)?.station_number || 'N/A'}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -175,30 +200,32 @@ export const OvertimeAvailabilityPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Date</Label>
+                  <Label>Date (max 3 tours / 144 hours in advance)</Label>
                   <Input
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    max={maxDate}
                     data-testid="date-input"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Availability can only be submitted up to {maxDate}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Available for Station</Label>
+                  <Label>Shift Type</Label>
                   <Select 
-                    value={formData.station_id} 
-                    onValueChange={(v) => setFormData({...formData, station_id: v})}
+                    value={formData.shift_type} 
+                    onValueChange={(v) => setFormData({...formData, shift_type: v, hours: parseInt(v)})}
                   >
-                    <SelectTrigger data-testid="station-select">
-                      <SelectValue placeholder="Select Station" />
+                    <SelectTrigger data-testid="shift-type-select">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {stations.map(station => (
-                        <SelectItem key={station.id} value={station.id}>
-                          Station {station.station_number}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="12">12-Hour Shift</SelectItem>
+                      <SelectItem value="24">24-Hour Shift</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -317,8 +344,9 @@ export const OvertimeAvailabilityPage = () => {
         <Alert className="mb-6">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Important:</strong> If you are declining an assigned overtime shift, it is YOUR responsibility 
-            to contact the Officer or Battalion Chief of the station and shift that is being affected by the decline.
+            <strong>Important:</strong> If you decline an assigned overtime shift, it is YOUR responsibility 
+            to contact the Officer or Battalion Chief of the station and shift that staffing is being affected, 
+            via department email and phone call.
           </AlertDescription>
         </Alert>
 

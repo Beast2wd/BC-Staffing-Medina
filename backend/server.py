@@ -102,6 +102,7 @@ class PersonnelBase(BaseModel):
     certifications: List[str] = []
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+    overtime_hours_worked: float = 0.0  # Running total of overtime hours worked
 
 class PersonnelCreate(BaseModel):
     payroll_number: str
@@ -253,6 +254,7 @@ class OvertimeRecord(BaseModel):
     status: str = "available"  # available, assigned, declined
     notes: str = ""
     phone_number: str = ""
+    shift_type: str = "24"  # "12" or "24" hour shift
 
 class OvertimeRecordCreate(BaseModel):
     personnel_id: str
@@ -263,6 +265,7 @@ class OvertimeRecordCreate(BaseModel):
     status: str = "available"
     notes: str = ""
     phone_number: str = ""
+    shift_type: str = "24"  # "12" or "24" hour shift
 
 class DeploymentRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -795,8 +798,22 @@ async def get_overtime_records(
 @api_router.post("/overtime", response_model=OvertimeRecord)
 async def create_overtime_record(
     data: OvertimeRecordCreate,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+    current_user: dict = Depends(get_current_user)
 ):
+    """Create overtime record - any user can submit their own availability"""
+    # Verify personnel exists
+    personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+    if not personnel:
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Check if user is submitting for themselves or has elevated permissions
+    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+    is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
+    has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+    
+    if not is_own_record and not has_permissions:
+        raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
+    
     record_id = str(uuid.uuid4())
     record_doc = {"id": record_id, **data.model_dump()}
     await db.overtime_records.insert_one(record_doc)
@@ -808,6 +825,37 @@ async def update_overtime_record(
     data: OvertimeRecordCreate,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
+    # Get the existing record to check previous status
+    existing = await db.overtime_records.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Overtime record not found")
+    
+    prev_status = existing.get("status", "available")
+    new_status = data.status
+    hours = data.hours or existing.get("hours", 0)
+    personnel_id = existing.get("personnel_id")
+    
+    # Update personnel overtime hours based on status change
+    if prev_status != new_status:
+        if new_status == "assigned" and prev_status != "assigned":
+            # Add hours when assigned
+            await db.personnel.update_one(
+                {"id": personnel_id},
+                {"$inc": {"overtime_hours_worked": hours}}
+            )
+        elif new_status == "declined" and prev_status == "assigned":
+            # Deduct hours when declining from assigned
+            await db.personnel.update_one(
+                {"id": personnel_id},
+                {"$inc": {"overtime_hours_worked": -hours}}
+            )
+        elif new_status == "available" and prev_status == "assigned":
+            # Deduct hours when going back to available from assigned
+            await db.personnel.update_one(
+                {"id": personnel_id},
+                {"$inc": {"overtime_hours_worked": -hours}}
+            )
+    
     result = await db.overtime_records.find_one_and_update(
         {"id": record_id},
         {"$set": data.model_dump()},
@@ -817,6 +865,33 @@ async def update_overtime_record(
         raise HTTPException(status_code=404, detail="Overtime record not found")
     del result["_id"]
     return OvertimeRecord(**result)
+
+@api_router.delete("/overtime/{record_id}")
+async def delete_overtime_record(
+    record_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Delete an overtime record from the list"""
+    # Get the record first to check if it was assigned
+    record = await db.overtime_records.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Overtime record not found")
+    
+    # If the record was assigned, deduct hours from personnel
+    if record.get("status") == "assigned":
+        hours = record.get("hours", 0)
+        personnel_id = record.get("personnel_id")
+        await db.personnel.update_one(
+            {"id": personnel_id},
+            {"$inc": {"overtime_hours_worked": -hours}}
+        )
+    
+    # Delete the record
+    result = await db.overtime_records.delete_one({"id": record_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Overtime record not found")
+    
+    return {"message": "Overtime record deleted"}
 
 # ===================== DEPLOYMENT ROUTES =====================
 

@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -24,11 +24,12 @@ export const OvertimePage = () => {
   const [formData, setFormData] = useState({
     personnel_id: '',
     date: selectedDate,
-    hours: 12,
+    hours: 24,
     station_id: '',
     status: 'available',
     notes: '',
-    phone_number: ''
+    phone_number: '',
+    shift_type: '24'
   });
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export const OvertimePage = () => {
       toast.success('Overtime record created');
       setShowAddDialog(false);
       fetchOvertimeRecords();
-      setFormData({ personnel_id: '', date: selectedDate, hours: 12, station_id: '', status: 'available', notes: '', phone_number: '' });
+      setFormData({ personnel_id: '', date: selectedDate, hours: 24, station_id: '', status: 'available', notes: '', phone_number: '', shift_type: '24' });
     } catch (error) {
       toast.error('Failed to create overtime record');
     } finally {
@@ -103,8 +104,30 @@ export const OvertimePage = () => {
       toast.success('Status updated');
       fetchOvertimeRecords();
       fetchStaffingRecords();
+      fetchAllData(); // Refresh personnel to get updated hours
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleDeleteRecord = async (recordId) => {
+    if (!confirm('Are you sure you want to delete this overtime record?')) return;
+    
+    try {
+      const record = overtimeRecords.find(r => r.id === recordId);
+      
+      // If it was assigned, also update the worksheet
+      if (record?.status === 'assigned') {
+        await syncOvertimeToWorksheet(record.station_id, -1);
+      }
+      
+      await api.delete(`/overtime/${recordId}`);
+      toast.success('Overtime record deleted');
+      fetchOvertimeRecords();
+      fetchStaffingRecords();
+      fetchAllData(); // Refresh personnel to get updated hours
+    } catch (error) {
+      toast.error('Failed to delete overtime record');
     }
   };
 
@@ -262,6 +285,22 @@ export const OvertimePage = () => {
                     </div>
                     
                     <div className="space-y-2">
+                      <Label>Shift Type</Label>
+                      <Select 
+                        value={formData.shift_type} 
+                        onValueChange={(v) => setFormData({...formData, shift_type: v, hours: parseInt(v)})}
+                      >
+                        <SelectTrigger data-testid="shift-type-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="12">12-Hour Shift</SelectItem>
+                          <SelectItem value="24">24-Hour Shift</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
                       <Label>Hours</Label>
                       <Input
                         type="number"
@@ -366,15 +405,16 @@ export const OvertimePage = () => {
                   <TableHead>Shift</TableHead>
                   <TableHead>OT Station</TableHead>
                   <TableHead>Hours</TableHead>
+                  <TableHead>Total OT Hrs</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Notes</TableHead>
-                  {canEdit && <TableHead className="w-32">Actions</TableHead>}
+                  {canEdit && <TableHead className="w-40">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {overtimeRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 9 : 8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={canEdit ? 10 : 9} className="text-center text-muted-foreground py-8">
                       No overtime records for this date
                     </TableCell>
                   </TableRow>
@@ -402,23 +442,43 @@ export const OvertimePage = () => {
                         </TableCell>
                         <TableCell>{getStationName(record.station_id)}</TableCell>
                         <TableCell>{record.hours} hrs</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 text-yellow-500" />
+                            <span className="font-medium text-yellow-500">
+                              {person?.overtime_hours_worked || 0} hrs
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell>{getStatusBadge(record.status)}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{record.notes || '-'}</TableCell>
                         {canEdit && (
                           <TableCell>
-                            <Select 
-                              value={record.status} 
-                              onValueChange={(v) => handleUpdateStatus(record.id, v)}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="available">Available</SelectItem>
-                                <SelectItem value="assigned">Assigned</SelectItem>
-                                <SelectItem value="declined">Declined</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-2">
+                              <Select 
+                                value={record.status} 
+                                onValueChange={(v) => handleUpdateStatus(record.id, v)}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="available">Available</SelectItem>
+                                  <SelectItem value="assigned">Assigned</SelectItem>
+                                  <SelectItem value="declined">Declined</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                onClick={() => handleDeleteRecord(record.id)}
+                                title="Delete"
+                                data-testid={`delete-overtime-${record.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
