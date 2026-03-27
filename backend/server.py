@@ -89,6 +89,14 @@ class SetTemporaryPassword(BaseModel):
     personnel_id: str
     temporary_password: str
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    rank: Optional[str] = None
+    role: Optional[str] = None
+    station_id: Optional[str] = None
+    shift: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class PersonnelBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1045,10 +1053,15 @@ async def get_users(current_user: dict = Depends(require_role([UserRole.ADMIN]))
 @api_router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: str,
-    data: UserBase,
+    data: UserUpdate,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    update_data = data.model_dump()
+    # Only include non-None values in update
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+    
     result = await db.users.find_one_and_update(
         {"id": user_id},
         {"$set": update_data},
@@ -1064,6 +1077,33 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_role([U
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deactivated"}
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+@api_router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: str,
+    data: ResetPasswordRequest,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Admin can reset any user's password"""
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Hash the new password
+    password_hash = pwd_context.hash(data.new_password)
+    
+    # Update the user's password
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"password_hash": password_hash, "must_change_password": False}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "Password reset successfully"}
 
 # ===================== SHIFT CALCULATION =====================
 

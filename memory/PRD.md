@@ -81,6 +81,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ### User Management
 - ✅ Add/Edit/Deactivate users
 - ✅ Role assignment
+- ✅ **Edit User** - Update name, rank, role, station, shift, status (March 27, 2026)
+- ✅ **Reset Password** - Admin can reset any user's password (March 27, 2026)
 
 ### Reports
 - ✅ Daily Staffing Summary

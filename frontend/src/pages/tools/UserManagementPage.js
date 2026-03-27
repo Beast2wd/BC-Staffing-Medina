@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, Key } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
@@ -19,6 +19,11 @@ export const UserManagementPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [formData, setFormData] = useState({
@@ -29,6 +34,14 @@ export const UserManagementPage = () => {
     role: 'firefighter',
     station_id: '',
     shift: 'A'
+  });
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    rank: '',
+    role: '',
+    station_id: '',
+    shift: '',
+    is_active: true
   });
 
   const roles = [
@@ -84,6 +97,69 @@ export const UserManagementPage = () => {
       fetchUsers();
     } catch (error) {
       toast.error('Failed to deactivate user');
+    }
+  };
+
+  const handleOpenEdit = (user) => {
+    setEditingUser(user);
+    setEditFormData({
+      name: user.name,
+      rank: user.rank || 'Firefighter',
+      role: user.role,
+      station_id: user.station_id || '',
+      shift: user.shift || 'A',
+      is_active: user.is_active
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleEditUser = async () => {
+    if (!editingUser) return;
+    
+    setLoading(true);
+    try {
+      await api.put(`/users/${editingUser.id}`, editFormData);
+      toast.success('User updated');
+      setShowEditDialog(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenResetPassword = (user) => {
+    setResetPasswordUser(user);
+    setNewPassword('');
+    setShowResetPasswordDialog(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await api.post(`/users/${resetPasswordUser.id}/reset-password`, {
+        new_password: newPassword
+      });
+      toast.success('Password reset successfully');
+      setShowResetPasswordDialog(false);
+      setResetPasswordUser(null);
+      setNewPassword('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reset password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -336,14 +412,31 @@ export const UserManagementPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" data-testid={`edit-${user.id}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleOpenEdit(user)}
+                            title="Edit User"
+                            data-testid={`edit-${user.id}`}
+                          >
                             <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-blue-500"
+                            onClick={() => handleOpenResetPassword(user)}
+                            title="Reset Password"
+                            data-testid={`reset-password-${user.id}`}
+                          >
+                            <Key className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             className="text-red-500"
                             onClick={() => handleDeleteUser(user.id)}
+                            title="Deactivate User"
                             data-testid={`delete-${user.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -357,6 +450,165 @@ export const UserManagementPage = () => {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit User Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Edit User</DialogTitle>
+            </DialogHeader>
+            {editingUser && (
+              <div className="space-y-4 py-4">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium">Payroll: {editingUser.payroll_number}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Full Name</Label>
+                  <Input
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                    placeholder="Enter full name"
+                    data-testid="edit-name-input"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Rank</Label>
+                    <Select 
+                      value={editFormData.rank} 
+                      onValueChange={(v) => setEditFormData({...editFormData, rank: v})}
+                    >
+                      <SelectTrigger data-testid="edit-rank-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ranks.map(rank => (
+                          <SelectItem key={rank} value={rank}>{rank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select 
+                      value={editFormData.role} 
+                      onValueChange={(v) => setEditFormData({...editFormData, role: v})}
+                    >
+                      <SelectTrigger data-testid="edit-role-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.map(role => (
+                          <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Station</Label>
+                    <Select 
+                      value={editFormData.station_id || "none"} 
+                      onValueChange={(v) => setEditFormData({...editFormData, station_id: v === "none" ? "" : v})}
+                    >
+                      <SelectTrigger data-testid="edit-station-select">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {stations.map(station => (
+                          <SelectItem key={station.id} value={station.id}>
+                            Station {station.station_number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Shift</Label>
+                    <Select 
+                      value={editFormData.shift} 
+                      onValueChange={(v) => setEditFormData({...editFormData, shift: v})}
+                    >
+                      <SelectTrigger data-testid="edit-shift-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="A">A Shift</SelectItem>
+                        <SelectItem value="B">B Shift</SelectItem>
+                        <SelectItem value="C">C Shift</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select 
+                    value={editFormData.is_active ? "active" : "inactive"} 
+                    onValueChange={(v) => setEditFormData({...editFormData, is_active: v === "active"})}
+                  >
+                    <SelectTrigger data-testid="edit-status-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button onClick={handleEditUser} disabled={loading} className="w-full" data-testid="save-edit-btn">
+                  <Save className="h-4 w-4 mr-2" /> Save Changes
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Reset Password</DialogTitle>
+            </DialogHeader>
+            {resetPasswordUser && (
+              <div className="space-y-4 py-4">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium">{resetPasswordUser.name}</p>
+                  <p className="text-xs text-muted-foreground">Payroll: {resetPasswordUser.payroll_number}</p>
+                </div>
+
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-sm text-yellow-500">
+                    <strong>Note:</strong> This will reset the user's password. They will need to use the new password to log in.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>New Password</Label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 characters)"
+                    data-testid="new-password-input"
+                  />
+                </div>
+
+                <Button onClick={handleResetPassword} disabled={loading} className="w-full" data-testid="reset-password-btn">
+                  <Key className="h-4 w-4 mr-2" /> Reset Password
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
