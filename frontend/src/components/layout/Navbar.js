@@ -23,7 +23,8 @@ import {
   Calendar,
   Clock,
   Plane,
-  AlertCircle
+  AlertCircle,
+  Hand
 } from 'lucide-react';
 
 const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png';
@@ -82,6 +83,11 @@ export const Navbar = () => {
             Daily Worksheet
           </NavLink>
 
+          {/* On Duty - Available to ALL users */}
+          <NavLink to="/on-duty" active={isActive('/on-duty')}>
+            On Duty
+          </NavLink>
+
           {/* Battalion Chief Dropdown */}
           {canAccessFullMenu && (
             <DropdownMenu>
@@ -126,6 +132,11 @@ export const Navbar = () => {
                     <Clock className="h-4 w-4" /> Overtime Available
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/volunteer" className="flex items-center gap-2" data-testid="nav-volunteer">
+                    <Hand className="h-4 w-4" /> Volunteer Available
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -152,7 +163,23 @@ export const Navbar = () => {
             </DropdownMenu>
           )}
 
-          {/* Tools Dropdown (Admin Only) */}
+          {/* Overtime Tab - Available to ALL users including firefighters */}
+          <NavLink to="/overtime" active={isActive('/overtime')}>
+            Overtime
+          </NavLink>
+
+          {/* Vol. FF Availability Tab - Available to ALL users */}
+          <NavLink to="/volunteer" active={isActive('/volunteer')}>
+            Vol. FF Availability
+          </NavLink>
+
+          {canAccessFullMenu && (
+            <NavLink to="/reports" active={isActive('/reports')}>
+              Reports
+            </NavLink>
+          )}
+
+          {/* Tools Dropdown (Admin Only) - After Reports */}
           {isAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -182,17 +209,6 @@ export const Navbar = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-
-          {/* Overtime Tab - Available to ALL users including firefighters */}
-          <NavLink to="/overtime" active={isActive('/overtime')}>
-            Overtime
-          </NavLink>
-
-          {canAccessFullMenu && (
-            <NavLink to="/reports" active={isActive('/reports')}>
-              Reports
-            </NavLink>
           )}
         </nav>
 

@@ -15,7 +15,7 @@ Create a fire department staffing website called "Medina County BC Staffing" tha
 - Pattern: C,C,A,A,B,B,C,C,A,A,B,B...
 
 ## Personnel Ranks
-Fire Chief, Asst. Chief, Deputy Chief, Battalion Chief, Captain, Lieutenant, Driver Operator, Paramedic, Firefighter
+Fire Chief, Asst. Chief, Deputy Chief, Battalion Chief, Captain, Lieutenant, Driver Operator, Paramedic, Firefighter, Volunteer Firefighter
 
 ## Staffing Categories
 - Minimum Staffing
@@ -88,6 +88,28 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Daily Staffing Summary
 - ✅ Overtime Summary
 - ✅ Print functionality
+- ✅ **Export to Excel** - Download staffing report as .xlsx with change history (March 31, 2026)
+- ✅ **Export to PDF** - Download staffing report as .pdf (March 31, 2026)
+
+### Volunteer System (March 31, 2026)
+- ✅ **Volunteer Available** - Battalion Chief management page for volunteer firefighters
+- ✅ **Vol. FF Availability** - Volunteers can submit availability (12 months in advance)
+- ✅ **Important notice** - Decline responsibility includes "via department email and phone call"
+- ✅ **Volunteer Firefighter rank** - Added to Personnel Management
+
+### On Duty Page (March 31, 2026)
+- ✅ Shows all personnel on duty at each station
+- ✅ Calendar navigation with shift color coding
+- ✅ View-only for all users including volunteer firefighters
+
+### Audit & Tracking (March 31, 2026)
+- ✅ **Last Modified By** - Tracks payroll number of who made staffing changes
+- ✅ **Change History** - Maintains audit log of all staffing modifications
+- ✅ **Export with History** - Excel export includes change history sheet
+
+### Apparatus Assignments (March 31, 2026)
+- ✅ **Edit Functionality** - Fixed edit button to assign personnel to apparatus
+- ✅ **Delete Functionality** - Remove assignments
 
 ## Test Credentials
 - Admin: 100001 / admin123
@@ -103,9 +125,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 | Firefighter | View | - | - | - | Submit | - |
 
 ## Next Tasks (Backlog)
-1. Shift notification alerts when below minimum staffing (P2)
-2. Export reports to PDF/Excel (P2)
-3. Real-time WebSocket updates (P3)
+1. **Deputy Chief drag-and-drop** - Drag personnel between stations with real-time worksheet sync (P1)
+2. **Real-time WebSocket updates** - Live updates across all connected users (P2)
+3. Shift notification alerts when below minimum staffing (P3)
 
 ## API Endpoints Added (March 26, 2026)
 - `POST /api/auth/set-temporary-password` - Admin sets temp password for personnel (creates user account)
@@ -113,3 +135,11 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - `PUT /api/personnel/{id}` - Now accepts payroll_number updates
 - `DELETE /api/overtime/{id}` - Delete overtime record (deducts hours if was assigned)
 - `PUT /api/overtime/{id}` - Now tracks personnel overtime_hours_worked (add on assign, deduct on decline)
+
+## API Endpoints Added (March 31, 2026)
+- `GET /api/volunteer` - Get volunteer availability records
+- `POST /api/volunteer` - Create volunteer availability
+- `PUT /api/volunteer/{id}` - Update volunteer record
+- `DELETE /api/volunteer/{id}` - Delete volunteer record
+- `GET /api/reports/export/excel` - Export staffing report to Excel
+- `GET /api/reports/export/pdf` - Export staffing report to PDF

@@ -12,6 +12,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
 import { LeaveManagementPage } from "./pages/battalion-chief/LeaveManagementPage";
 import { OvertimePage } from "./pages/battalion-chief/OvertimePage";
+import { VolunteerPage } from "./pages/battalion-chief/VolunteerPage";
 import { DeploymentPage } from "./pages/battalion-chief/DeploymentPage";
 import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
 import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
@@ -19,6 +20,8 @@ import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
+import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
+import { OnDutyPage } from "./pages/OnDutyPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -74,6 +77,11 @@ const AppContent = () => {
           <ProtectedRoute><DashboardPage /></ProtectedRoute>
         } />
         
+        {/* On Duty - View only for all users */}
+        <Route path="/on-duty" element={
+          <ProtectedRoute><OnDutyPage /></ProtectedRoute>
+        } />
+        
         {/* Battalion Chief Routes */}
         <Route path="/battalion-chief/apparatus" element={
           <ProtectedRoute><ApparatusPage /></ProtectedRoute>
@@ -92,6 +100,9 @@ const AppContent = () => {
         } />
         <Route path="/battalion-chief/overtime" element={
           <ProtectedRoute><OvertimePage /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/volunteer" element={
+          <ProtectedRoute><VolunteerPage /></ProtectedRoute>
         } />
         
         {/* Deputy Chief Routes */}
@@ -118,6 +129,11 @@ const AppContent = () => {
         {/* Overtime Availability - Available to ALL users including firefighters */}
         <Route path="/overtime" element={
           <ProtectedRoute><OvertimeAvailabilityPage /></ProtectedRoute>
+        } />
+        
+        {/* Volunteer Availability - Available to Volunteer Firefighters */}
+        <Route path="/volunteer" element={
+          <ProtectedRoute><VolunteerAvailabilityPage /></ProtectedRoute>
         } />
         
         {/* Default Redirect */}

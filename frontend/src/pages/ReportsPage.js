@@ -8,8 +8,9 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Download, FileText, Calendar, Printer } from 'lucide-react';
+import { Download, FileText, Calendar, Printer, FileSpreadsheet } from 'lucide-react';
 import { Label } from '../components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 
 export const ReportsPage = () => {
   const { api } = useAuth();
@@ -230,6 +231,66 @@ export const ReportsPage = () => {
     return battalion ? `Battalion ${battalion.battalion_number}` : selectedBattalion;
   };
 
+  const handleExportExcel = async () => {
+    if (!reportData) {
+      toast.error('Please generate a report first');
+      return;
+    }
+    
+    try {
+      const response = await api.get('/reports/export/excel', {
+        params: {
+          date: startDate,
+          battalion_id: selectedBattalion
+        },
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `staffing_report_${startDate}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel report downloaded');
+    } catch (error) {
+      toast.error('Failed to export Excel report');
+      console.error(error);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!reportData) {
+      toast.error('Please generate a report first');
+      return;
+    }
+    
+    try {
+      const response = await api.get('/reports/export/pdf', {
+        params: {
+          date: startDate,
+          battalion_id: selectedBattalion
+        },
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `staffing_report_${startDate}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF report downloaded');
+    } catch (error) {
+      toast.error('Failed to export PDF report');
+      console.error(error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background" data-testid="reports-page">
       <Navbar />
@@ -312,9 +373,21 @@ export const ReportsPage = () => {
                     <Button variant="outline" size="sm" onClick={handlePrint} data-testid="print-report-btn">
                       <Printer className="h-4 w-4 mr-2" /> Print
                     </Button>
-                    <Button variant="outline" size="sm" data-testid="export-report-btn">
-                      <Download className="h-4 w-4 mr-2" /> Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" data-testid="export-dropdown-btn">
+                          <Download className="h-4 w-4 mr-2" /> Export
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleExportExcel} data-testid="export-excel-btn">
+                          <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportPdf} data-testid="export-pdf-btn">
+                          <FileText className="h-4 w-4 mr-2" /> Export to PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )}
               </div>

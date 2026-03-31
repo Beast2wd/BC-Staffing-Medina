@@ -23,7 +23,8 @@ const RANKS = [
   'Lieutenant', 
   'Driver Operator', 
   'Paramedic',
-  'Firefighter'
+  'Firefighter',
+  'Volunteer Firefighter'
 ];
 
 const COMMON_CERTIFICATIONS = [

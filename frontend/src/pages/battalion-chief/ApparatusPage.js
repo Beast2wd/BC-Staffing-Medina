@@ -18,6 +18,8 @@ export const ApparatusPage = () => {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
   const [selectedStation, setSelectedStation] = useState('');
   const [selectedApparatus, setSelectedApparatus] = useState('');
   const [assignedPersonnel, setAssignedPersonnel] = useState([]);
@@ -69,6 +71,71 @@ export const ApparatusPage = () => {
     setSelectedStation('');
     setSelectedApparatus('');
     setAssignedPersonnel([]);
+  };
+
+  const handleOpenEdit = (assignment, stationId, apparatusName) => {
+    // If assignment exists, use it; otherwise create a placeholder for unassigned apparatus
+    if (assignment) {
+      setEditingAssignment(assignment);
+      setSelectedStation(assignment.station_id);
+      setSelectedApparatus(assignment.apparatus_name);
+      setAssignedPersonnel(assignment.personnel_ids || []);
+    } else {
+      setEditingAssignment({ station_id: stationId, apparatus_name: apparatusName });
+      setSelectedStation(stationId);
+      setSelectedApparatus(apparatusName);
+      setAssignedPersonnel([]);
+    }
+    setShowEditDialog(true);
+  };
+
+  const handleEditAssignment = async () => {
+    if (!selectedStation || !selectedApparatus) {
+      toast.error('Please select station and apparatus');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      if (editingAssignment?.id) {
+        // Update existing assignment
+        await api.put(`/apparatus-assignments/${editingAssignment.id}`, {
+          personnel_ids: assignedPersonnel
+        });
+        toast.success('Assignment updated');
+      } else {
+        // Create new assignment for unassigned apparatus
+        await api.post('/apparatus-assignments', {
+          date: selectedDate,
+          station_id: selectedStation,
+          apparatus_name: selectedApparatus,
+          battalion_id: selectedBattalion,
+          shift: currentShift,
+          personnel_ids: assignedPersonnel
+        });
+        toast.success('Assignment created');
+      }
+      setShowEditDialog(false);
+      setEditingAssignment(null);
+      fetchAssignments();
+      resetForm();
+    } catch (error) {
+      toast.error('Failed to update assignment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (!confirm('Are you sure you want to remove this assignment?')) return;
+    
+    try {
+      await api.delete(`/apparatus-assignments/${assignmentId}`);
+      toast.success('Assignment removed');
+      fetchAssignments();
+    } catch (error) {
+      toast.error('Failed to remove assignment');
+    }
   };
 
   const getStationApparatus = (stationId) => {
@@ -215,7 +282,13 @@ export const ApparatusPage = () => {
                         <TableCell className="text-muted-foreground italic">Not assigned</TableCell>
                         {canEdit && (
                           <TableCell>
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleOpenEdit(null, station.id, app)}
+                              title="Assign Personnel"
+                              data-testid={`edit-unassigned-${station.id}-${app}`}
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -247,10 +320,23 @@ export const ApparatusPage = () => {
                       {canEdit && (
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleOpenEdit(assignment, assignment.station_id, assignment.apparatus_name)}
+                              title="Edit Assignment"
+                              data-testid={`edit-assignment-${assignment.id}`}
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-red-500">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-500"
+                              onClick={() => handleDeleteAssignment(assignment.id)}
+                              title="Remove Assignment"
+                              data-testid={`delete-assignment-${assignment.id}`}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -263,6 +349,56 @@ export const ApparatusPage = () => {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit Assignment Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Edit Apparatus Assignment</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium">
+                  {stations.find(s => s.id === selectedStation)?.station_number 
+                    ? `Station ${stations.find(s => s.id === selectedStation)?.station_number}` 
+                    : 'Station'}
+                </p>
+                <p className="text-xs text-muted-foreground">{selectedApparatus}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Assigned Personnel</Label>
+                <div className="max-h-64 overflow-y-auto border rounded-md p-2 space-y-1">
+                  {selectedStation && getStationPersonnel(selectedStation).map(person => (
+                    <label key={person.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={assignedPersonnel.includes(person.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignedPersonnel([...assignedPersonnel, person.id]);
+                          } else {
+                            setAssignedPersonnel(assignedPersonnel.filter(id => id !== person.id));
+                          }
+                        }}
+                        className="rounded"
+                        data-testid={`checkbox-${person.id}`}
+                      />
+                      <span className="text-sm">{person.rank} {person.name}</span>
+                    </label>
+                  ))}
+                  {selectedStation && getStationPersonnel(selectedStation).length === 0 && (
+                    <p className="text-sm text-muted-foreground p-2">No personnel on this shift</p>
+                  )}
+                </div>
+              </div>
+
+              <Button onClick={handleEditAssignment} disabled={loading} className="w-full" data-testid="save-edit-assignment-btn">
+                <Save className="h-4 w-4 mr-2" /> Save Assignment
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
