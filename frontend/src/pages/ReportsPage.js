@@ -476,6 +476,30 @@ export const ReportsPage = () => {
                               </div>
                             </div>
                           )}
+                          {/* Apparatus Assignments */}
+                          {station.apparatus_assignments && station.apparatus_assignments.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-muted">
+                              <p className="text-xs text-muted-foreground mb-2">Apparatus Assignments:</p>
+                              <div className="space-y-2">
+                                {station.apparatus_assignments.map((app, idx) => (
+                                  <div key={idx} className="text-xs">
+                                    <span className="font-semibold text-primary">{app.apparatus_name}:</span>
+                                    <div className="flex flex-wrap gap-1 mt-1 ml-2">
+                                      {app.personnel.map((p, pIdx) => (
+                                        <span key={pIdx} className="px-2 py-1 bg-background rounded flex items-center gap-1">
+                                          <span className="font-bold text-primary">{p.position}</span>
+                                          <span>{p.rank} {p.name}</span>
+                                        </span>
+                                      ))}
+                                      {app.personnel.length === 0 && (
+                                        <span className="text-muted-foreground italic">Not assigned</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

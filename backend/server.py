@@ -225,7 +225,7 @@ class ApparatusAssignment(BaseModel):
     battalion_id: str
     shift: str
     personnel_ids: List[str] = []
-    position_assignments: dict = {}  # position -> personnel_id
+    position_assignments: dict = {}  # personnel_id -> riding_position (A, B, C, D)
 
 class ApparatusAssignmentCreate(BaseModel):
     date: str
@@ -234,7 +234,7 @@ class ApparatusAssignmentCreate(BaseModel):
     battalion_id: str
     shift: str
     personnel_ids: List[str] = []
-    position_assignments: dict = {}
+    position_assignments: dict = {}  # personnel_id -> riding_position
 
 class LeaveRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1155,6 +1155,12 @@ async def get_daily_summary(
     personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
+    # Get apparatus assignments for the date
+    apparatus_assignments = await db.apparatus_assignments.find(
+        {"date": date, "battalion_id": battalion_id},
+        {"_id": 0}
+    ).to_list(100)
+    
     # Get current shift for the date
     def get_shift_for_date(date_str):
         ref_date = datetime(2026, 1, 1)
@@ -1180,7 +1186,7 @@ async def get_daily_summary(
         for cat, count in record.get("categories", {}).items():
             category_totals[cat] = category_totals.get(cat, 0) + count
     
-    # Build station details with personnel names
+    # Build station details with personnel names and apparatus assignments
     station_details = []
     for s in stations:
         staffing_record = next((r for r in staffing if r["station_id"] == s["id"]), None)
@@ -1193,12 +1199,36 @@ async def get_daily_summary(
             if p.get("station_id") == s["id"] and p.get("shift") == current_shift and p.get("is_active", True)
         ]
         
+        # Get apparatus assignments for this station
+        station_apparatus = []
+        for aa in apparatus_assignments:
+            if aa.get("station_id") == s["id"]:
+                position_assignments = aa.get("position_assignments", {})
+                personnel_with_positions = []
+                for pid in aa.get("personnel_ids", []):
+                    person = personnel_dict.get(pid, {})
+                    position = position_assignments.get(pid, "-")
+                    personnel_with_positions.append({
+                        "id": pid,
+                        "name": person.get("name", ""),
+                        "rank": person.get("rank", ""),
+                        "position": position
+                    })
+                # Sort by position
+                personnel_with_positions.sort(key=lambda x: {'A': 1, 'B': 2, 'C': 3, 'D': 4}.get(x['position'], 5))
+                
+                station_apparatus.append({
+                    "apparatus_name": aa.get("apparatus_name"),
+                    "personnel": personnel_with_positions
+                })
+        
         station_details.append({
             "station_id": s["id"],
             "station_number": s["station_number"],
             "minimum_staffing": s.get("minimum_staffing", 0),
             "assigned": len(assigned_ids),
             "personnel_on_duty": personnel_on_duty,
+            "apparatus_assignments": station_apparatus,
             "last_modified_by": staffing_record.get("last_modified_by") if staffing_record else None
         })
     
@@ -1504,6 +1534,7 @@ async def export_staffing_report_excel(
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.cell.cell import MergedCell
     
     # Get data
     stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
@@ -1615,6 +1646,77 @@ async def export_staffing_report_excel(
                 ws.cell(row=row, column=5, value=station.get("minimum_staffing", 0)).border = thin_border
                 ws.cell(row=row, column=6, value=last_modified).border = thin_border
                 row += 1
+        
+        # Apparatus Assignments Sheet
+        ws2 = wb.create_sheet(title="Apparatus Assignments")
+        ws2.merge_cells('A1:E1')
+        ws2['A1'] = f"Apparatus Assignments - {date} ({current_shift} Shift)"
+        ws2['A1'].font = Font(bold=True, size=14)
+        ws2['A1'].alignment = Alignment(horizontal="center")
+        
+        # Get apparatus assignments
+        apparatus_assignments = await db.apparatus_assignments.find(
+            {"date": date, "battalion_id": battalion_id},
+            {"_id": 0}
+        ).to_list(100)
+        
+        # Headers
+        app_headers = ["Station", "Apparatus", "Position", "Personnel", "Rank"]
+        for col, header in enumerate(app_headers, start=1):
+            cell = ws2.cell(row=3, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+        
+        app_row = 4
+        for station in stations:
+            station_assignments = [a for a in apparatus_assignments if a.get("station_id") == station["id"]]
+            
+            for assignment in station_assignments:
+                apparatus_name = assignment.get("apparatus_name", "")
+                position_assignments = assignment.get("position_assignments", {})
+                personnel_ids = assignment.get("personnel_ids", [])
+                
+                if personnel_ids:
+                    # Sort by position
+                    sorted_personnel = sorted(
+                        [(pid, position_assignments.get(pid, "-")) for pid in personnel_ids],
+                        key=lambda x: {'A': 1, 'B': 2, 'C': 3, 'D': 4}.get(x[1], 5)
+                    )
+                    
+                    for i, (pid, position) in enumerate(sorted_personnel):
+                        person = personnel_dict.get(pid, {})
+                        ws2.cell(row=app_row, column=1, value=f"Station {station['station_number']}" if i == 0 else "").border = thin_border
+                        ws2.cell(row=app_row, column=2, value=apparatus_name if i == 0 else "").border = thin_border
+                        ws2.cell(row=app_row, column=3, value=position).border = thin_border
+                        ws2.cell(row=app_row, column=4, value=person.get("name", "")).border = thin_border
+                        ws2.cell(row=app_row, column=5, value=person.get("rank", "")).border = thin_border
+                        app_row += 1
+                else:
+                    ws2.cell(row=app_row, column=1, value=f"Station {station['station_number']}").border = thin_border
+                    ws2.cell(row=app_row, column=2, value=apparatus_name).border = thin_border
+                    ws2.cell(row=app_row, column=3, value="-").border = thin_border
+                    ws2.cell(row=app_row, column=4, value="Not assigned").border = thin_border
+                    ws2.cell(row=app_row, column=5, value="-").border = thin_border
+                    app_row += 1
+        
+        # Auto-fit columns for apparatus sheet
+        for column in ws2.columns:
+            max_length = 0
+            column_letter = None
+            for cell in column:
+                if isinstance(cell, MergedCell):
+                    continue
+                if column_letter is None:
+                    column_letter = cell.column_letter
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            if column_letter:
+                ws2.column_dimensions[column_letter].width = min(max_length + 2, 50)
     else:
         # Overtime report
         ws.title = f"Overtime {date}"
@@ -1660,7 +1762,6 @@ async def export_staffing_report_excel(
             row += 1
     
     # Auto-fit columns (skip merged cells)
-    from openpyxl.cell.cell import MergedCell
     for column in ws.columns:
         max_length = 0
         column_letter = None
@@ -1764,7 +1865,7 @@ async def export_staffing_report_pdf(
             subtitle_style
         ))
         
-        # Build table data
+        # Build personnel table data
         table_data = [["Station", "Personnel", "Rank", "Payroll #"]]
         
         for station in stations:
@@ -1785,6 +1886,91 @@ async def export_staffing_report_pdf(
                     "-",
                     "-"
                 ])
+        
+        # Add personnel table
+        if len(table_data) > 1:
+            personnel_table = Table(table_data, colWidths=[120, 150, 100, 80])
+            personnel_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')])
+            ]))
+            elements.append(personnel_table)
+        
+        # Add apparatus assignments section
+        elements.append(Spacer(1, 20))
+        app_style = ParagraphStyle(
+            'ApparatusTitle',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=10
+        )
+        elements.append(Paragraph("Apparatus Assignments", app_style))
+        
+        # Get apparatus assignments
+        apparatus_assignments = await db.apparatus_assignments.find(
+            {"date": date, "battalion_id": battalion_id},
+            {"_id": 0}
+        ).to_list(100)
+        
+        app_table_data = [["Station", "Apparatus", "Position", "Personnel", "Rank"]]
+        
+        for station in stations:
+            station_assignments = [a for a in apparatus_assignments if a.get("station_id") == station["id"]]
+            
+            for assignment in station_assignments:
+                apparatus_name = assignment.get("apparatus_name", "")
+                position_assignments = assignment.get("position_assignments", {})
+                personnel_ids = assignment.get("personnel_ids", [])
+                
+                if personnel_ids:
+                    sorted_personnel = sorted(
+                        [(pid, position_assignments.get(pid, "-")) for pid in personnel_ids],
+                        key=lambda x: {'A': 1, 'B': 2, 'C': 3, 'D': 4}.get(x[1], 5)
+                    )
+                    
+                    for i, (pid, position) in enumerate(sorted_personnel):
+                        person = personnel_dict.get(pid, {})
+                        app_table_data.append([
+                            f"Station {station['station_number']}" if i == 0 else "",
+                            apparatus_name if i == 0 else "",
+                            position,
+                            person.get("name", ""),
+                            person.get("rank", "")
+                        ])
+                else:
+                    app_table_data.append([
+                        f"Station {station['station_number']}",
+                        apparatus_name,
+                        "-",
+                        "Not assigned",
+                        "-"
+                    ])
+        
+        if len(app_table_data) > 1:
+            app_table = Table(app_table_data, colWidths=[90, 90, 50, 130, 80])
+            app_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#E8F5E9')])
+            ]))
+            elements.append(app_table)
     else:
         # Overtime report
         end = end_date or date
@@ -1811,25 +1997,26 @@ async def export_staffing_report_pdf(
                 str(record.get("hours", 0)),
                 f"Station {station.get('station_number', '')}"
             ])
-    
-    if len(table_data) > 1:
-        table = Table(table_data, colWidths=[120, 150, 100, 80])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')])
-        ]))
-        elements.append(table)
-    else:
-        elements.append(Paragraph("No records found for this period.", styles['Normal']))
+        
+        # Add overtime table
+        if len(table_data) > 1:
+            table = Table(table_data, colWidths=[120, 150, 100, 80])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')])
+            ]))
+            elements.append(table)
+        else:
+            elements.append(Paragraph("No records found for this period.", styles['Normal']))
     
     # Build PDF
     doc.build(elements)

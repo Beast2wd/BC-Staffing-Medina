@@ -23,6 +23,9 @@ export const ApparatusPage = () => {
   const [selectedStation, setSelectedStation] = useState('');
   const [selectedApparatus, setSelectedApparatus] = useState('');
   const [assignedPersonnel, setAssignedPersonnel] = useState([]);
+  const [positionAssignments, setPositionAssignments] = useState({}); // {personnelId: 'A'|'B'|'C'|'D'}
+
+  const RIDING_POSITIONS = ['A', 'B', 'C', 'D'];
 
   useEffect(() => {
     fetchAllData();
@@ -54,7 +57,8 @@ export const ApparatusPage = () => {
         apparatus_name: selectedApparatus,
         battalion_id: selectedBattalion,
         shift: currentShift,
-        personnel_ids: assignedPersonnel
+        personnel_ids: assignedPersonnel,
+        position_assignments: positionAssignments
       });
       toast.success('Assignment created');
       setShowAddDialog(false);
@@ -71,6 +75,7 @@ export const ApparatusPage = () => {
     setSelectedStation('');
     setSelectedApparatus('');
     setAssignedPersonnel([]);
+    setPositionAssignments({});
   };
 
   const handleOpenEdit = (assignment, stationId, apparatusName) => {
@@ -80,11 +85,13 @@ export const ApparatusPage = () => {
       setSelectedStation(assignment.station_id);
       setSelectedApparatus(assignment.apparatus_name);
       setAssignedPersonnel(assignment.personnel_ids || []);
+      setPositionAssignments(assignment.position_assignments || {});
     } else {
       setEditingAssignment({ station_id: stationId, apparatus_name: apparatusName });
       setSelectedStation(stationId);
       setSelectedApparatus(apparatusName);
       setAssignedPersonnel([]);
+      setPositionAssignments({});
     }
     setShowEditDialog(true);
   };
@@ -100,7 +107,8 @@ export const ApparatusPage = () => {
       if (editingAssignment?.id) {
         // Update existing assignment
         await api.put(`/apparatus-assignments/${editingAssignment.id}`, {
-          personnel_ids: assignedPersonnel
+          personnel_ids: assignedPersonnel,
+          position_assignments: positionAssignments
         });
         toast.success('Assignment updated');
       } else {
@@ -111,7 +119,8 @@ export const ApparatusPage = () => {
           apparatus_name: selectedApparatus,
           battalion_id: selectedBattalion,
           shift: currentShift,
-          personnel_ids: assignedPersonnel
+          personnel_ids: assignedPersonnel,
+          position_assignments: positionAssignments
         });
         toast.success('Assignment created');
       }
@@ -150,6 +159,37 @@ export const ApparatusPage = () => {
 
   const getStationPersonnel = (stationId) => {
     return personnel.filter(p => p.station_id === stationId && p.shift === currentShift);
+  };
+
+  const handlePersonnelToggle = (personId, isChecked) => {
+    if (isChecked) {
+      setAssignedPersonnel([...assignedPersonnel, personId]);
+      // Auto-assign next available position
+      const usedPositions = Object.values(positionAssignments);
+      const nextPosition = RIDING_POSITIONS.find(p => !usedPositions.includes(p)) || 'A';
+      setPositionAssignments({...positionAssignments, [personId]: nextPosition});
+    } else {
+      setAssignedPersonnel(assignedPersonnel.filter(id => id !== personId));
+      const newPositions = {...positionAssignments};
+      delete newPositions[personId];
+      setPositionAssignments(newPositions);
+    }
+  };
+
+  const handlePositionChange = (personId, position) => {
+    setPositionAssignments({...positionAssignments, [personId]: position});
+  };
+
+  const getPersonnelWithPosition = (assignment) => {
+    const positions = assignment.position_assignments || {};
+    return (assignment.personnel_ids || []).map(pid => ({
+      id: pid,
+      name: getPersonnelName(pid),
+      position: positions[pid] || '-'
+    })).sort((a, b) => {
+      const posOrder = {'A': 1, 'B': 2, 'C': 3, 'D': 4, '-': 5};
+      return (posOrder[a.position] || 5) - (posOrder[b.position] || 5);
+    });
   };
 
   return (
@@ -216,24 +256,33 @@ export const ApparatusPage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Assigned Personnel</Label>
+                      <Label>Assigned Personnel & Riding Position</Label>
                       <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
                         {selectedStation && getStationPersonnel(selectedStation).map(person => (
-                          <label key={person.id} className="flex items-center gap-2 p-1 hover:bg-muted rounded cursor-pointer">
+                          <div key={person.id} className="flex items-center gap-2 p-1 hover:bg-muted rounded">
                             <input
                               type="checkbox"
                               checked={assignedPersonnel.includes(person.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setAssignedPersonnel([...assignedPersonnel, person.id]);
-                                } else {
-                                  setAssignedPersonnel(assignedPersonnel.filter(id => id !== person.id));
-                                }
-                              }}
+                              onChange={(e) => handlePersonnelToggle(person.id, e.target.checked)}
                               className="rounded"
                             />
-                            <span className="text-sm">{person.rank} {person.name}</span>
-                          </label>
+                            <span className="text-sm flex-1">{person.rank} {person.name}</span>
+                            {assignedPersonnel.includes(person.id) && (
+                              <Select 
+                                value={positionAssignments[person.id] || ''} 
+                                onValueChange={(val) => handlePositionChange(person.id, val)}
+                              >
+                                <SelectTrigger className="w-20 h-7 text-xs">
+                                  <SelectValue placeholder="Pos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {RIDING_POSITIONS.map(pos => (
+                                    <SelectItem key={pos} value={pos}>Position {pos}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
                         ))}
                         {selectedStation && getStationPersonnel(selectedStation).length === 0 && (
                           <p className="text-sm text-muted-foreground p-2">No personnel on this shift</p>
@@ -307,9 +356,10 @@ export const ApparatusPage = () => {
                       <TableCell>{assignment.apparatus_name}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {assignment.personnel_ids?.map(pid => (
-                            <span key={pid} className="text-xs bg-muted px-2 py-1 rounded">
-                              {getPersonnelName(pid)}
+                          {getPersonnelWithPosition(assignment).map(p => (
+                            <span key={p.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
+                              <span className="font-semibold text-primary">{p.position}</span>
+                              <span>{p.name}</span>
                             </span>
                           ))}
                           {(!assignment.personnel_ids || assignment.personnel_ids.length === 0) && (
@@ -367,25 +417,34 @@ export const ApparatusPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Assigned Personnel</Label>
+                <Label>Assigned Personnel & Riding Position</Label>
                 <div className="max-h-64 overflow-y-auto border rounded-md p-2 space-y-1">
                   {selectedStation && getStationPersonnel(selectedStation).map(person => (
-                    <label key={person.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer">
+                    <div key={person.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded">
                       <input
                         type="checkbox"
                         checked={assignedPersonnel.includes(person.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setAssignedPersonnel([...assignedPersonnel, person.id]);
-                          } else {
-                            setAssignedPersonnel(assignedPersonnel.filter(id => id !== person.id));
-                          }
-                        }}
+                        onChange={(e) => handlePersonnelToggle(person.id, e.target.checked)}
                         className="rounded"
                         data-testid={`checkbox-${person.id}`}
                       />
-                      <span className="text-sm">{person.rank} {person.name}</span>
-                    </label>
+                      <span className="text-sm flex-1">{person.rank} {person.name}</span>
+                      {assignedPersonnel.includes(person.id) && (
+                        <Select 
+                          value={positionAssignments[person.id] || ''} 
+                          onValueChange={(val) => handlePositionChange(person.id, val)}
+                        >
+                          <SelectTrigger className="w-20 h-7 text-xs" data-testid={`position-select-${person.id}`}>
+                            <SelectValue placeholder="Pos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {RIDING_POSITIONS.map(pos => (
+                              <SelectItem key={pos} value={pos}>Position {pos}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                   ))}
                   {selectedStation && getStationPersonnel(selectedStation).length === 0 && (
                     <p className="text-sm text-muted-foreground p-2">No personnel on this shift</p>
