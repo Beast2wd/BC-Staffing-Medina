@@ -12,6 +12,8 @@ import { Download, FileText, Calendar, Printer, FileSpreadsheet } from 'lucide-r
 import { Label } from '../components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 
+const LOGO_URL = '/medina-logo.png';
+
 export const ReportsPage = () => {
   const { api, user } = useAuth();
   const { selectedBattalion, battalions, fetchBattalions, personnel } = useStaffing();
@@ -413,6 +415,7 @@ export const ReportsPage = () => {
                 <div className="space-y-6">
                   {/* Daily Summary Header */}
                   <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Medina County Fire/EMS" className="h-20 mx-auto mb-3" />
                     <h2 className="font-heading text-2xl uppercase font-bold">
                       Daily Staffing Summary
                     </h2>
@@ -497,6 +500,7 @@ export const ReportsPage = () => {
                 <div className="space-y-6">
                   {/* Overtime Summary Header */}
                   <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Medina County Fire/EMS" className="h-20 mx-auto mb-3" />
                     <h2 className="font-heading text-2xl uppercase font-bold">
                       Overtime Summary
                     </h2>

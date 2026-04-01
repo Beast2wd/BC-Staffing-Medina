@@ -27,7 +27,7 @@ import {
   Hand
 } from 'lucide-react';
 
-const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png';
+const LOGO_URL = '/medina-logo.png';
 
 export const Navbar = () => {
   const { user, logout, isAdmin, isFirefighter } = useAuth();
