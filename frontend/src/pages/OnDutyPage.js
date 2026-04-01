@@ -4,9 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { ChevronLeft, ChevronRight, Users, MapPin } from 'lucide-react';
+import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
+import { Users, MapPin } from 'lucide-react';
 
 export const OnDutyPage = () => {
   const { api } = useAuth();
@@ -15,45 +14,14 @@ export const OnDutyPage = () => {
     personnel, 
     fetchAllData, 
     selectedDate, 
-    setSelectedDate, 
     selectedBattalion,
-    currentShift,
-    getShiftForDate 
+    currentShift
   } = useStaffing();
   const [loading, setLoading] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate));
-  
-  // Shift colors
-  const shiftColors = {
-    A: 'bg-red-500 text-white',
-    B: 'bg-green-500 text-white',
-    C: 'bg-blue-500 text-white'
-  };
 
   useEffect(() => {
     fetchAllData();
   }, [selectedBattalion, selectedDate]);
-
-  useEffect(() => {
-    setCurrentMonth(new Date(selectedDate));
-  }, [selectedDate]);
-
-  const navigateDate = (direction) => {
-    const current = new Date(selectedDate);
-    current.setDate(current.getDate() + direction);
-    setSelectedDate(current.toISOString().split('T')[0]);
-  };
-
-  const navigateMonth = (direction) => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(newMonth.getMonth() + direction);
-    setCurrentMonth(newMonth);
-  };
-
-  const handleDateClick = (day) => {
-    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    setSelectedDate(newDate.toISOString().split('T')[0]);
-  };
 
   // Get personnel on duty for the selected shift
   const getOnDutyPersonnel = (stationId) => {
@@ -63,37 +31,6 @@ export const OnDutyPage = () => {
       p.is_active
     );
   };
-
-  // Generate calendar days
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDay = firstDay.getDay();
-    
-    const days = [];
-    
-    // Add empty cells for days before the first of the month
-    for (let i = 0; i < startingDay; i++) {
-      days.push(null);
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const shift = getShiftForDate(dateStr);
-      days.push({ day, dateStr, shift });
-    }
-    
-    return days;
-  };
-
-  const calendarDays = generateCalendarDays();
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                      'July', 'August', 'September', 'October', 'November', 'December'];
-  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   return (
     <div className="min-h-screen bg-background" data-testid="on-duty-page">
@@ -111,107 +48,14 @@ export const OnDutyPage = () => {
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
-            <BattalionSelector />
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => navigateDate(-1)} data-testid="prev-date">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-40"
-                data-testid="date-input"
-              />
-              <Button variant="outline" size="icon" onClick={() => navigateDate(1)} data-testid="next-date">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <BattalionSelector />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar Section */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" size="icon" onClick={() => navigateMonth(-1)}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <CardTitle className="font-heading uppercase">
-                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                </CardTitle>
-                <Button variant="ghost" size="icon" onClick={() => navigateMonth(1)}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Day headers */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {dayNames.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-muted-foreground p-1">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((dayInfo, index) => (
-                  <div key={index} className="aspect-square">
-                    {dayInfo ? (
-                      <button
-                        onClick={() => handleDateClick(dayInfo.day)}
-                        className={`w-full h-full rounded-md flex items-center justify-center text-sm font-medium transition-all
-                          ${dayInfo.dateStr === selectedDate 
-                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' 
-                            : ''}
-                          ${shiftColors[dayInfo.shift] || 'bg-muted'}
-                          hover:opacity-80
-                        `}
-                        data-testid={`calendar-day-${dayInfo.day}`}
-                      >
-                        {dayInfo.day}
-                      </button>
-                    ) : (
-                      <div className="w-full h-full" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Legend */}
-              <div className="flex justify-center gap-4 mt-4 pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-red-500" />
-                  <span className="text-xs">A Shift</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-green-500" />
-                  <span className="text-xs">B Shift</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-500" />
-                  <span className="text-xs">C Shift</span>
-                </div>
-              </div>
-              
-              <div className="mt-4 p-3 bg-muted rounded-lg text-center">
-                <p className="text-sm font-medium">Selected Date</p>
-                <p className="text-lg font-bold">{new Date(selectedDate).toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}</p>
-                <p className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-medium ${shiftColors[currentShift]}`}>
-                  {currentShift} Shift
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Calendar Section - Using same ShiftCalendar component as Daily Worksheet */}
+          <div className="lg:col-span-1">
+            <ShiftCalendar />
+          </div>
 
           {/* Stations Personnel Section */}
           <div className="lg:col-span-2 space-y-4">
@@ -272,3 +116,4 @@ export const OnDutyPage = () => {
     </div>
   );
 };
+
