@@ -73,14 +73,14 @@ export const DashboardPage = () => {
         </div>
 
         {/* Main Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Calendar - Left Side */}
-          <div className="lg:col-span-3">
+          <div className="lg:w-80 flex-shrink-0">
             <ShiftCalendar />
           </div>
 
           {/* Staffing Grid - Center */}
-          <div className="lg:col-span-9">
+          <div className="flex-1 min-w-0">
             <StaffingGrid />
           </div>
         </div>

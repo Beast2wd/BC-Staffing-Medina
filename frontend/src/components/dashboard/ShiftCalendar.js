@@ -93,8 +93,8 @@ export const ShiftCalendar = () => {
   };
 
   return (
-    <Card className="h-full" data-testid="shift-calendar">
-      <CardHeader className="pb-2">
+    <Card className="h-full w-fit" data-testid="shift-calendar">
+      <CardHeader className="pb-2 px-4">
         <CardTitle className="font-heading text-lg uppercase tracking-wider flex items-center justify-between">
           <span>Select A Day</span>
           <span className={`text-sm px-3 py-1 rounded-full ${getShiftBadgeClass(currentShift)}`}>
@@ -102,7 +102,7 @@ export const ShiftCalendar = () => {
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-4">
         {/* Month/Year Selectors */}
         <div className="flex gap-2">
           <Select value={displayMonth.getMonth().toString()} onValueChange={handleMonthSelect}>

@@ -51,14 +51,14 @@ export const OnDutyPage = () => {
           <BattalionSelector />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Calendar Section - Using same ShiftCalendar component as Daily Worksheet */}
-          <div className="lg:col-span-1">
+          <div className="lg:w-80 flex-shrink-0">
             <ShiftCalendar />
           </div>
 
           {/* Stations Personnel Section */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="flex-1 space-y-4">
             {stations.map(station => {
               const onDutyPersonnel = getOnDutyPersonnel(station.id);
               
