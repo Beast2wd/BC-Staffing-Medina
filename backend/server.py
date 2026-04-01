@@ -1151,6 +1151,25 @@ async def get_daily_summary(
     # Get all stations
     stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
     
+    # Get all personnel for name lookups
+    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Get current shift for the date
+    def get_shift_for_date(date_str):
+        ref_date = datetime(2026, 1, 1)
+        target_date = datetime.strptime(date_str, "%Y-%m-%d")
+        days_diff = (target_date - ref_date).days
+        cycle_position = days_diff % 6
+        if cycle_position in [0, 1]:
+            return "A"
+        elif cycle_position in [2, 3]:
+            return "B"
+        else:
+            return "C"
+    
+    current_shift = get_shift_for_date(date)
+    
     # Calculate totals
     total_minimum = sum(s.get("minimum_staffing", 0) for s in stations)
     total_assigned = sum(len(r.get("personnel_assigned", [])) for r in staffing)
@@ -1161,23 +1180,41 @@ async def get_daily_summary(
         for cat, count in record.get("categories", {}).items():
             category_totals[cat] = category_totals.get(cat, 0) + count
     
+    # Build station details with personnel names
+    station_details = []
+    for s in stations:
+        staffing_record = next((r for r in staffing if r["station_id"] == s["id"]), None)
+        assigned_ids = staffing_record.get("personnel_assigned", []) if staffing_record else []
+        
+        # Get personnel on duty for this station and shift
+        personnel_on_duty = [
+            {"id": p["id"], "name": p["name"], "rank": p["rank"], "payroll_number": p.get("payroll_number", "")}
+            for p in personnel_list
+            if p.get("station_id") == s["id"] and p.get("shift") == current_shift and p.get("is_active", True)
+        ]
+        
+        station_details.append({
+            "station_id": s["id"],
+            "station_number": s["station_number"],
+            "minimum_staffing": s.get("minimum_staffing", 0),
+            "assigned": len(assigned_ids),
+            "personnel_on_duty": personnel_on_duty,
+            "last_modified_by": staffing_record.get("last_modified_by") if staffing_record else None
+        })
+    
     return {
         "date": date,
         "battalion_id": battalion_id,
+        "shift": current_shift,
         "total_stations": len(stations),
         "total_minimum_staffing": total_minimum,
         "total_personnel_assigned": total_assigned,
         "staffing_variance": total_assigned - total_minimum,
         "category_totals": category_totals,
-        "station_details": [
-            {
-                "station_id": s["id"],
-                "station_number": s["station_number"],
-                "minimum_staffing": s.get("minimum_staffing", 0),
-                "assigned": len(next((r.get("personnel_assigned", []) for r in staffing if r["station_id"] == s["id"]), []))
-            }
-            for s in stations
-        ]
+        "station_details": station_details,
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
     }
 
 @api_router.get("/reports/overtime-summary")
@@ -1187,29 +1224,60 @@ async def get_overtime_summary(
     battalion_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    pipeline = [
+    # Get all overtime records
+    overtime_records = await db.overtime_records.find(
         {
-            "$match": {
-                "battalion_id": battalion_id,
-                "date": {"$gte": start_date, "$lte": end_date}
-            }
+            "battalion_id": battalion_id,
+            "date": {"$gte": start_date, "$lte": end_date}
         },
-        {
-            "$group": {
-                "_id": "$personnel_id",
-                "total_hours": {"$sum": "$hours"},
-                "count": {"$sum": 1}
-            }
-        }
-    ]
+        {"_id": 0}
+    ).to_list(500)
     
-    results = await db.overtime_records.aggregate(pipeline).to_list(500)
+    # Get personnel for name lookups
+    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Get staffing records to find who approved (last_modified_by)
+    staffing_records = await db.staffing_records.find(
+        {"battalion_id": battalion_id},
+        {"_id": 0, "last_modified_by": 1, "station_id": 1}
+    ).to_list(100)
+    
+    # Aggregate by personnel
+    personnel_overtime = {}
+    for record in overtime_records:
+        pid = record.get("personnel_id")
+        if pid not in personnel_overtime:
+            person = personnel_dict.get(pid, {})
+            personnel_overtime[pid] = {
+                "_id": pid,
+                "personnel_name": f"{person.get('rank', '')} {person.get('name', '')}".strip() or pid,
+                "payroll_number": person.get("payroll_number", ""),
+                "total_hours": 0,
+                "count": 0,
+                "records": []
+            }
+        personnel_overtime[pid]["total_hours"] += record.get("hours", 0)
+        personnel_overtime[pid]["count"] += 1
+        
+        # Track approvers (who changed status to assigned)
+        if record.get("status") == "assigned":
+            # Find the station's staffing record to get approver
+            station_record = next((s for s in staffing_records if s.get("station_id") == record.get("station_id")), None)
+            if station_record and station_record.get("last_modified_by"):
+                approver_payroll = station_record.get("last_modified_by")
+                approver = next((p for p in personnel_list if p.get("payroll_number") == approver_payroll), None)
+                personnel_overtime[pid]["approved_by"] = approver_payroll
+                personnel_overtime[pid]["approved_by_name"] = f"{approver.get('rank', '')} {approver.get('name', '')}".strip() if approver else approver_payroll
     
     return {
         "start_date": start_date,
         "end_date": end_date,
         "battalion_id": battalion_id,
-        "personnel_overtime": results
+        "personnel_overtime": list(personnel_overtime.values()),
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
     }
 
 # ===================== USERS MANAGEMENT (ADMIN) =====================
@@ -1422,39 +1490,33 @@ async def seed_database():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-# Include the router
-app.include_router(api_router)
-
 # ===================== REPORT EXPORT ROUTES =====================
 
 @api_router.get("/reports/export/excel")
 async def export_staffing_report_excel(
     date: str,
     battalion_id: str,
+    report_type: str = "daily",
+    end_date: Optional[str] = None,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN]))
 ):
-    """Export daily staffing report to Excel"""
+    """Export staffing or overtime report to Excel"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     
     # Get data
-    staffing_records = await db.staffing_records.find(
-        {"date": date, "battalion_id": battalion_id}, {"_id": 0}
-    ).to_list(100)
-    
     stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations}
     
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(500)
+    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Create workbook
     wb = Workbook()
     ws = wb.active
-    ws.title = f"Staffing {date}"
     
     # Styles
-    header_font = Font(bold=True, size=12)
+    header_font = Font(bold=True, size=12, color="FFFFFF")
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_alignment = Alignment(horizontal="center", vertical="center")
     thin_border = Border(
@@ -1462,11 +1524,284 @@ async def export_staffing_report_excel(
         top=Side(style='thin'), bottom=Side(style='thin')
     )
     
-    # Title
-    ws.merge_cells('A1:H1')
-    ws['A1'] = f"Daily Staffing Report - {date}"
-    ws['A1'].font = Font(bold=True, size=16)
-    ws['A1'].alignment = Alignment(horizontal="center")
+    if report_type == "daily":
+        ws.title = f"Staffing {date}"
+        
+        staffing_records = await db.staffing_records.find(
+            {"date": date, "battalion_id": battalion_id}, {"_id": 0}
+        ).to_list(100)
+        
+        # Get shift for date
+        def get_shift_for_date(date_str):
+            ref_date = datetime(2026, 1, 1)
+            target_date = datetime.strptime(date_str, "%Y-%m-%d")
+            days_diff = (target_date - ref_date).days
+            cycle_position = days_diff % 6
+            if cycle_position in [0, 1]:
+                return "A"
+            elif cycle_position in [2, 3]:
+                return "B"
+            else:
+                return "C"
+        
+        current_shift = get_shift_for_date(date)
+        
+        # Title
+        ws.merge_cells('A1:F1')
+        ws['A1'] = f"Daily Staffing Report - {date} ({current_shift} Shift)"
+        ws['A1'].font = Font(bold=True, size=16)
+        ws['A1'].alignment = Alignment(horizontal="center")
+        
+        # Generated by info
+        ws.merge_cells('A2:F2')
+        ws['A2'] = f"Generated by: {current_user.get('name', '')} (Payroll: {current_user['payroll_number']}) on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        ws['A2'].font = Font(italic=True, size=10)
+        
+        # Headers
+        headers = ["Station", "Personnel On Duty", "Rank", "Payroll #", "Min Required", "Last Modified By"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=4, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+        
+        # Data - personnel on duty
+        row = 5
+        for station in stations:
+            station_personnel = [p for p in personnel_list if p.get("station_id") == station["id"] and p.get("shift") == current_shift and p.get("is_active", True)]
+            staffing_record = next((r for r in staffing_records if r.get("station_id") == station["id"]), None)
+            last_modified = staffing_record.get("last_modified_by", "-") if staffing_record else "-"
+            
+            if station_personnel:
+                for i, person in enumerate(station_personnel):
+                    ws.cell(row=row, column=1, value=f"Station {station['station_number']}" if i == 0 else "").border = thin_border
+                    ws.cell(row=row, column=2, value=person["name"]).border = thin_border
+                    ws.cell(row=row, column=3, value=person["rank"]).border = thin_border
+                    ws.cell(row=row, column=4, value=person.get("payroll_number", "")).border = thin_border
+                    ws.cell(row=row, column=5, value=station.get("minimum_staffing", 0) if i == 0 else "").border = thin_border
+                    ws.cell(row=row, column=6, value=last_modified if i == 0 else "").border = thin_border
+                    row += 1
+            else:
+                ws.cell(row=row, column=1, value=f"Station {station['station_number']}").border = thin_border
+                ws.cell(row=row, column=2, value="No personnel on duty").border = thin_border
+                ws.cell(row=row, column=3, value="-").border = thin_border
+                ws.cell(row=row, column=4, value="-").border = thin_border
+                ws.cell(row=row, column=5, value=station.get("minimum_staffing", 0)).border = thin_border
+                ws.cell(row=row, column=6, value=last_modified).border = thin_border
+                row += 1
+    else:
+        # Overtime report
+        ws.title = f"Overtime {date}"
+        
+        end = end_date or date
+        overtime_records = await db.overtime_records.find(
+            {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"},
+            {"_id": 0}
+        ).to_list(500)
+        
+        # Title
+        ws.merge_cells('A1:F1')
+        ws['A1'] = f"Overtime Summary Report - {date} to {end}"
+        ws['A1'].font = Font(bold=True, size=16)
+        ws['A1'].alignment = Alignment(horizontal="center")
+        
+        # Generated by info
+        ws.merge_cells('A2:F2')
+        ws['A2'] = f"Generated by: {current_user.get('name', '')} (Payroll: {current_user['payroll_number']}) on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        ws['A2'].font = Font(italic=True, size=10)
+        
+        # Headers
+        headers = ["Personnel", "Payroll #", "Date", "Hours", "Station", "Approved By"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=4, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+        
+        # Data
+        row = 5
+        for record in overtime_records:
+            person = personnel_dict.get(record.get("personnel_id"), {})
+            station = stations_dict.get(record.get("station_id"), {})
+            
+            ws.cell(row=row, column=1, value=f"{person.get('rank', '')} {person.get('name', '')}").border = thin_border
+            ws.cell(row=row, column=2, value=person.get("payroll_number", "")).border = thin_border
+            ws.cell(row=row, column=3, value=record.get("date", "")).border = thin_border
+            ws.cell(row=row, column=4, value=record.get("hours", 0)).border = thin_border
+            ws.cell(row=row, column=5, value=f"Station {station.get('station_number', '')}").border = thin_border
+            ws.cell(row=row, column=6, value=current_user.get("name", current_user["payroll_number"])).border = thin_border
+            row += 1
+    
+    # Auto-fit columns
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
+    
+    # Save to buffer
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    filename = f"{'staffing' if report_type == 'daily' else 'overtime'}_report_{date}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/reports/export/pdf")
+async def export_staffing_report_pdf(
+    date: str,
+    battalion_id: str,
+    report_type: str = "daily",
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN]))
+):
+    """Export staffing or overtime report to PDF"""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    # Get data
+    stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations}
+    
+    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Create PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=10
+    )
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.gray,
+        spaceAfter=20
+    )
+    
+    if report_type == "daily":
+        # Get shift for date
+        def get_shift_for_date(date_str):
+            ref_date = datetime(2026, 1, 1)
+            target_date = datetime.strptime(date_str, "%Y-%m-%d")
+            days_diff = (target_date - ref_date).days
+            cycle_position = days_diff % 6
+            if cycle_position in [0, 1]:
+                return "A"
+            elif cycle_position in [2, 3]:
+                return "B"
+            else:
+                return "C"
+        
+        current_shift = get_shift_for_date(date)
+        
+        # Title
+        elements.append(Paragraph(f"Daily Staffing Report - {date} ({current_shift} Shift)", title_style))
+        elements.append(Paragraph(
+            f"Generated by: {current_user.get('name', '')} (Payroll: {current_user['payroll_number']}) on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            subtitle_style
+        ))
+        
+        # Build table data
+        table_data = [["Station", "Personnel", "Rank", "Payroll #"]]
+        
+        for station in stations:
+            station_personnel = [p for p in personnel_list if p.get("station_id") == station["id"] and p.get("shift") == current_shift and p.get("is_active", True)]
+            
+            if station_personnel:
+                for i, person in enumerate(station_personnel):
+                    table_data.append([
+                        f"Station {station['station_number']}" if i == 0 else "",
+                        person["name"],
+                        person["rank"],
+                        person.get("payroll_number", "")
+                    ])
+            else:
+                table_data.append([
+                    f"Station {station['station_number']}",
+                    "No personnel on duty",
+                    "-",
+                    "-"
+                ])
+    else:
+        # Overtime report
+        end = end_date or date
+        overtime_records = await db.overtime_records.find(
+            {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"},
+            {"_id": 0}
+        ).to_list(500)
+        
+        elements.append(Paragraph(f"Overtime Summary Report - {date} to {end}", title_style))
+        elements.append(Paragraph(
+            f"Generated by: {current_user.get('name', '')} (Payroll: {current_user['payroll_number']}) on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            subtitle_style
+        ))
+        
+        table_data = [["Personnel", "Payroll #", "Date", "Hours", "Station"]]
+        
+        for record in overtime_records:
+            person = personnel_dict.get(record.get("personnel_id"), {})
+            station = stations_dict.get(record.get("station_id"), {})
+            table_data.append([
+                f"{person.get('rank', '')} {person.get('name', '')}",
+                person.get("payroll_number", ""),
+                record.get("date", ""),
+                str(record.get("hours", 0)),
+                f"Station {station.get('station_number', '')}"
+            ])
+    
+    if len(table_data) > 1:
+        table = Table(table_data, colWidths=[120, 150, 100, 80])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')])
+        ]))
+        elements.append(table)
+    else:
+        elements.append(Paragraph("No records found for this period.", styles['Normal']))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"{'staffing' if report_type == 'daily' else 'overtime'}_report_{date}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+# Include the router
+app.include_router(api_router)
     
     # Headers
     headers = ["Station", "Category", "Count", "Last Modified By", "Last Modified At"]

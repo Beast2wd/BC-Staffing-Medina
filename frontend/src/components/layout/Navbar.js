@@ -49,7 +49,7 @@ export const Navbar = () => {
   const NavLink = ({ to, children, active, disabled }) => (
     <Link
       to={disabled ? '#' : to}
-      className={`px-4 py-2 font-heading text-sm uppercase tracking-wider transition-colors ${
+      className={`px-3 py-2 font-heading text-sm uppercase tracking-wider transition-colors whitespace-nowrap ${
         active 
           ? 'text-red-500 border-b-2 border-red-500' 
           : disabled
@@ -78,7 +78,7 @@ export const Navbar = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-2">
           <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu}>
             Daily Worksheet
           </NavLink>
@@ -168,9 +168,9 @@ export const Navbar = () => {
             Overtime
           </NavLink>
 
-          {/* Vol. FF Availability Tab - Available to ALL users */}
+          {/* Volunteer Tab - Available to ALL users */}
           <NavLink to="/volunteer" active={isActive('/volunteer')}>
-            Vol. FF Availability
+            Volunteer
           </NavLink>
 
           {canAccessFullMenu && (
