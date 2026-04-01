@@ -1634,17 +1634,23 @@ async def export_staffing_report_excel(
             ws.cell(row=row, column=6, value=current_user.get("name", current_user["payroll_number"])).border = thin_border
             row += 1
     
-    # Auto-fit columns
+    # Auto-fit columns (skip merged cells)
+    from openpyxl.cell.cell import MergedCell
     for column in ws.columns:
         max_length = 0
-        column_letter = column[0].column_letter
+        column_letter = None
         for cell in column:
+            if isinstance(cell, MergedCell):
+                continue
+            if column_letter is None:
+                column_letter = cell.column_letter
             try:
-                if len(str(cell.value)) > max_length:
+                if cell.value and len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
             except:
                 pass
-        ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        if column_letter:
+            ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
     
     # Save to buffer
     buffer = io.BytesIO()
@@ -1802,170 +1808,6 @@ async def export_staffing_report_pdf(
 
 # Include the router
 app.include_router(api_router)
-    
-    # Headers
-    headers = ["Station", "Category", "Count", "Last Modified By", "Last Modified At"]
-    for col, header in enumerate(headers, start=1):
-        cell = ws.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
-        cell.border = thin_border
-    
-    # Data
-    row = 4
-    for record in staffing_records:
-        station = stations_dict.get(record.get("station_id"), {})
-        station_name = f"Station {station.get('station_number', 'N/A')}"
-        
-        categories = record.get("categories", {})
-        if not categories:
-            categories = {"Total": 0}
-        
-        for cat, count in categories.items():
-            ws.cell(row=row, column=1, value=station_name).border = thin_border
-            ws.cell(row=row, column=2, value=cat).border = thin_border
-            ws.cell(row=row, column=3, value=count).border = thin_border
-            ws.cell(row=row, column=4, value=record.get("last_modified_by", "-")).border = thin_border
-            ws.cell(row=row, column=5, value=record.get("updated_at", "-")).border = thin_border
-            row += 1
-    
-    # Change history sheet
-    ws2 = wb.create_sheet(title="Change History")
-    ws2['A1'] = "Change History"
-    ws2['A1'].font = Font(bold=True, size=14)
-    
-    change_headers = ["Station", "Timestamp", "Modified By", "Field", "Old Value", "New Value"]
-    for col, header in enumerate(change_headers, start=1):
-        cell = ws2.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
-    
-    row = 4
-    for record in staffing_records:
-        station = stations_dict.get(record.get("station_id"), {})
-        station_name = f"Station {station.get('station_number', 'N/A')}"
-        
-        for change in record.get("change_history", []):
-            for field, values in change.get("changes", {}).items():
-                ws2.cell(row=row, column=1, value=station_name)
-                ws2.cell(row=row, column=2, value=change.get("timestamp", "-"))
-                ws2.cell(row=row, column=3, value=f"{change.get('modified_by_name', '')} ({change.get('modified_by', '')})")
-                ws2.cell(row=row, column=4, value=field)
-                ws2.cell(row=row, column=5, value=str(values.get("old", "-")))
-                ws2.cell(row=row, column=6, value=str(values.get("new", "-")))
-                row += 1
-    
-    # Auto-fit columns
-    for ws in [wb.active, ws2]:
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
-    
-    # Save to buffer
-    buffer = io.BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=staffing_report_{date}.xlsx"}
-    )
-
-@api_router.get("/reports/export/pdf")
-async def export_staffing_report_pdf(
-    date: str,
-    battalion_id: str,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN]))
-):
-    """Export daily staffing report to PDF"""
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter, landscape
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    
-    # Get data
-    staffing_records = await db.staffing_records.find(
-        {"date": date, "battalion_id": battalion_id}, {"_id": 0}
-    ).to_list(100)
-    
-    stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
-    stations_dict = {s["id"]: s for s in stations}
-    
-    # Create PDF
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
-    elements = []
-    
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        spaceAfter=30
-    )
-    
-    # Title
-    elements.append(Paragraph(f"Daily Staffing Report - {date}", title_style))
-    elements.append(Spacer(1, 20))
-    
-    # Build table data
-    table_data = [["Station", "Category", "Count", "Last Modified By"]]
-    
-    for record in staffing_records:
-        station = stations_dict.get(record.get("station_id"), {})
-        station_name = f"Station {station.get('station_number', 'N/A')}"
-        
-        categories = record.get("categories", {})
-        if not categories:
-            categories = {"Total": 0}
-        
-        for cat, count in categories.items():
-            table_data.append([
-                station_name,
-                cat,
-                str(count),
-                record.get("last_modified_by", "-")
-            ])
-    
-    if len(table_data) > 1:
-        table = Table(table_data, colWidths=[120, 150, 80, 150])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#E8E8E8')),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')])
-        ]))
-        elements.append(table)
-    else:
-        elements.append(Paragraph("No staffing records found for this date.", styles['Normal']))
-    
-    # Build PDF
-    doc.build(elements)
-    buffer.seek(0)
-    
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=staffing_report_{date}.pdf"}
-    )
 
 app.add_middleware(
     CORSMiddleware,
