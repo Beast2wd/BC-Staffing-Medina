@@ -9,11 +9,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
+import { Calendar } from '../../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { format } from 'date-fns';
 
 export const LeaveManagementPage = ({ leaveType }) => {
   const { api, canEdit } = useAuth();
@@ -21,6 +24,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [startDateOpen, setStartDateOpen] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
   const [formData, setFormData] = useState({
     personnel_id: '',
     start_date: '',
@@ -28,6 +33,19 @@ export const LeaveManagementPage = ({ leaveType }) => {
     status: 'approved',
     notes: ''
   });
+
+  // Parse date string to Date object
+  const parseDate = (dateStr) => {
+    if (!dateStr) return undefined;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Format Date object to YYYY-MM-DD string
+  const formatDateString = (date) => {
+    if (!date) return '';
+    return format(date, 'yyyy-MM-dd');
+  };
 
   const pageConfig = {
     sick: { title: 'Sick Leave', color: 'bg-red-500' },
@@ -156,21 +174,56 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Start Date</Label>
-                        <Input
-                          type="date"
-                          value={formData.start_date}
-                          onChange={(e) => setFormData({...formData, start_date: e.target.value})}
-                          data-testid="start-date-input"
-                        />
+                        <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                              data-testid="start-date-input"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={parseDate(formData.start_date)}
+                              onSelect={(date) => {
+                                setFormData({...formData, start_date: formatDateString(date)});
+                                setStartDateOpen(false);
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div className="space-y-2">
                         <Label>End Date</Label>
-                        <Input
-                          type="date"
-                          value={formData.end_date}
-                          onChange={(e) => setFormData({...formData, end_date: e.target.value})}
-                          data-testid="end-date-input"
-                        />
+                        <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                              data-testid="end-date-input"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {formData.end_date ? format(parseDate(formData.end_date), 'PPP') : 'Select date'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={parseDate(formData.end_date)}
+                              onSelect={(date) => {
+                                setFormData({...formData, end_date: formatDateString(date)});
+                                setEndDateOpen(false);
+                              }}
+                              disabled={(date) => formData.start_date && date < parseDate(formData.start_date)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
 
