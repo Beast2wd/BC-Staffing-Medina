@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Input } from '../ui/input';
@@ -14,10 +14,10 @@ const STAFFING_CATEGORIES = [
   { key: 'hold_over', label: 'Hold Over* (+)', editable: true },
   { key: 'out_of_battalion_fill_in_plus', label: 'Out of Battalion Fill In (+)', className: 'text-blue-500', editable: true },
   { key: 'out_of_battalion_fill_in_minus', label: 'Out of Battalion Fill In (-)', className: 'text-blue-500', editable: true },
-  { key: 'holiday', label: 'HOLIDAY (-)', className: 'text-red-500', editable: true },
+  { key: 'holiday', label: 'HOLIDAY (-)', className: 'text-red-500', editable: true, leaveType: 'holiday' },
   { key: 'fmla', label: 'FMLA (-)', className: 'text-red-500', editable: true },
-  { key: 'vacation', label: 'VACATION (-)', className: 'text-red-500', editable: true },
-  { key: 'sick', label: 'SICK (-)', className: 'text-red-500', editable: true },
+  { key: 'vacation', label: 'VACATION (-)', className: 'text-red-500', editable: true, leaveType: 'vacation' },
+  { key: 'sick', label: 'SICK (-)', className: 'text-red-500', editable: true, leaveType: 'sick' },
   { key: 'injured_on_duty', label: 'Injured On Duty (-)', className: 'text-red-500', editable: true },
   { key: 'scheduled_other', label: 'Scheduled Other (-)', className: 'text-red-500', editable: true },
   { key: 'unscheduled_other', label: 'UnScheduled Other (-)', className: 'text-red-500', editable: true },
@@ -33,6 +33,7 @@ export const StaffingGrid = () => {
     stations, 
     staffingRecords, 
     personnel,
+    leaveRecords,
     currentShift,
     selectedDate,
     selectedBattalion,
@@ -41,6 +42,33 @@ export const StaffingGrid = () => {
   const { api, canEdit } = useAuth();
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
+
+  // Calculate leave counts by station and type
+  const leaveCounts = useMemo(() => {
+    const counts = {};
+    
+    // Only count approved leave records
+    const approvedLeaves = leaveRecords.filter(l => l.status === 'approved');
+    
+    approvedLeaves.forEach(leave => {
+      // Check if the selected date falls within the leave period
+      if (selectedDate >= leave.start_date && selectedDate <= leave.end_date) {
+        // Find the personnel to get their station
+        const person = personnel.find(p => p.id === leave.personnel_id);
+        if (person && person.station_id) {
+          const stationId = person.station_id;
+          const leaveType = leave.leave_type; // 'vacation', 'sick', 'holiday'
+          
+          if (!counts[stationId]) {
+            counts[stationId] = { vacation: 0, sick: 0, holiday: 0 };
+          }
+          counts[stationId][leaveType] = (counts[stationId][leaveType] || 0) + 1;
+        }
+      }
+    });
+    
+    return counts;
+  }, [leaveRecords, personnel, selectedDate]);
 
   // Calculate data for each station
   const gridData = useMemo(() => {
@@ -74,7 +102,12 @@ export const StaffingGrid = () => {
       STAFFING_CATEGORIES.forEach(cat => {
         if (cat.key !== 'minimum_staffing' && cat.key !== 'personnel_assigned' && 
             cat.key !== 'total_on_duty' && cat.key !== 'variance') {
-          stationData[cat.key] = record?.categories?.[cat.key] || 0;
+          // For vacation, sick, holiday - use leave records count if available
+          if (cat.leaveType && leaveCounts[station.id]?.[cat.leaveType]) {
+            stationData[cat.key] = leaveCounts[station.id][cat.leaveType];
+          } else {
+            stationData[cat.key] = record?.categories?.[cat.key] || 0;
+          }
           totals[cat.key] = (totals[cat.key] || 0) + stationData[cat.key];
         }
       });
@@ -106,7 +139,7 @@ export const StaffingGrid = () => {
     });
 
     return { data, totals };
-  }, [stations, staffingRecords, personnel, currentShift]);
+  }, [stations, staffingRecords, personnel, currentShift, leaveCounts]);
 
   const handleCellClick = (stationId, categoryKey, currentValue) => {
     if (!canEdit) return;
