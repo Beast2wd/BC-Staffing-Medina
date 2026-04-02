@@ -9,14 +9,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2, CalendarIcon } from 'lucide-react';
+import { Plus, Save, Trash2, CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Calendar } from '../../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
-import { format } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 
 export const LeaveManagementPage = ({ leaveType }) => {
   const { api, canEdit } = useAuth();
@@ -26,6 +26,12 @@ export const LeaveManagementPage = ({ leaveType }) => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  
+  // View date for filtering records
+  const [viewDate, setViewDate] = useState(new Date());
+  const [viewDateCalendarOpen, setViewDateCalendarOpen] = useState(false);
+  const [viewMode, setViewMode] = useState('all'); // 'all', 'current', 'future', 'past'
+  
   const [formData, setFormData] = useState({
     personnel_id: '',
     start_date: '',
@@ -55,10 +61,48 @@ export const LeaveManagementPage = ({ leaveType }) => {
 
   const config = pageConfig[leaveType] || pageConfig.sick;
 
+  // Navigate to previous day
+  const goToPreviousDay = () => {
+    setViewDate(subDays(viewDate, 1));
+  };
+
+  // Navigate to next day
+  const goToNextDay = () => {
+    setViewDate(addDays(viewDate, 1));
+  };
+
+  // Go to today
+  const goToToday = () => {
+    setViewDate(new Date());
+  };
+
+  // Filter records based on view date
+  const filteredRecords = leaveRecords.filter(record => {
+    const viewDateStr = formatDateString(viewDate);
+    const startDate = record.start_date;
+    const endDate = record.end_date;
+    
+    switch (viewMode) {
+      case 'current':
+        // Records where viewDate falls within the leave period
+        return viewDateStr >= startDate && viewDateStr <= endDate;
+      case 'future':
+        // Records that start after viewDate
+        return startDate > viewDateStr;
+      case 'past':
+        // Records that ended before viewDate
+        return endDate < viewDateStr;
+      case 'all':
+      default:
+        // Show all records that overlap with or are near the view date (within 30 days)
+        return true;
+    }
+  });
+
   useEffect(() => {
     fetchAllData();
     fetchLeaveRecords();
-  }, [selectedBattalion, leaveType]);
+  }, [selectedBattalion, leaveType, viewDate]);
 
   const fetchLeaveRecords = async () => {
     try {
@@ -266,7 +310,58 @@ export const LeaveManagementPage = ({ leaveType }) => {
 
         <Card data-testid="leave-records-card">
           <CardHeader>
-            <CardTitle className="font-heading uppercase">{config.title} Records</CardTitle>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <CardTitle className="font-heading uppercase">{config.title} Records</CardTitle>
+              
+              {/* Date Navigation Controls */}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={goToPreviousDay} data-testid="prev-day-btn">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <Popover open={viewDateCalendarOpen} onOpenChange={setViewDateCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="min-w-[180px]" data-testid="view-date-btn">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(viewDate, 'PPP')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="center">
+                    <Calendar
+                      mode="single"
+                      selected={viewDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          setViewDate(date);
+                          setViewDateCalendarOpen(false);
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <Button variant="outline" size="icon" onClick={goToNextDay} data-testid="next-day-btn">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                
+                <Button variant="ghost" size="sm" onClick={goToToday} data-testid="today-btn">
+                  Today
+                </Button>
+                
+                <Select value={viewMode} onValueChange={setViewMode}>
+                  <SelectTrigger className="w-32" data-testid="view-mode-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Records</SelectItem>
+                    <SelectItem value="current">Current</SelectItem>
+                    <SelectItem value="future">Future</SelectItem>
+                    <SelectItem value="past">Past</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -283,14 +378,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaveRecords.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-8">
-                      No {leaveType} records found
+                      No {leaveType} records found for {viewMode === 'current' ? 'current date' : viewMode === 'future' ? 'future dates' : viewMode === 'past' ? 'past dates' : 'this selection'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  leaveRecords.map(record => {
+                  filteredRecords.map(record => {
                     const person = personnel.find(p => p.id === record.personnel_id);
                     return (
                       <TableRow key={record.id} data-testid={`leave-row-${record.id}`}>
