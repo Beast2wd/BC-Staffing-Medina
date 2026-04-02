@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2, CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Save, Trash2, CalendarIcon, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -24,8 +24,12 @@ export const LeaveManagementPage = ({ leaveType }) => {
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  const [editStartDateOpen, setEditStartDateOpen] = useState(false);
+  const [editEndDateOpen, setEditEndDateOpen] = useState(false);
   
   // View date for filtering records
   const [viewDate, setViewDate] = useState(new Date());
@@ -33,6 +37,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
   const [viewMode, setViewMode] = useState('all'); // 'all', 'current', 'future', 'past'
   
   const [formData, setFormData] = useState({
+    personnel_id: '',
+    start_date: '',
+    end_date: '',
+    status: 'approved',
+    notes: ''
+  });
+  
+  const [editFormData, setEditFormData] = useState({
     personnel_id: '',
     start_date: '',
     end_date: '',
@@ -150,6 +162,41 @@ export const LeaveManagementPage = ({ leaveType }) => {
       fetchLeaveRecords();
     } catch (error) {
       toast.error('Failed to delete record');
+    }
+  };
+
+  const handleOpenEdit = (record) => {
+    setEditingRecord(record);
+    setEditFormData({
+      personnel_id: record.personnel_id,
+      start_date: record.start_date,
+      end_date: record.end_date,
+      status: record.status,
+      notes: record.notes || ''
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleEditRecord = async () => {
+    if (!editFormData.start_date || !editFormData.end_date) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await api.put(`/leave-records/${editingRecord.id}`, {
+        ...editFormData,
+        leave_type: leaveType
+      });
+      toast.success('Leave record updated');
+      setShowEditDialog(false);
+      setEditingRecord(null);
+      fetchLeaveRecords();
+    } catch (error) {
+      toast.error('Failed to update leave record');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -305,6 +352,107 @@ export const LeaveManagementPage = ({ leaveType }) => {
                 </DialogContent>
               </Dialog>
             )}
+            
+            {/* Edit Dialog */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="font-heading uppercase">Edit {config.title} Record</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Personnel</Label>
+                    <div className="p-2 bg-muted rounded-md text-sm">
+                      {getPersonnelName(editFormData.personnel_id)}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
+                      <Popover open={editStartDateOpen} onOpenChange={setEditStartDateOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            data-testid="edit-start-date-input"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editFormData.start_date ? format(parseDate(editFormData.start_date), 'PPP') : 'Select date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={parseDate(editFormData.start_date)}
+                            onSelect={(date) => {
+                              setEditFormData({...editFormData, start_date: formatDateString(date)});
+                              setEditStartDateOpen(false);
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Date</Label>
+                      <Popover open={editEndDateOpen} onOpenChange={setEditEndDateOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            data-testid="edit-end-date-input"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editFormData.end_date ? format(parseDate(editFormData.end_date), 'PPP') : 'Select date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={parseDate(editFormData.end_date)}
+                            onSelect={(date) => {
+                              setEditFormData({...editFormData, end_date: formatDateString(date)});
+                              setEditEndDateOpen(false);
+                            }}
+                            disabled={(date) => editFormData.start_date && date < parseDate(editFormData.start_date)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={editFormData.status} onValueChange={(v) => setEditFormData({...editFormData, status: v})}>
+                      <SelectTrigger data-testid="edit-status-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="denied">Denied</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      value={editFormData.notes}
+                      onChange={(e) => setEditFormData({...editFormData, notes: e.target.value})}
+                      placeholder="Optional notes..."
+                      data-testid="edit-notes-input"
+                    />
+                  </div>
+
+                  <Button onClick={handleEditRecord} disabled={loading} className="w-full" data-testid="update-leave-btn">
+                    <Save className="h-4 w-4 mr-2" /> Update Record
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -406,15 +554,25 @@ export const LeaveManagementPage = ({ leaveType }) => {
                         <TableCell className="max-w-[200px] truncate">{record.notes || '-'}</TableCell>
                         {canEdit && (
                           <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-red-500"
-                              onClick={() => handleDeleteRecord(record.id)}
-                              data-testid={`delete-leave-${record.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleOpenEdit(record)}
+                                data-testid={`edit-leave-${record.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-red-500"
+                                onClick={() => handleDeleteRecord(record.id)}
+                                data-testid={`delete-leave-${record.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
