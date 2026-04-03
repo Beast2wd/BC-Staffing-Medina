@@ -204,7 +204,8 @@ export const DayOfStaffingPage = () => {
                             key={person.id} 
                             className={`text-xs px-2 py-1 rounded border ${
                               person.rank === 'Captain' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' :
-                              person.rank === 'Lieutenant' ? 'bg-purple-500/10 border-purple-500/50 text-purple-500' :
+                              person.rank === 'Lieutenant' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' :
+                              person.rank === 'Battalion Chief' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' :
                               'bg-muted'
                             }`}
                           >
