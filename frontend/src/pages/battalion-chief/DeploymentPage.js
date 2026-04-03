@@ -13,6 +13,7 @@ import { Plus, Save, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const DeploymentPage = () => {
   const { api, canEdit } = useAuth();
@@ -252,8 +253,8 @@ export const DeploymentPage = () => {
                         </TableCell>
                         <TableCell>{deployment.deployment_type}</TableCell>
                         <TableCell>{deployment.location}</TableCell>
-                        <TableCell>{deployment.start_date}</TableCell>
-                        <TableCell>{deployment.end_date}</TableCell>
+                        <TableCell>{formatDisplayDate(deployment.start_date)}</TableCell>
+                        <TableCell>{formatDisplayDate(deployment.end_date)}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{deployment.notes || '-'}</TableCell>
                       </TableRow>
                     );
@@ -294,8 +295,8 @@ export const DeploymentPage = () => {
                       <TableCell className="font-medium">{getPersonnelName(deployment.personnel_id)}</TableCell>
                       <TableCell>{deployment.deployment_type}</TableCell>
                       <TableCell>{deployment.location}</TableCell>
-                      <TableCell>{deployment.start_date}</TableCell>
-                      <TableCell>{deployment.end_date}</TableCell>
+                      <TableCell>{formatDisplayDate(deployment.start_date)}</TableCell>
+                      <TableCell>{formatDisplayDate(deployment.end_date)}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded text-xs ${
                           isActive(deployment) ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-500'

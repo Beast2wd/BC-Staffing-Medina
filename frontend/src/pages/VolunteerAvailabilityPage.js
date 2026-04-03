@@ -15,6 +15,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 export const VolunteerAvailabilityPage = () => {
   const { api, user } = useAuth();
@@ -193,7 +194,7 @@ export const VolunteerAvailabilityPage = () => {
               Volunteer Availability
             </h1>
             <p className="text-muted-foreground mt-1">
-              Submit your volunteer availability - {selectedDate}
+              Submit your volunteer availability - {formatDisplayDate(selectedDate)}
             </p>
           </div>
           
@@ -377,7 +378,7 @@ export const VolunteerAvailabilityPage = () => {
         {/* All Volunteers Available */}
         <Card data-testid="all-volunteers-card">
           <CardHeader>
-            <CardTitle className="font-heading uppercase">All Volunteers Available for {selectedDate}</CardTitle>
+            <CardTitle className="font-heading uppercase">All Volunteers Available for {formatDisplayDate(selectedDate)}</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>

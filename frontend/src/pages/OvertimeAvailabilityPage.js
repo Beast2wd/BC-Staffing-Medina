@@ -14,6 +14,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { formatDisplayDateWithDay } from '../utils/dateUtils';
 
 export const OvertimeAvailabilityPage = () => {
   const { api, user } = useAuth();
@@ -289,12 +290,7 @@ export const OvertimeAvailabilityPage = () => {
               </Button>
               <div className="text-center min-w-[200px]">
                 <p className="text-lg font-heading font-semibold">
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
+                  {formatDisplayDateWithDay(selectedDate)}
                 </p>
                 <p className="text-sm text-muted-foreground">{currentShift} Shift</p>
               </div>

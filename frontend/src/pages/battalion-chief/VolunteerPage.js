@@ -220,7 +220,7 @@ export const VolunteerPage = () => {
               Volunteer Available
             </h1>
             <p className="text-muted-foreground mt-1">
-              Manage volunteer firefighter availability for {selectedDate}
+              Manage volunteer firefighter availability for {formatDisplayDate(selectedDate)}
             </p>
           </div>
           
