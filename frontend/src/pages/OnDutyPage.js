@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
-import { Users, MapPin } from 'lucide-react';
+import { Users, MapPin, Truck } from 'lucide-react';
 import { formatDisplayDate } from '../utils/dateUtils';
 
 export const OnDutyPage = () => {
@@ -19,10 +19,23 @@ export const OnDutyPage = () => {
     currentShift
   } = useStaffing();
   const [loading, setLoading] = useState(false);
+  const [apparatusAssignments, setApparatusAssignments] = useState([]);
 
   useEffect(() => {
     fetchAllData();
+    fetchApparatusAssignments();
   }, [selectedBattalion, selectedDate]);
+
+  const fetchApparatusAssignments = async () => {
+    try {
+      const response = await api.get('/apparatus-assignments', {
+        params: { date: selectedDate, battalion_id: selectedBattalion }
+      });
+      setApparatusAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching apparatus assignments:', error);
+    }
+  };
 
   // Get personnel on duty for the selected shift
   const getOnDutyPersonnel = (stationId) => {
@@ -31,6 +44,22 @@ export const OnDutyPage = () => {
       p.shift === currentShift &&
       p.is_active
     );
+  };
+
+  // Get apparatus assignment for a person
+  const getPersonnelApparatus = (personnelId, stationId) => {
+    const assignment = apparatusAssignments.find(a => 
+      a.station_id === stationId && 
+      a.personnel_ids?.includes(personnelId)
+    );
+    if (assignment) {
+      const position = assignment.position_assignments?.[personnelId];
+      return {
+        name: assignment.apparatus_name,
+        position: position || null
+      };
+    }
+    return null;
   };
 
   return (
@@ -78,33 +107,48 @@ export const OnDutyPage = () => {
                       </p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {onDutyPersonnel.map(person => (
-                          <div 
-                            key={person.id} 
-                            className="p-3 bg-muted rounded-lg"
-                            data-testid={`personnel-card-${person.id}`}
-                          >
-                            <p className="font-medium text-sm">{person.name}</p>
-                            <p className="text-xs text-muted-foreground">{person.rank}</p>
-                            {person.certifications?.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {person.certifications.slice(0, 2).map((cert, idx) => (
-                                  <span 
-                                    key={idx} 
-                                    className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded"
-                                  >
-                                    {cert}
+                        {onDutyPersonnel.map(person => {
+                          const apparatus = getPersonnelApparatus(person.id, station.id);
+                          
+                          return (
+                            <div 
+                              key={person.id} 
+                              className="p-3 bg-muted rounded-lg"
+                              data-testid={`personnel-card-${person.id}`}
+                            >
+                              <p className="font-medium text-sm">{person.name}</p>
+                              <p className="text-xs text-muted-foreground">{person.rank}</p>
+                              {apparatus && (
+                                <div className="flex items-center gap-1 mt-2">
+                                  <Truck className="h-3 w-3 text-primary" />
+                                  <span className="text-xs font-medium text-primary">
+                                    {apparatus.position && (
+                                      <span className="bg-primary/20 px-1 rounded mr-1">{apparatus.position}</span>
+                                    )}
+                                    {apparatus.name}
                                   </span>
-                                ))}
-                                {person.certifications.length > 2 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    +{person.certifications.length - 2}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                                </div>
+                              )}
+                              {person.certifications?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {person.certifications.slice(0, 2).map((cert, idx) => (
+                                    <span 
+                                      key={idx} 
+                                      className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded"
+                                    >
+                                      {cert}
+                                    </span>
+                                  ))}
+                                  {person.certifications.length > 2 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      +{person.certifications.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
