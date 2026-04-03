@@ -206,9 +206,15 @@ export const StaffingGrid = () => {
   };
 
   const getVarianceClass = (variance) => {
-    if (variance > 0) return 'text-green-500';
-    if (variance < 0) return 'text-red-500';
-    return '';
+    if (variance > 0) return 'text-white';      // Over staffed - white
+    if (variance < 0) return 'text-red-500';    // Under staffed - red
+    return 'text-green-500';                     // Even - green
+  };
+
+  const formatVariance = (value) => {
+    if (value > 0) return `+${value}`;
+    if (value < 0) return `${value}`;  // Already has minus sign
+    return value;
   };
 
   return (
@@ -255,6 +261,7 @@ export const StaffingGrid = () => {
                     const displayValue = value !== 0 || category.isHeader || category.isFooter ? value : '';
                     const isEditing = editingCell?.stationId === station.id && editingCell?.categoryKey === category.key;
                     const isEditable = category.editable && canEdit;
+                    const formattedValue = category.key === 'variance' ? formatVariance(value) : displayValue;
                     
                     return (
                       <TableCell 
@@ -277,7 +284,7 @@ export const StaffingGrid = () => {
                             data-testid={`edit-input-${station.id}-${category.key}`}
                           />
                         ) : (
-                          displayValue
+                          formattedValue
                         )}
                       </TableCell>
                     );
@@ -285,7 +292,7 @@ export const StaffingGrid = () => {
                   <TableCell className={`text-center font-bold ${
                     category.key === 'variance' ? getVarianceClass(gridData.totals[category.key]) : ''
                   }`}>
-                    {gridData.totals[category.key] || 0}
+                    {category.key === 'variance' ? formatVariance(gridData.totals[category.key] || 0) : (gridData.totals[category.key] || 0)}
                   </TableCell>
                 </TableRow>
               ))}
