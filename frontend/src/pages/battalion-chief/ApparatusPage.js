@@ -369,82 +369,70 @@ export const ApparatusPage = () => {
               <TableBody>
                 {stations.map(station => {
                   const stationAssignments = assignments.filter(a => a.station_id === station.id);
+                  const stationApparatus = station.apparatus || [];
                   
-                  if (stationAssignments.length === 0) {
-                    return station.apparatus?.map((app, idx) => (
+                  // Create a map of apparatus to their assignments
+                  const apparatusAssignmentMap = {};
+                  stationAssignments.forEach(a => {
+                    apparatusAssignmentMap[a.apparatus_name] = a;
+                  });
+                  
+                  // Show all apparatus from the station configuration
+                  return stationApparatus.map((app, idx) => {
+                    const assignment = apparatusAssignmentMap[app];
+                    
+                    return (
                       <TableRow key={`${station.id}-${app}`} data-testid={`assignment-row-${station.id}-${idx}`}>
                         {idx === 0 && (
-                          <TableCell rowSpan={station.apparatus.length} className="font-semibold align-top">
+                          <TableCell rowSpan={stationApparatus.length} className="font-semibold align-top">
                             Station {station.station_number}
                           </TableCell>
                         )}
                         <TableCell>{app}</TableCell>
-                        <TableCell className="text-muted-foreground italic">Not assigned</TableCell>
+                        <TableCell>
+                          {assignment && assignment.personnel_ids && assignment.personnel_ids.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {getPersonnelWithPosition(assignment).map(p => (
+                                <span key={p.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
+                                  <span className="font-semibold text-primary">{p.position}</span>
+                                  <span>{p.name}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic">Not assigned</span>
+                          )}
+                        </TableCell>
                         {canEdit && (
                           <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleOpenEdit(null, station.id, app)}
-                              title="Assign Personnel"
-                              data-testid={`edit-unassigned-${station.id}-${app}`}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleOpenEdit(assignment || null, station.id, app)}
+                                title={assignment ? "Edit Assignment" : "Assign Personnel"}
+                                data-testid={`edit-assignment-${station.id}-${app}`}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              {assignment && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-red-500"
+                                  onClick={() => handleDeleteAssignment(assignment.id)}
+                                  title="Remove Assignment"
+                                  data-testid={`delete-assignment-${assignment.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
-                    ));
-                  }
-
-                  return stationAssignments.map((assignment, idx) => (
-                    <TableRow key={assignment.id} data-testid={`assignment-row-${assignment.id}`}>
-                      {idx === 0 && (
-                        <TableCell rowSpan={stationAssignments.length} className="font-semibold align-top">
-                          Station {station.station_number}
-                        </TableCell>
-                      )}
-                      <TableCell>{assignment.apparatus_name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {getPersonnelWithPosition(assignment).map(p => (
-                            <span key={p.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
-                              <span className="font-semibold text-primary">{p.position}</span>
-                              <span>{p.name}</span>
-                            </span>
-                          ))}
-                          {(!assignment.personnel_ids || assignment.personnel_ids.length === 0) && (
-                            <span className="text-muted-foreground italic">No personnel assigned</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {canEdit && (
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleOpenEdit(assignment, assignment.station_id, assignment.apparatus_name)}
-                              title="Edit Assignment"
-                              data-testid={`edit-assignment-${assignment.id}`}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-red-500"
-                              onClick={() => handleDeleteAssignment(assignment.id)}
-                              title="Remove Assignment"
-                              data-testid={`delete-assignment-${assignment.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ));
+                    );
+                  });
                 })}
               </TableBody>
             </Table>
