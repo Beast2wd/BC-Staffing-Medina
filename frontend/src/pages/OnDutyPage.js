@@ -46,20 +46,40 @@ export const OnDutyPage = () => {
     );
   };
 
-  // Get apparatus assignment for a person
-  const getPersonnelApparatus = (personnelId, stationId) => {
-    const assignment = apparatusAssignments.find(a => 
-      a.station_id === stationId && 
-      a.personnel_ids?.includes(personnelId)
-    );
-    if (assignment) {
-      const position = assignment.position_assignments?.[personnelId];
-      return {
-        name: assignment.apparatus_name,
-        position: position || null
-      };
-    }
-    return null;
+  // Get apparatus assignments for a station with personnel grouped and sorted by position
+  const getStationApparatusWithPersonnel = (stationId) => {
+    const stationApparatusAssignments = apparatusAssignments.filter(a => a.station_id === stationId);
+    const onDutyPersonnel = getOnDutyPersonnel(stationId);
+    const station = stations.find(s => s.id === stationId);
+    const stationApparatusList = station?.apparatus || [];
+    
+    // Build apparatus groups with assigned personnel
+    const apparatusGroups = [];
+    const assignedPersonnelIds = new Set();
+    
+    // First, process apparatus with assignments
+    stationApparatusList.forEach(apparatusName => {
+      const assignment = stationApparatusAssignments.find(a => a.apparatus_name === apparatusName);
+      
+      if (assignment && assignment.personnel_ids?.length > 0) {
+        const personnelWithPositions = assignment.personnel_ids.map(pid => {
+          const person = personnel.find(p => p.id === pid);
+          const position = assignment.position_assignments?.[pid] || 'Z'; // Z for unassigned position (sorts last)
+          assignedPersonnelIds.add(pid);
+          return { ...person, position };
+        }).filter(p => p).sort((a, b) => a.position.localeCompare(b.position));
+        
+        apparatusGroups.push({
+          name: apparatusName,
+          personnel: personnelWithPositions
+        });
+      }
+    });
+    
+    // Get unassigned personnel
+    const unassignedPersonnel = onDutyPersonnel.filter(p => !assignedPersonnelIds.has(p.id));
+    
+    return { apparatusGroups, unassignedPersonnel };
   };
 
   return (
@@ -90,7 +110,8 @@ export const OnDutyPage = () => {
           {/* Stations Personnel Section */}
           <div className="flex-1 space-y-4">
             {stations.map(station => {
-              const onDutyPersonnel = getOnDutyPersonnel(station.id);
+              const { apparatusGroups, unassignedPersonnel } = getStationApparatusWithPersonnel(station.id);
+              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0;
               
               return (
                 <Card key={station.id} data-testid={`station-card-${station.id}`}>
@@ -101,54 +122,63 @@ export const OnDutyPage = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {onDutyPersonnel.length === 0 ? (
+                    {!hasAnyPersonnel ? (
                       <p className="text-muted-foreground text-center py-4">
                         No personnel scheduled for this shift
                       </p>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {onDutyPersonnel.map(person => {
-                          const apparatus = getPersonnelApparatus(person.id, station.id);
-                          
-                          return (
-                            <div 
-                              key={person.id} 
-                              className="p-3 bg-muted rounded-lg"
-                              data-testid={`personnel-card-${person.id}`}
-                            >
-                              <p className="font-medium text-sm">{person.name}</p>
-                              <p className="text-xs text-muted-foreground">{person.rank}</p>
-                              {apparatus && (
-                                <div className="flex items-center gap-1 mt-2">
-                                  <Truck className="h-3 w-3 text-primary" />
-                                  <span className="text-xs font-medium text-primary">
-                                    {apparatus.position && (
-                                      <span className="bg-primary/20 px-1 rounded mr-1">{apparatus.position}</span>
-                                    )}
-                                    {apparatus.name}
-                                  </span>
-                                </div>
-                              )}
-                              {person.certifications?.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {person.certifications.slice(0, 2).map((cert, idx) => (
-                                    <span 
-                                      key={idx} 
-                                      className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded"
-                                    >
-                                      {cert}
-                                    </span>
-                                  ))}
-                                  {person.certifications.length > 2 && (
-                                    <span className="text-xs text-muted-foreground">
-                                      +{person.certifications.length - 2}
+                      <div className="space-y-4">
+                        {/* Apparatus Groups */}
+                        {apparatusGroups.map(group => (
+                          <div key={group.name} className="border border-border rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                              <Truck className="h-4 w-4 text-primary" />
+                              <span className="font-semibold text-primary">{group.name}</span>
+                              <span className="text-xs text-muted-foreground">({group.personnel.length} assigned)</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {group.personnel.map(person => (
+                                <div 
+                                  key={person.id} 
+                                  className="flex items-center gap-2 p-2 bg-muted rounded-lg"
+                                  data-testid={`personnel-card-${person.id}`}
+                                >
+                                  {person.position && person.position !== 'Z' && (
+                                    <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
+                                      {person.position}
                                     </span>
                                   )}
+                                  <div>
+                                    <p className="font-medium text-sm">{person.name}</p>
+                                    <p className="text-xs text-muted-foreground">{person.rank}</p>
+                                  </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
+                        
+                        {/* Unassigned Personnel */}
+                        {unassignedPersonnel.length > 0 && (
+                          <div className="border border-dashed border-muted-foreground/30 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-semibold text-muted-foreground">Not Assigned to Apparatus</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {unassignedPersonnel.map(person => (
+                                <div 
+                                  key={person.id} 
+                                  className="p-2 bg-muted/50 rounded-lg"
+                                  data-testid={`personnel-card-${person.id}`}
+                                >
+                                  <p className="font-medium text-sm">{person.name}</p>
+                                  <p className="text-xs text-muted-foreground">{person.rank}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>
