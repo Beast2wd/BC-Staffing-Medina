@@ -574,6 +574,11 @@ async def update_personnel(
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
     
+    # Get current personnel to find their payroll_number
+    current_personnel = await db.personnel.find_one({"id": personnel_id}, {"_id": 0})
+    if not current_personnel:
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
     result = await db.personnel.find_one_and_update(
         {"id": personnel_id},
         {"$set": update_data},
@@ -581,6 +586,28 @@ async def update_personnel(
     )
     if not result:
         raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Sync relevant changes to the users collection
+    user_update_fields = {}
+    if "name" in update_data:
+        user_update_fields["name"] = update_data["name"]
+    if "rank" in update_data:
+        user_update_fields["rank"] = update_data["rank"]
+    if "station_id" in update_data:
+        user_update_fields["station_id"] = update_data["station_id"]
+    if "shift" in update_data:
+        user_update_fields["shift"] = update_data["shift"]
+    if "is_active" in update_data:
+        user_update_fields["is_active"] = update_data["is_active"]
+    if "payroll_number" in update_data:
+        user_update_fields["payroll_number"] = update_data["payroll_number"]
+    
+    if user_update_fields:
+        # Update user by the old payroll_number (in case it changed)
+        await db.users.update_one(
+            {"payroll_number": current_personnel["payroll_number"]},
+            {"$set": user_update_fields}
+        )
     
     del result["_id"]
     return PersonnelBase(**result)
@@ -590,12 +617,24 @@ async def delete_personnel(
     personnel_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
+    # Get personnel to find their payroll_number
+    personnel = await db.personnel.find_one({"id": personnel_id}, {"_id": 0})
+    if not personnel:
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
     result = await db.personnel.update_one(
         {"id": personnel_id},
         {"$set": {"is_active": False}}
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Also deactivate the corresponding user account
+    await db.users.update_one(
+        {"payroll_number": personnel["payroll_number"]},
+        {"$set": {"is_active": False}}
+    )
+    
     return {"message": "Personnel deactivated"}
 
 # ===================== STATION ROUTES =====================
@@ -1329,6 +1368,11 @@ async def update_user(
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
     
+    # Get current user to find their payroll_number
+    current_user_record = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not current_user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     result = await db.users.find_one_and_update(
         {"id": user_id},
         {"$set": update_data},
@@ -1336,13 +1380,45 @@ async def update_user(
     )
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Sync relevant changes to the personnel collection
+    personnel_update_fields = {}
+    if "name" in update_data:
+        personnel_update_fields["name"] = update_data["name"]
+    if "rank" in update_data:
+        personnel_update_fields["rank"] = update_data["rank"]
+    if "station_id" in update_data:
+        personnel_update_fields["station_id"] = update_data["station_id"]
+    if "shift" in update_data:
+        personnel_update_fields["shift"] = update_data["shift"]
+    if "is_active" in update_data:
+        personnel_update_fields["is_active"] = update_data["is_active"]
+    
+    if personnel_update_fields:
+        await db.personnel.update_one(
+            {"payroll_number": current_user_record["payroll_number"]},
+            {"$set": personnel_update_fields}
+        )
+    
     return UserResponse(**{k: v for k, v in result.items() if k != "_id" and k != "password_hash"})
 
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+    # Get user to find their payroll_number
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     result = await db.users.update_one({"id": user_id}, {"$set": {"is_active": False}})
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Also deactivate the corresponding personnel record
+    await db.personnel.update_one(
+        {"payroll_number": user["payroll_number"]},
+        {"$set": {"is_active": False}}
+    )
+    
     return {"message": "User deactivated"}
 
 class ResetPasswordRequest(BaseModel):
