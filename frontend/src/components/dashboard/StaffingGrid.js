@@ -6,6 +6,7 @@ import { useStaffing } from '../../context/StaffingContext';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 const STAFFING_CATEGORIES = [
   { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: false },
@@ -218,7 +219,7 @@ export const StaffingGrid = () => {
             Stations
           </CardTitle>
           <Badge className={getShiftBadgeClass(currentShift)}>
-            {currentShift} Shift - {selectedDate}
+            {currentShift} Shift - {formatDisplayDate(selectedDate)}
           </Badge>
         </div>
       </CardHeader>

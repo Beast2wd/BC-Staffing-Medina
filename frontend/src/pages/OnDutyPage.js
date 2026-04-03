@@ -6,6 +6,7 @@ import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
 import { Users, MapPin } from 'lucide-react';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 export const OnDutyPage = () => {
   const { api } = useAuth();
@@ -44,7 +45,7 @@ export const OnDutyPage = () => {
               On Duty
             </h1>
             <p className="text-muted-foreground mt-1">
-              Personnel on duty for {selectedDate} - {currentShift} Shift
+              Personnel on duty for {formatDisplayDate(selectedDate)} - {currentShift} Shift
             </p>
           </div>
           

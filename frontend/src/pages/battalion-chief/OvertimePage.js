@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
+import { formatDisplayDate, formatDisplayDateWithDay } from '../../utils/dateUtils';
 
 export const OvertimePage = () => {
   const { api, canEdit } = useAuth();
@@ -368,12 +369,7 @@ export const OvertimePage = () => {
               </Button>
               <div className="text-center min-w-[200px]">
                 <p className="text-lg font-heading font-semibold">
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
+                  {formatDisplayDateWithDay(selectedDate)}
                 </p>
                 <p className="text-sm text-muted-foreground">{currentShift} Shift</p>
               </div>

@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDisplayDateWithDay } from '../utils/dateUtils';
 
 export const DashboardPage = () => {
   const { fetchAllData, loading, currentShift, selectedDate } = useStaffing();
@@ -36,12 +37,7 @@ export const DashboardPage = () => {
               Daily Work Sheet
             </h1>
             <p className="text-muted-foreground mt-1">
-              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })} - {currentShift} Shift
+              {formatDisplayDateWithDay(selectedDate)} - {currentShift} Shift
             </p>
           </div>
           

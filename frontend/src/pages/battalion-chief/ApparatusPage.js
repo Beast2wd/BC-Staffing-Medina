@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const ApparatusPage = () => {
   const { api, canEdit } = useAuth();
@@ -203,7 +204,7 @@ export const ApparatusPage = () => {
               Apparatus Assignments
             </h1>
             <p className="text-muted-foreground mt-1">
-              Manage apparatus crew assignments for {selectedDate}
+              Manage apparatus crew assignments for {formatDisplayDate(selectedDate)}
             </p>
           </div>
           

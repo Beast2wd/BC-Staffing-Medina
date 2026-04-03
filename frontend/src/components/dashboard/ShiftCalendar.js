@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useStaffing } from '../../context/StaffingContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDisplayDateWithDay } from '../../utils/dateUtils';
 
 export const ShiftCalendar = () => {
   const { selectedDate, setSelectedDate, getShiftForDate, currentShift } = useStaffing();
@@ -184,12 +185,7 @@ export const ShiftCalendar = () => {
         <div className="text-center p-3 bg-muted rounded-lg">
           <p className="text-sm text-muted-foreground">Selected Date</p>
           <p className="font-heading text-lg font-semibold">
-            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            })}
+            {formatDisplayDateWithDay(selectedDate)}
           </p>
         </div>
       </CardContent>

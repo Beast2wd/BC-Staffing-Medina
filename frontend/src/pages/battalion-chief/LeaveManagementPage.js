@@ -17,6 +17,7 @@ import { Badge } from '../../components/ui/badge';
 import { Calendar } from '../../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { format, addDays, subDays } from 'date-fns';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const LeaveManagementPage = ({ leaveType }) => {
   const { api, canEdit } = useAuth();
@@ -548,8 +549,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
                             {person?.shift || '-'}
                           </span>
                         </TableCell>
-                        <TableCell>{record.start_date}</TableCell>
-                        <TableCell>{record.end_date}</TableCell>
+                        <TableCell>{formatDisplayDate(record.start_date)}</TableCell>
+                        <TableCell>{formatDisplayDate(record.end_date)}</TableCell>
                         <TableCell>{getStatusBadge(record.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{record.notes || '-'}</TableCell>
                         {canEdit && (
