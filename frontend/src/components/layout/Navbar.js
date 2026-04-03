@@ -24,8 +24,10 @@ import {
   Clock,
   Plane,
   AlertCircle,
-  Hand
+  Hand,
+  Key
 } from 'lucide-react';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
 const LOGO_URL = '/medina-logo.png';
 
@@ -35,6 +37,7 @@ export const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -247,11 +250,21 @@ export const Navbar = () => {
                 <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ')}</p>
               </div>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowChangePassword(true)} data-testid="change-password-menu">
+                <Key className="h-4 w-4 mr-2" /> Change Password
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout} className="text-red-500" data-testid="logout-button">
                 <LogOut className="h-4 w-4 mr-2" /> Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Change Password Modal */}
+          <ChangePasswordModal 
+            isOpen={showChangePassword} 
+            onClose={() => setShowChangePassword(false)} 
+            isRequired={false}
+          />
 
           {/* Mobile Menu Button */}
           <Button

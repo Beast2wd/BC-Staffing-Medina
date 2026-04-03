@@ -52,6 +52,16 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
   // Calculate password strength
   const passwordStrength = useMemo(() => calculatePasswordStrength(newPassword), [newPassword]);
 
+  const handleClose = () => {
+    if (!isRequired) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setError('');
+      onClose();
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -66,10 +76,8 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
       return;
     }
 
-    if (currentPassword === newPassword) {
-      setError('New password must be different from current password');
-      return;
-    }
+    // Allow users to use any password, including previous passwords
+    // No restriction on password reuse
 
     setLoading(true);
     const result = await changePassword(currentPassword, newPassword);
@@ -87,8 +95,12 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={isRequired ? undefined : onClose}>
-      <DialogContent className="max-w-md" onInteractOutside={isRequired ? (e) => e.preventDefault() : undefined}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent 
+        className="max-w-md" 
+        onInteractOutside={isRequired ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isRequired ? (e) => e.preventDefault() : undefined}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-heading uppercase">
             <Lock className="h-5 w-5" />
@@ -202,7 +214,7 @@ export const ChangePasswordModal = ({ isOpen, onClose, isRequired = false }) => 
               {loading ? 'Changing...' : 'Change Password'}
             </Button>
             {!isRequired && (
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
             )}
