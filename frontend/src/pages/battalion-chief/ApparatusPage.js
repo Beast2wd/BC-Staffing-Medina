@@ -3,19 +3,20 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
-import { formatDisplayDate } from '../../utils/dateUtils';
+import { formatDisplayDate, formatDisplayDateWithDay } from '../../utils/dateUtils';
 
 export const ApparatusPage = () => {
   const { api, canEdit } = useAuth();
-  const { stations, personnel, fetchAllData, selectedDate, selectedBattalion, currentShift } = useStaffing();
+  const { stations, personnel, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -27,6 +28,17 @@ export const ApparatusPage = () => {
   const [positionAssignments, setPositionAssignments] = useState({}); // {personnelId: 'A'|'B'|'C'|'D'}
 
   const RIDING_POSITIONS = ['A', 'B', 'C', 'D'];
+
+  // Date navigation functions
+  const navigateDate = (direction) => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + direction);
+    setSelectedDate(current.toISOString().split('T')[0]);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
+  };
 
   useEffect(() => {
     fetchAllData();
@@ -200,12 +212,50 @@ export const ApparatusPage = () => {
       <main className="container mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h1 className="font-heading text-3xl uppercase tracking-wider font-bold">
+            <h1 className="font-heading text-3xl uppercase tracking-wider font-bold flex items-center gap-3">
               Apparatus Assignments
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => navigateDate(-1)}
+                  className="h-8 w-8"
+                  data-testid="prev-date"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => navigateDate(1)}
+                  className="h-8 w-8"
+                  data-testid="next-date"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage apparatus crew assignments for {formatDisplayDate(selectedDate)}
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-muted-foreground">
+                {formatDisplayDateWithDay(selectedDate)}
+              </p>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-36 h-7 text-xs"
+                data-testid="date-picker"
+              />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={goToToday}
+                className="h-7 text-xs"
+                data-testid="today-btn"
+              >
+                Today
+              </Button>
+            </div>
           </div>
           
           <div className="flex items-center gap-4">
