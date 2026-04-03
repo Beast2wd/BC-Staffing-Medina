@@ -98,6 +98,7 @@ class UserUpdate(BaseModel):
     station_id: Optional[str] = None
     shift: Optional[str] = None
     is_active: Optional[bool] = None
+    payroll_number: Optional[str] = None
 
 class PersonnelBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1393,8 +1394,11 @@ async def update_user(
         personnel_update_fields["shift"] = update_data["shift"]
     if "is_active" in update_data:
         personnel_update_fields["is_active"] = update_data["is_active"]
+    if "payroll_number" in update_data:
+        personnel_update_fields["payroll_number"] = update_data["payroll_number"]
     
     if personnel_update_fields:
+        # Update personnel by the old payroll_number (in case it changed)
         await db.personnel.update_one(
             {"payroll_number": current_user_record["payroll_number"]},
             {"$set": personnel_update_fields}
