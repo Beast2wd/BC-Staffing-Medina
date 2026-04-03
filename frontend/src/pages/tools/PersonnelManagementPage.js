@@ -372,7 +372,32 @@ export const PersonnelManagementPage = () => {
     return matchesSearch && matchesShift && matchesStation;
   });
 
+  // Group personnel by station and shift
+  const groupedPersonnel = filteredPersonnel.reduce((acc, person) => {
+    const stationId = person.station_id || 'unassigned';
+    const shift = person.shift || 'Unknown';
+    
+    if (!acc[stationId]) {
+      acc[stationId] = { A: [], B: [], C: [] };
+    }
+    if (!acc[stationId][shift]) {
+      acc[stationId][shift] = [];
+    }
+    acc[stationId][shift].push(person);
+    return acc;
+  }, {});
+
+  // Sort stations by station number
+  const sortedStations = Object.keys(groupedPersonnel).sort((a, b) => {
+    if (a === 'unassigned') return 1;
+    if (b === 'unassigned') return -1;
+    const stationA = stations.find(s => s.id === a);
+    const stationB = stations.find(s => s.id === b);
+    return (stationA?.station_number || 999) - (stationB?.station_number || 999);
+  });
+
   const getStationName = (stationId) => {
+    if (stationId === 'unassigned') return 'Unassigned';
     const station = stations.find(s => s.id === stationId);
     return station ? `Station ${station.station_number}` : stationId;
   };
@@ -384,6 +409,24 @@ export const PersonnelManagementPage = () => {
       'C': 'bg-blue-500'
     };
     return <Badge className={colors[shift] || 'bg-gray-500'}>{shift} Shift</Badge>;
+  };
+
+  const getShiftBorderColor = (shift) => {
+    const colors = {
+      'A': 'border-l-red-500',
+      'B': 'border-l-green-500',
+      'C': 'border-l-blue-500'
+    };
+    return colors[shift] || 'border-l-gray-500';
+  };
+
+  const getShiftBgColor = (shift) => {
+    const colors = {
+      'A': 'bg-red-500/5',
+      'B': 'bg-green-500/5',
+      'C': 'bg-blue-500/5'
+    };
+    return colors[shift] || 'bg-gray-500/5';
   };
 
   return (
@@ -531,90 +574,122 @@ export const PersonnelManagementPage = () => {
           </CardContent>
         </Card>
 
-        {/* Personnel Table */}
-        <Card data-testid="personnel-table-card">
-          <CardHeader>
-            <CardTitle className="font-heading uppercase">
-              Personnel ({filteredPersonnel.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Payroll #</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Rank</TableHead>
-                  <TableHead>Station</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>Certifications</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPersonnel.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No personnel found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredPersonnel.map(person => (
-                    <TableRow key={person.id} data-testid={`personnel-row-${person.id}`}>
-                      <TableCell className="font-mono">{person.payroll_number}</TableCell>
-                      <TableCell className="font-medium">{person.name}</TableCell>
-                      <TableCell>{person.rank}</TableCell>
-                      <TableCell>{getStationName(person.station_id)}</TableCell>
-                      <TableCell>{getShiftBadge(person.shift)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {person.certifications?.map((cert, idx) => (
-                            <span key={idx} className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                              {cert}
+        {/* Personnel Grouped by Station and Shift */}
+        <div className="space-y-6" data-testid="personnel-grouped">
+          {sortedStations.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No personnel found
+              </CardContent>
+            </Card>
+          ) : (
+            sortedStations.map(stationId => (
+              <Card key={stationId} data-testid={`station-card-${stationId}`}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="font-heading uppercase flex items-center justify-between">
+                    <span>{getStationName(stationId)}</span>
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {Object.values(groupedPersonnel[stationId]).flat().length} personnel
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {['A', 'B', 'C'].map(shift => {
+                    const shiftPersonnel = groupedPersonnel[stationId][shift] || [];
+                    if (shiftPersonnel.length === 0 && filterShift !== 'all') return null;
+                    if (shiftPersonnel.length === 0) return null;
+                    
+                    return (
+                      <div 
+                        key={shift} 
+                        className={`border-l-4 ${getShiftBorderColor(shift)} ${getShiftBgColor(shift)} rounded-r-lg`}
+                        data-testid={`shift-group-${stationId}-${shift}`}
+                      >
+                        <div className="p-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            {getShiftBadge(shift)}
+                            <span className="text-sm text-muted-foreground">
+                              ({shiftPersonnel.length} personnel)
                             </span>
-                          ))}
+                          </div>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-24">Payroll #</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Rank</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead>Certifications</TableHead>
+                                <TableHead className="w-24">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {shiftPersonnel.map(person => (
+                                <TableRow key={person.id} data-testid={`personnel-row-${person.id}`}>
+                                  <TableCell className="font-mono text-sm">{person.payroll_number}</TableCell>
+                                  <TableCell className="font-medium">{person.name}</TableCell>
+                                  <TableCell className="text-sm">{person.rank}</TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">{person.contact_phone || '-'}</TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                      {person.certifications?.slice(0, 3).map((cert, idx) => (
+                                        <span key={idx} className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                          {cert}
+                                        </span>
+                                      ))}
+                                      {person.certifications?.length > 3 && (
+                                        <span className="text-xs text-muted-foreground">
+                                          +{person.certifications.length - 3}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => openEditDialog(person)}
+                                        title="Edit Personnel"
+                                        data-testid={`edit-${person.id}`}
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => openPasswordDialog(person)}
+                                        title="Set Password"
+                                        className="text-blue-500"
+                                        data-testid={`password-${person.id}`}
+                                      >
+                                        <Key className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="text-red-500"
+                                        onClick={() => handleDeletePersonnel(person.id)}
+                                        title="Deactivate"
+                                        data-testid={`delete-${person.id}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => openEditDialog(person)}
-                            title="Edit Personnel"
-                            data-testid={`edit-${person.id}`}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => openPasswordDialog(person)}
-                            title="Set Password"
-                            className="text-blue-500"
-                            data-testid={`password-${person.id}`}
-                          >
-                            <Key className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-red-500"
-                            onClick={() => handleDeletePersonnel(person.id)}
-                            title="Deactivate"
-                            data-testid={`delete-${person.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </main>
     </div>
   );
