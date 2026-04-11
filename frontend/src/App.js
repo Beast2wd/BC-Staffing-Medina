@@ -18,6 +18,7 @@ import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
 import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
 import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
+import { VolunteerManagementPage } from "./pages/tools/VolunteerManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
@@ -119,6 +120,9 @@ const AppContent = () => {
         } />
         <Route path="/tools/users" element={
           <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
+        } />
+        <Route path="/tools/volunteers" element={
+          <ProtectedRoute adminOnly><VolunteerManagementPage /></ProtectedRoute>
         } />
         
         {/* Reports */}

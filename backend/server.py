@@ -316,6 +316,37 @@ class VolunteerRecordCreate(BaseModel):
     phone_number: str = ""
     shift_type: str = "24"
 
+# ===================== VOLUNTEER FIREFIGHTER MODELS =====================
+
+class Volunteer(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    contact_phone: str = ""
+    contact_email: str = ""
+    station_id: str = ""  # Preferred station
+    certifications: List[str] = []
+    notes: str = ""
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class VolunteerCreate(BaseModel):
+    name: str
+    contact_phone: str = ""
+    contact_email: str = ""
+    station_id: str = ""
+    certifications: List[str] = []
+    notes: str = ""
+
+class VolunteerUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    station_id: Optional[str] = None
+    certifications: Optional[List[str]] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class RemarkEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -928,6 +959,72 @@ async def delete_volunteer_record(
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
     return {"message": "Volunteer record deleted"}
+
+# ===================== VOLUNTEER FIREFIGHTER MANAGEMENT ROUTES =====================
+
+@api_router.get("/volunteers", response_model=List[Volunteer])
+async def get_volunteers(
+    station_id: Optional[str] = None,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Get all volunteer firefighters"""
+    query = {"is_active": True}
+    if station_id:
+        query["station_id"] = station_id
+    
+    volunteers = await db.volunteers.find(query, {"_id": 0}).to_list(1000)
+    return volunteers
+
+@api_router.post("/volunteers", response_model=Volunteer)
+async def create_volunteer(
+    data: VolunteerCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Create a new volunteer firefighter"""
+    volunteer = Volunteer(
+        name=data.name,
+        contact_phone=data.contact_phone,
+        contact_email=data.contact_email,
+        station_id=data.station_id,
+        certifications=data.certifications,
+        notes=data.notes
+    )
+    
+    await db.volunteers.insert_one(volunteer.model_dump())
+    return volunteer
+
+@api_router.put("/volunteers/{volunteer_id}", response_model=Volunteer)
+async def update_volunteer(
+    volunteer_id: str,
+    data: VolunteerUpdate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Update a volunteer firefighter"""
+    volunteer = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    if not volunteer:
+        raise HTTPException(status_code=404, detail="Volunteer not found")
+    
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        await db.volunteers.update_one({"id": volunteer_id}, {"$set": update_data})
+    
+    updated = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    return Volunteer(**updated)
+
+@api_router.delete("/volunteers/{volunteer_id}")
+async def delete_volunteer(
+    volunteer_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Delete (deactivate) a volunteer firefighter"""
+    result = await db.volunteers.update_one(
+        {"id": volunteer_id},
+        {"$set": {"is_active": False}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Volunteer not found")
+    
+    return {"message": "Volunteer removed"}
 
 # ===================== LEAVE ROUTES =====================
 

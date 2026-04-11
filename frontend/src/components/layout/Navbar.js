@@ -25,7 +25,8 @@ import {
   Plane,
   AlertCircle,
   Hand,
-  Key
+  Key,
+  UserPlus
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
@@ -208,6 +209,11 @@ export const Navbar = () => {
                 <DropdownMenuItem asChild>
                   <Link to="/tools/users" className="flex items-center gap-2" data-testid="nav-user-mgmt">
                     <Users className="h-4 w-4" /> User Management
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/tools/volunteers" className="flex items-center gap-2" data-testid="nav-volunteer-mgmt">
+                    <UserPlus className="h-4 w-4" /> Volunteer Management
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
