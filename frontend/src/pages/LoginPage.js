@@ -26,7 +26,12 @@ export const LoginPage = () => {
     
     if (result.success) {
       toast.success('Login successful');
-      navigate('/dashboard');
+      // Redirect volunteers to on-duty page, others to dashboard
+      if (result.user?.role === 'volunteer') {
+        navigate('/on-duty');
+      } else {
+        navigate('/dashboard');
+      }
     } else {
       toast.error(result.error);
     }
@@ -62,14 +67,14 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="payroll" className="text-zinc-200">
-                Payroll Number
+                Payroll Number or Email
               </Label>
               <div className="relative">
                 <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
                 <Input
                   id="payroll"
                   type="text"
-                  placeholder="Enter your payroll number"
+                  placeholder="Payroll # or volunteer email"
                   value={payrollNumber}
                   onChange={(e) => setPayrollNumber(e.target.value)}
                   className="pl-10 bg-zinc-900/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-red-500"
@@ -117,9 +122,9 @@ export const LoginPage = () => {
 
           <div className="mt-6 pt-6 border-t border-zinc-700">
             <p className="text-xs text-zinc-400 text-center">
-              If your payroll number is less than 6 digits, add leading zeros.
+              <strong className="text-zinc-300">Staff:</strong> Use payroll number (add leading zeros if less than 6 digits)
               <br />
-              Example: 12345 becomes 012345
+              <strong className="text-zinc-300">Volunteers:</strong> Use your email address
             </p>
           </div>
 

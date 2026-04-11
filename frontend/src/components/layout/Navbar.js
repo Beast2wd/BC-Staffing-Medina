@@ -33,7 +33,7 @@ import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 const LOGO_URL = '/medina-logo.png';
 
 export const Navbar = () => {
-  const { user, logout, isAdmin, isFirefighter } = useAuth();
+  const { user, logout, isAdmin, isFirefighter, isVolunteer } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,8 +47,8 @@ export const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // Check if user can view/access a menu item (all roles except firefighters for most items)
-  const canAccessFullMenu = !isFirefighter;
+  // Check if user can view/access a menu item (all roles except firefighters and volunteers for most items)
+  const canAccessFullMenu = !isFirefighter && !isVolunteer;
 
   const NavLink = ({ to, children, active, disabled }) => (
     <Link
@@ -83,9 +83,12 @@ export const Navbar = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center gap-2">
-          <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu}>
-            Daily Worksheet
-          </NavLink>
+          {/* Daily Worksheet - Hidden for volunteers */}
+          {!isVolunteer && (
+            <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu}>
+              Daily Worksheet
+            </NavLink>
+          )}
 
           {/* On Duty - Available to ALL users */}
           <NavLink to="/on-duty" active={isActive('/on-duty')}>
@@ -167,10 +170,12 @@ export const Navbar = () => {
             </DropdownMenu>
           )}
 
-          {/* Overtime Tab - Available to ALL users including firefighters */}
-          <NavLink to="/overtime" active={isActive('/overtime')}>
-            Overtime
-          </NavLink>
+          {/* Overtime Tab - Available to ALL users except volunteers */}
+          {!isVolunteer && (
+            <NavLink to="/overtime" active={isActive('/overtime')}>
+              Overtime
+            </NavLink>
+          )}
 
           {/* Volunteer Tab - Available to ALL users */}
           <NavLink to="/volunteer" active={isActive('/volunteer')}>

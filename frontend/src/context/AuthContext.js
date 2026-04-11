@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
       setToken(access_token);
       setUser(userData);
       setMustChangePassword(must_change_password || false);
-      return { success: true, mustChangePassword: must_change_password };
+      return { success: true, mustChangePassword: must_change_password, user: userData };
     } catch (error) {
       return { 
         success: false, 
@@ -91,6 +91,7 @@ export const AuthProvider = ({ children }) => {
   const isCaptain = user?.role === 'captain';
   const isLieutenant = user?.role === 'lieutenant';
   const isFirefighter = user?.role === 'firefighter';
+  const isVolunteer = user?.role === 'volunteer';
   
   const canEdit = isAdmin || isBattalionChief || isCaptain || isLieutenant;
 
@@ -108,6 +109,7 @@ export const AuthProvider = ({ children }) => {
       isCaptain,
       isLieutenant,
       isFirefighter,
+      isVolunteer,
       canEdit,
       mustChangePassword
     }}>

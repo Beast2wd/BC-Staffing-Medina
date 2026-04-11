@@ -256,6 +256,15 @@ export const VolunteerManagementPage = () => {
         />
       </div>
 
+      <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <p className="text-sm text-blue-400">
+          <strong>Login Info:</strong> Volunteer will use their email to login with initial password: <code className="bg-blue-500/20 px-1 rounded">volunteer123</code>
+        </p>
+        <p className="text-xs text-blue-300/70 mt-1">
+          They will be prompted to change it on first login.
+        </p>
+      </div>
+
       <Button onClick={onSave} className="w-full" data-testid="save-volunteer-btn">
         {buttonText}
       </Button>

@@ -40,6 +40,7 @@ class UserRole:
     CAPTAIN = "captain"
     LIEUTENANT = "lieutenant"
     FIREFIGHTER = "firefighter"
+    VOLUNTEER = "volunteer"
 
 class UserBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -396,7 +397,13 @@ def require_role(allowed_roles: List[str]):
 
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
+    # First try to find user by payroll number
     user = await db.users.find_one({"payroll_number": credentials.payroll_number}, {"_id": 0})
+    
+    # If not found, try to find volunteer by email
+    if not user:
+        user = await db.users.find_one({"email": credentials.payroll_number, "role": UserRole.VOLUNTEER}, {"_id": 0})
+    
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -980,7 +987,16 @@ async def create_volunteer(
     data: VolunteerCreate,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Create a new volunteer firefighter"""
+    """Create a new volunteer firefighter and their user account"""
+    # Check if email is provided for login
+    if not data.contact_email:
+        raise HTTPException(status_code=400, detail="Email is required for volunteer login")
+    
+    # Check if email already exists
+    existing_user = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
     volunteer = Volunteer(
         name=data.name,
         contact_phone=data.contact_phone,
@@ -990,7 +1006,28 @@ async def create_volunteer(
         notes=data.notes
     )
     
+    # Create user account for volunteer with generic password
+    generic_password = "volunteer123"
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "payroll_number": f"VOL-{volunteer.id[:8].upper()}",  # Generate a volunteer payroll number
+        "email": data.contact_email,
+        "password_hash": hash_password(generic_password),
+        "name": data.name,
+        "rank": "Volunteer",
+        "role": UserRole.VOLUNTEER,
+        "station_id": data.station_id,
+        "shift": None,
+        "is_active": True,
+        "must_change_password": True,
+        "volunteer_id": volunteer.id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_doc)
     await db.volunteers.insert_one(volunteer.model_dump())
+    
     return volunteer
 
 @api_router.put("/volunteers/{volunteer_id}", response_model=Volunteer)
@@ -1016,13 +1053,20 @@ async def delete_volunteer(
     volunteer_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Delete (deactivate) a volunteer firefighter"""
+    """Delete (deactivate) a volunteer firefighter and their user account"""
+    # Deactivate volunteer
     result = await db.volunteers.update_one(
         {"id": volunteer_id},
         {"$set": {"is_active": False}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Volunteer not found")
+    
+    # Also deactivate the associated user account
+    await db.users.update_one(
+        {"volunteer_id": volunteer_id},
+        {"$set": {"is_active": False}}
+    )
     
     return {"message": "Volunteer removed"}
 
