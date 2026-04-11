@@ -656,7 +656,7 @@ async def create_station(data: StationCreate, current_user: dict = Depends(requi
     return Station(**station_doc)
 
 @api_router.put("/stations/{station_id}", response_model=Station)
-async def update_station(station_id: str, data: StationCreate, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+async def update_station(station_id: str, data: StationCreate, current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))):
     result = await db.stations.find_one_and_update(
         {"id": station_id},
         {"$set": data.model_dump()},

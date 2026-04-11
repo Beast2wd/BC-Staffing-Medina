@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
 const STAFFING_CATEGORIES = [
-  { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: false },
+  { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: true, isStationField: true },
   { key: 'personnel_assigned', label: 'Personnel Assigned (+)', className: 'font-semibold', editable: false },
   { key: 'overtime', label: 'Overtime (+)', className: 'text-blue-500', editable: true },
   { key: 'hold_over', label: 'Hold Over* (+)', editable: true },
@@ -38,7 +38,8 @@ export const StaffingGrid = () => {
     currentShift,
     selectedDate,
     selectedBattalion,
-    fetchStaffingRecords
+    fetchStaffingRecords,
+    fetchStations
   } = useStaffing();
   const { api, canEdit } = useAuth();
   const [editingCell, setEditingCell] = useState(null);
@@ -156,9 +157,29 @@ export const StaffingGrid = () => {
     
     const { stationId, categoryKey } = editingCell;
     const newValue = parseInt(editValue) || 0;
-    const record = staffingRecords.find(r => r.station_id === stationId);
+    const category = STAFFING_CATEGORIES.find(c => c.key === categoryKey);
     
     try {
+      // Handle minimum staffing update (station field)
+      if (category?.isStationField) {
+        const station = stations.find(s => s.id === stationId);
+        await api.put(`/stations/${stationId}`, {
+          station_number: station?.station_number,
+          name: station?.name,
+          battalion_id: station?.battalion_id || selectedBattalion,
+          minimum_staffing: newValue,
+          apparatus: station?.apparatus || []
+        });
+        toast.success('Minimum staffing updated');
+        fetchStations(); // Refresh stations to reflect the change
+        setEditingCell(null);
+        setEditValue('');
+        return;
+      }
+      
+      // Handle regular staffing record update
+      const record = staffingRecords.find(r => r.station_id === stationId);
+      
       if (record) {
         // Update existing record
         const updatedCategories = { ...record.categories, [categoryKey]: newValue };
