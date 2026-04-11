@@ -11,6 +11,7 @@ import { formatDisplayDate } from '../../utils/dateUtils';
 const STAFFING_CATEGORIES = [
   { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: true, isStationField: true },
   { key: 'personnel_assigned', label: 'Personnel Assigned (+)', className: 'font-semibold', editable: false },
+  { key: 'volunteer', label: 'Volunteer (+)', className: 'text-green-500', editable: true },
   { key: 'overtime', label: 'Overtime (+)', className: 'text-blue-500', editable: true },
   { key: 'hold_over', label: 'Hold Over* (+)', editable: true },
   { key: 'out_of_battalion_fill_in_plus', label: 'Out of Battalion Fill In (+)', className: 'text-blue-500', editable: true },
@@ -116,6 +117,7 @@ export const StaffingGrid = () => {
 
       // Calculate total on duty
       const additions = (stationData.personnel_assigned || 0) +
+        (stationData.volunteer || 0) +
         (stationData.overtime || 0) +
         (stationData.hold_over || 0) +
         (stationData.out_of_battalion_fill_in_plus || 0) +
