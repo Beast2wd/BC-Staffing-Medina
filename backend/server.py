@@ -925,6 +925,55 @@ async def get_volunteer_records(
     records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
     return [VolunteerRecord(**r) for r in records]
 
+@api_router.get("/volunteer/stats")
+async def get_volunteer_stats(
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get overall volunteer statistics - totals for all volunteers"""
+    current_year = datetime.now().year
+    current_month = datetime.now().strftime("%Y-%m")
+    current_month_name = datetime.now().strftime("%B %Y")
+    
+    # Build query for YTD records
+    query = {
+        "date": {"$gte": f"{current_year}-01-01"},
+        "status": "assigned"
+    }
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    # Get all volunteer records for YTD
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(2000)
+    
+    # Calculate totals
+    total_hours_scheduled = 0
+    total_hours_worked = 0
+    current_month_hours = 0
+    shifts_count = len(records)
+    unique_volunteers = set()
+    
+    for record in records:
+        scheduled = record.get("hours", 0)
+        worked = record.get("hours_worked", 0) or scheduled
+        total_hours_scheduled += scheduled
+        total_hours_worked += worked
+        unique_volunteers.add(record.get("personnel_id"))
+        
+        # Track current month hours
+        record_date = record.get("date", "")
+        if record_date and record_date[:7] == current_month:
+            current_month_hours += worked
+    
+    return {
+        "total_volunteers": len(unique_volunteers),
+        "shifts_count": shifts_count,
+        "total_hours_scheduled": total_hours_scheduled,
+        "total_hours_worked": total_hours_worked,
+        "current_month_hours": current_month_hours,
+        "current_month_name": current_month_name
+    }
+
 @api_router.get("/volunteer/my-hours")
 async def get_my_volunteer_hours(
     start_date: Optional[str] = None,

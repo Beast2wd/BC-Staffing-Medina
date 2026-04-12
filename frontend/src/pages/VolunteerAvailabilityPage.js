@@ -56,7 +56,7 @@ export const VolunteerAvailabilityPage = () => {
 
   useEffect(() => {
     fetchAllData();
-    fetchMyHoursSummary();
+    fetchVolunteerStats();
   }, [selectedBattalion]);
 
   useEffect(() => {
@@ -64,13 +64,15 @@ export const VolunteerAvailabilityPage = () => {
     fetchVolunteerRecords();
   }, [selectedDate]);
 
-  // Fetch my hours summary
-  const fetchMyHoursSummary = async () => {
+  // Fetch overall volunteer stats
+  const fetchVolunteerStats = async () => {
     try {
-      const response = await api.get('/volunteer/my-hours');
+      const response = await api.get('/volunteer/stats', {
+        params: { battalion_id: selectedBattalion }
+      });
       setMyHoursSummary(response.data);
     } catch (error) {
-      console.error('Error fetching hours summary:', error);
+      console.error('Error fetching volunteer stats:', error);
     }
   };
 
@@ -267,9 +269,9 @@ export const VolunteerAvailabilityPage = () => {
           </AlertDescription>
         </Alert>
 
-        {/* My Hours Summary */}
+        {/* Volunteer Hours Summary */}
         {myHoursSummary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" data-testid="my-hours-summary">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" data-testid="volunteer-hours-summary">
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
