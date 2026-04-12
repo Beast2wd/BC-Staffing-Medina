@@ -644,12 +644,13 @@ export const VolunteerAvailabilityPage = () => {
                   <TableHead>Station</TableHead>
                   <TableHead>Hours</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {volunteerRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       No volunteers available for this date
                     </TableCell>
                   </TableRow>
@@ -668,9 +669,22 @@ export const VolunteerAvailabilityPage = () => {
                           {record.phone_number || '-'}
                         </div>
                       </TableCell>
-                      <TableCell>{getStationName(record.station_id)}</TableCell>
+                      <TableCell>{getStationName(record.assigned_station_id || record.station_id)}</TableCell>
                       <TableCell>{record.hours} hrs</TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
+                      <TableCell>
+                        {record.status === 'assigned' && (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => handleRevokeAssignment(record.id)}
+                            data-testid={`revoke-btn-all-${record.id}`}
+                          >
+                            Revoke Shift
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
