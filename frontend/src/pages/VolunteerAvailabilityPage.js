@@ -173,6 +173,11 @@ export const VolunteerAvailabilityPage = () => {
       return;
     }
     
+    if (newStatus === 'revoke') {
+      await handleRevokeAssignment(recordId);
+      return;
+    }
+    
     try {
       const record = volunteerRecords.find(r => r.id === recordId);
       
@@ -183,8 +188,81 @@ export const VolunteerAvailabilityPage = () => {
       
       toast.success('Status updated');
       fetchVolunteerRecords();
+      fetchVolunteerStats();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleRevokeAssignment = async (recordId) => {
+    if (!confirm('Are you sure you want to revoke this scheduled shift? This will remove you from the apparatus assignments and daily worksheet.')) return;
+    
+    try {
+      const record = volunteerRecords.find(r => r.id === recordId);
+      
+      // Remove from apparatus assignments
+      await removeVolunteerFromApparatus(record.personnel_id, record.date, record.assigned_station_id || record.station_id);
+      
+      // Decrement volunteer count on worksheet
+      await syncVolunteerToWorksheet(record.assigned_station_id || record.station_id, -1);
+      
+      // Delete the volunteer record
+      await api.delete(`/volunteer/${recordId}`);
+      
+      toast.success('Shift revoked successfully');
+      fetchVolunteerRecords();
+      fetchVolunteerStats();
+    } catch (error) {
+      toast.error('Failed to revoke shift');
+      console.error('Revoke error:', error);
+    }
+  };
+
+  const removeVolunteerFromApparatus = async (personnelId, date, stationId) => {
+    try {
+      // Find apparatus assignments for this date that include this volunteer
+      const response = await api.get('/apparatus-assignments', {
+        params: { date, battalion_id: selectedBattalion }
+      });
+      
+      for (const assignment of response.data) {
+        if (assignment.personnel_ids?.includes(personnelId)) {
+          // Remove volunteer from this apparatus
+          const newPersonnelIds = assignment.personnel_ids.filter(id => id !== personnelId);
+          const newPositionAssignments = { ...assignment.position_assignments };
+          delete newPositionAssignments[personnelId];
+          
+          await api.put(`/apparatus-assignments/${assignment.id}`, {
+            personnel_ids: newPersonnelIds,
+            position_assignments: newPositionAssignments
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error removing volunteer from apparatus:', error);
+    }
+  };
+
+  const syncVolunteerToWorksheet = async (stationId, delta) => {
+    try {
+      // Fetch staffing records for this date
+      const response = await api.get('/staffing', {
+        params: { date: selectedDate, battalion_id: selectedBattalion }
+      });
+      
+      const existingRecord = response.data.find(r => r.station_id === stationId);
+      if (existingRecord) {
+        const currentCategories = existingRecord.categories || {};
+        const currentVol = currentCategories['volunteer'] || 0;
+        await api.put(`/staffing/${existingRecord.id}`, {
+          categories: {
+            ...currentCategories,
+            'volunteer': Math.max(0, currentVol + delta)
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing volunteer to worksheet:', error);
     }
   };
 
@@ -195,6 +273,7 @@ export const VolunteerAvailabilityPage = () => {
       await api.delete(`/volunteer/${recordId}`);
       toast.success('Removed from volunteer list');
       fetchVolunteerRecords();
+      fetchVolunteerStats();
     } catch (error) {
       toast.error('Failed to remove from list');
     }
@@ -517,25 +596,31 @@ export const VolunteerAvailabilityPage = () => {
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{record.notes || '-'}</TableCell>
                       <TableCell>
-                        <Select 
-                          value={record.status} 
-                          onValueChange={(v) => handleUpdateMyStatus(record.id, v)}
-                          disabled={record.status === 'assigned'}
-                        >
-                          <SelectTrigger className="h-8 text-xs" data-testid={`status-select-${record.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="available">Available</SelectItem>
-                            <SelectItem value="declined">Decline</SelectItem>
-                            {record.status !== 'assigned' && (
+                        {record.status === 'assigned' ? (
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => handleUpdateMyStatus(record.id, 'revoke')}
+                            data-testid={`revoke-btn-${record.id}`}
+                          >
+                            Revoke Shift
+                          </Button>
+                        ) : (
+                          <Select 
+                            value={record.status} 
+                            onValueChange={(v) => handleUpdateMyStatus(record.id, v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs" data-testid={`status-select-${record.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="available">Available</SelectItem>
+                              <SelectItem value="declined">Decline</SelectItem>
                               <SelectItem value="remove" className="text-red-500">Remove</SelectItem>
-                            )}
-                            {record.status === 'assigned' && (
-                              <SelectItem value="assigned" disabled>Assigned</SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
