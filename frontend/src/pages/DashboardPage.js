@@ -13,7 +13,10 @@ import { formatDisplayDateWithDay } from '../utils/dateUtils';
 
 export const DashboardPage = () => {
   const { fetchAllData, loading, currentShift, selectedDate } = useStaffing();
-  const { user } = useAuth();
+  const { user, isFirefighter, isVolunteer } = useAuth();
+
+  // Hide remarks for firefighters and volunteers
+  const canViewRemarks = !isFirefighter && !isVolunteer;
 
   useEffect(() => {
     fetchAllData();
@@ -81,10 +84,12 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Remarks Section */}
-        <div className="mt-6">
-          <RemarksPanel />
-        </div>
+        {/* Remarks Section - Hidden for Firefighters and Volunteers */}
+        {canViewRemarks && (
+          <div className="mt-6">
+            <RemarksPanel />
+          </div>
+        )}
       </main>
     </div>
   );

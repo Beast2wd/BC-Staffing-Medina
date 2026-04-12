@@ -9,13 +9,16 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone, AlertCircle, Hand } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, AlertCircle, Hand, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { formatDisplayDate } from '../utils/dateUtils';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { format } from 'date-fns';
 
 export const VolunteerAvailabilityPage = () => {
   const { api, user, isVolunteer } = useAuth();
@@ -338,31 +341,75 @@ export const VolunteerAvailabilityPage = () => {
 
                     <div className="space-y-2">
                       <Label>Date (up to 12 months in advance)</Label>
-                      <Input
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({...formData, date: e.target.value})}
-                        min={new Date().toISOString().split('T')[0]}
-                        max={maxDate}
-                        data-testid="date-input"
-                      />
+                      <div className="flex gap-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="justify-start text-left font-normal flex-1"
+                              data-testid="calendar-trigger"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {formData.date ? format(new Date(formData.date + 'T00:00:00'), 'MM/dd/yyyy') : 'Pick a date'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  const dateStr = format(date, 'yyyy-MM-dd');
+                                  setFormData({...formData, date: dateStr});
+                                }
+                              }}
+                              disabled={(date) => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const maxDateObj = new Date(maxDate + 'T00:00:00');
+                                return date < today || date > maxDateObj;
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <Input
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => setFormData({...formData, date: e.target.value})}
+                          min={new Date().toISOString().split('T')[0]}
+                          max={maxDate}
+                          className="w-36"
+                          data-testid="date-input"
+                        />
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Availability can be submitted up to {maxDate}
+                        Availability can be submitted up to {formatDisplayDate(maxDate)}
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Shift Type</Label>
+                      <Label>Hours</Label>
                       <Select 
                         value={formData.shift_type} 
                         onValueChange={(v) => setFormData({...formData, shift_type: v, hours: parseInt(v)})}
                       >
                         <SelectTrigger data-testid="shift-type-select">
-                          <SelectValue />
+                          <SelectValue placeholder="Select hours" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="12">12-Hour Shift</SelectItem>
-                          <SelectItem value="24">24-Hour Shift</SelectItem>
+                          <SelectItem value="2">2 Hours</SelectItem>
+                          <SelectItem value="4">4 Hours</SelectItem>
+                          <SelectItem value="6">6 Hours</SelectItem>
+                          <SelectItem value="8">8 Hours</SelectItem>
+                          <SelectItem value="10">10 Hours</SelectItem>
+                          <SelectItem value="12">12 Hours</SelectItem>
+                          <SelectItem value="14">14 Hours</SelectItem>
+                          <SelectItem value="16">16 Hours</SelectItem>
+                          <SelectItem value="18">18 Hours</SelectItem>
+                          <SelectItem value="20">20 Hours</SelectItem>
+                          <SelectItem value="22">22 Hours</SelectItem>
+                          <SelectItem value="24">24 Hours</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -410,22 +457,13 @@ export const VolunteerAvailabilityPage = () => {
                         <p className="text-sm text-green-500">
                           You will be <strong>automatically assigned</strong> to <strong>{formData.assigned_shift} Shift</strong> at{' '}
                           <strong>Station {stations.find(s => s.id === formData.assigned_station_id)?.station_number}</strong>
+                          {' '}for <strong>{formData.hours} hours</strong>
                         </p>
                         <p className="text-xs text-green-400 mt-1">
                           No approval needed! This will immediately reflect on the daily worksheet, on-duty list, and apparatus assignments.
                         </p>
                       </div>
                     )}
-                    
-                    <div className="space-y-2">
-                      <Label>Hours Available</Label>
-                      <Input
-                        type="number"
-                        value={formData.hours}
-                        onChange={(e) => setFormData({...formData, hours: parseFloat(e.target.value)})}
-                        data-testid="hours-input"
-                      />
-                    </div>
 
                     <div className="space-y-2">
                       <Label>Notes</Label>
