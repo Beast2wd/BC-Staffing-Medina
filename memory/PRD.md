@@ -157,3 +157,15 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - `DELETE /api/volunteer/{id}` - Delete volunteer record
 - `GET /api/reports/export/excel` - Export staffing report to Excel
 - `GET /api/reports/export/pdf` - Export staffing report to PDF
+
+## API Endpoints Added (April 12, 2026)
+- `GET /api/volunteer/my-hours` - Get current volunteer's hours summary (YTD)
+- `GET /api/reports/volunteer-hours` - Volunteer Hours Summary report by date range
+
+## Volunteer System Updates (April 12, 2026)
+- ✅ **Auto-Assignment** - Volunteers are automatically assigned when they submit availability (no approval needed)
+- ✅ **Hours Tracking** - Track scheduled hours and hours worked for each volunteer
+- ✅ **My Hours Summary** - Volunteers can see their own shifts and hours on the Volunteer Availability page
+- ✅ **Renamed BC Tab** - "Volunteer Available" renamed to "Volunteer Availability"
+- ✅ **Volunteer Hours Summary Report** - New report type under Reports showing all volunteer hours by date range
+- ✅ **Auto-sync to Worksheet** - When volunteer submits availability, automatically increments the Volunteer (+) row on daily worksheet

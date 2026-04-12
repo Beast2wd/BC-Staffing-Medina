@@ -302,12 +302,16 @@ class VolunteerRecord(BaseModel):
     hours: float
     station_id: str
     battalion_id: str
-    status: str = "available"  # available, assigned, declined
+    status: str = "assigned"  # available, assigned, declined - now defaults to assigned
     notes: str = ""
     phone_number: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
     assigned_shift: str = ""  # A, B, or C - the shift volunteer is assigning themselves to
     assigned_station_id: str = ""  # The station volunteer is assigning themselves to
+    hours_worked: float = 0  # Actual hours worked (for tracking)
+    check_in_time: str = ""  # When volunteer checked in
+    check_out_time: str = ""  # When volunteer checked out
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class VolunteerRecordCreate(BaseModel):
     personnel_id: str
@@ -315,12 +319,15 @@ class VolunteerRecordCreate(BaseModel):
     hours: float
     station_id: str
     battalion_id: str
-    status: str = "available"
+    status: str = "assigned"  # Auto-assigned when submitted
     notes: str = ""
     phone_number: str = ""
     shift_type: str = "24"
     assigned_shift: str = ""
     assigned_station_id: str = ""
+    hours_worked: float = 0
+    check_in_time: str = ""
+    check_out_time: str = ""
 
 # ===================== VOLUNTEER FIREFIGHTER MODELS =====================
 
@@ -918,6 +925,83 @@ async def get_volunteer_records(
     records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
     return [VolunteerRecord(**r) for r in records]
 
+@api_router.get("/volunteer/my-hours")
+async def get_my_volunteer_hours(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the current volunteer's hours summary"""
+    # Determine the volunteer's personnel_id
+    is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
+    
+    if is_volunteer_ff:
+        volunteer_id = current_user.get("volunteer_id")
+        if not volunteer_id:
+            user = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+            volunteer_id = user.get("volunteer_id") if user else None
+    else:
+        # Regular personnel
+        personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        volunteer_id = personnel.get("id") if personnel else None
+    
+    if not volunteer_id:
+        return {"total_hours_scheduled": 0, "total_hours_worked": 0, "shifts": []}
+    
+    # Build query for this volunteer's records
+    query = {"personnel_id": volunteer_id, "status": "assigned"}
+    
+    # Default to current year if no dates provided
+    if not start_date:
+        start_date = f"{datetime.now().year}-01-01"
+    if not end_date:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+    
+    query["date"] = {"$gte": start_date, "$lte": end_date}
+    
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
+    
+    # Get stations for name lookups
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # Calculate totals
+    total_hours_scheduled = 0
+    total_hours_worked = 0
+    shifts = []
+    
+    for record in records:
+        scheduled = record.get("hours", 0)
+        worked = record.get("hours_worked", 0) or scheduled
+        total_hours_scheduled += scheduled
+        total_hours_worked += worked
+        
+        station = stations_dict.get(record.get("assigned_station_id") or record.get("station_id"), {})
+        shifts.append({
+            "id": record.get("id"),
+            "date": record.get("date"),
+            "shift": record.get("assigned_shift", ""),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "hours_scheduled": scheduled,
+            "hours_worked": worked,
+            "status": record.get("status"),
+            "check_in": record.get("check_in_time", ""),
+            "check_out": record.get("check_out_time", "")
+        })
+    
+    # Sort by date descending
+    shifts.sort(key=lambda x: x["date"], reverse=True)
+    
+    return {
+        "volunteer_id": volunteer_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_hours_scheduled": total_hours_scheduled,
+        "total_hours_worked": total_hours_worked,
+        "shifts_count": len(shifts),
+        "shifts": shifts
+    }
+
 @api_router.post("/volunteer", response_model=VolunteerRecord)
 async def create_volunteer_record(
     data: VolunteerRecordCreate,
@@ -954,8 +1038,31 @@ async def create_volunteer_record(
             raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
     
     record_id = str(uuid.uuid4())
-    record_doc = {"id": record_id, **data.model_dump()}
+    # Auto-assign volunteer when they submit availability
+    data.status = "assigned"
+    record_doc = {
+        "id": record_id, 
+        **data.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
     await db.volunteer_records.insert_one(record_doc)
+    
+    # Auto-sync to daily worksheet when assigned
+    station_id = data.assigned_station_id or data.station_id
+    if station_id:
+        existing_staffing = await db.staffing_records.find_one({
+            "date": data.date,
+            "station_id": station_id
+        }, {"_id": 0})
+        
+        if existing_staffing:
+            current_categories = existing_staffing.get("categories", {})
+            current_vol = current_categories.get("volunteer", 0)
+            await db.staffing_records.update_one(
+                {"id": existing_staffing["id"]},
+                {"$set": {"categories.volunteer": current_vol + 1}}
+            )
+    
     return VolunteerRecord(**record_doc)
 
 @api_router.put("/volunteer/{record_id}", response_model=VolunteerRecord)
@@ -1562,6 +1669,107 @@ async def get_overtime_summary(
         "end_date": end_date,
         "battalion_id": battalion_id,
         "personnel_overtime": list(personnel_overtime.values()),
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+@api_router.get("/reports/volunteer-hours")
+async def get_volunteer_hours_summary(
+    start_date: str,
+    end_date: str,
+    battalion_id: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get volunteer hours summary report"""
+    # Build query
+    query = {
+        "date": {"$gte": start_date, "$lte": end_date},
+        "status": "assigned"  # Only count assigned shifts
+    }
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    # Get all volunteer records in date range
+    volunteer_records = await db.volunteer_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Get volunteers for name lookups
+    volunteers_list = await db.volunteers.find({}, {"_id": 0}).to_list(500)
+    volunteers_dict = {v["id"]: v for v in volunteers_list}
+    
+    # Also get regular personnel who might volunteer
+    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Get stations for name lookups
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # Aggregate by volunteer
+    volunteer_hours = {}
+    for record in volunteer_records:
+        vid = record.get("personnel_id")
+        if vid not in volunteer_hours:
+            # Try to get name from volunteers collection first, then personnel
+            volunteer = volunteers_dict.get(vid, {})
+            person = personnel_dict.get(vid, {})
+            
+            name = volunteer.get("name") or person.get("name") or "Unknown"
+            if person.get("rank"):
+                name = f"{person.get('rank')} {name}"
+            
+            volunteer_hours[vid] = {
+                "volunteer_id": vid,
+                "volunteer_name": name,
+                "contact_phone": volunteer.get("contact_phone") or person.get("contact_phone", ""),
+                "contact_email": volunteer.get("contact_email", ""),
+                "total_hours_scheduled": 0,
+                "total_hours_worked": 0,
+                "shifts_count": 0,
+                "shifts": []
+            }
+        
+        # Add hours - use hours_worked if available, otherwise scheduled hours
+        scheduled_hours = record.get("hours", 0)
+        worked_hours = record.get("hours_worked", 0) or scheduled_hours
+        
+        volunteer_hours[vid]["total_hours_scheduled"] += scheduled_hours
+        volunteer_hours[vid]["total_hours_worked"] += worked_hours
+        volunteer_hours[vid]["shifts_count"] += 1
+        
+        # Track individual shifts
+        station = stations_dict.get(record.get("assigned_station_id") or record.get("station_id"), {})
+        volunteer_hours[vid]["shifts"].append({
+            "date": record.get("date"),
+            "shift": record.get("assigned_shift", ""),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "hours_scheduled": scheduled_hours,
+            "hours_worked": worked_hours,
+            "check_in": record.get("check_in_time", ""),
+            "check_out": record.get("check_out_time", "")
+        })
+    
+    # Sort volunteers by total hours worked (descending)
+    sorted_volunteers = sorted(
+        volunteer_hours.values(), 
+        key=lambda x: x["total_hours_worked"], 
+        reverse=True
+    )
+    
+    # Calculate totals
+    total_hours_scheduled = sum(v["total_hours_scheduled"] for v in sorted_volunteers)
+    total_hours_worked = sum(v["total_hours_worked"] for v in sorted_volunteers)
+    total_shifts = sum(v["shifts_count"] for v in sorted_volunteers)
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "battalion_id": battalion_id,
+        "volunteer_count": len(sorted_volunteers),
+        "total_shifts": total_shifts,
+        "total_hours_scheduled": total_hours_scheduled,
+        "total_hours_worked": total_hours_worked,
+        "volunteer_hours": sorted_volunteers,
         "generated_by": current_user["payroll_number"],
         "generated_by_name": current_user.get("name", ""),
         "generated_at": datetime.now(timezone.utc).isoformat()

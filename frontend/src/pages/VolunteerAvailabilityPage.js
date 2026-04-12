@@ -22,12 +22,13 @@ export const VolunteerAvailabilityPage = () => {
   const { personnel, stations, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
   const [volunteerRecords, setVolunteerRecords] = useState([]);
   const [myRecords, setMyRecords] = useState([]);
+  const [myHoursSummary, setMyHoursSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formData, setFormData] = useState({
     date: selectedDate,
     hours: 24,
-    status: 'available',
+    status: 'assigned',
     notes: '',
     phone_number: '',
     shift_type: '24',
@@ -52,12 +53,23 @@ export const VolunteerAvailabilityPage = () => {
 
   useEffect(() => {
     fetchAllData();
+    fetchMyHoursSummary();
   }, [selectedBattalion]);
 
   useEffect(() => {
     setFormData(prev => ({ ...prev, date: selectedDate }));
     fetchVolunteerRecords();
   }, [selectedDate]);
+
+  // Fetch my hours summary
+  const fetchMyHoursSummary = async () => {
+    try {
+      const response = await api.get('/volunteer/my-hours');
+      setMyHoursSummary(response.data);
+    } catch (error) {
+      console.error('Error fetching hours summary:', error);
+    }
+  };
 
   // Update myRecords when volunteerRecords or myPersonnel changes
   useEffect(() => {
@@ -129,13 +141,14 @@ export const VolunteerAvailabilityPage = () => {
         assigned_shift: formData.assigned_shift,
         assigned_station_id: formData.assigned_station_id
       });
-      toast.success('Availability submitted');
+      toast.success('Availability submitted - You are now assigned!');
       setShowAddDialog(false);
       fetchVolunteerRecords();
+      fetchMyHoursSummary();
       setFormData({ 
         date: selectedDate, 
         hours: 24, 
-        status: 'available', 
+        status: 'assigned', 
         notes: '', 
         phone_number: '', 
         shift_type: '24',
@@ -251,6 +264,36 @@ export const VolunteerAvailabilityPage = () => {
           </AlertDescription>
         </Alert>
 
+        {/* My Hours Summary */}
+        {myHoursSummary && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" data-testid="my-hours-summary">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-green-500">{myHoursSummary.shifts_count || 0}</p>
+                  <p className="text-sm text-muted-foreground">Shifts Worked</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-blue-500">{myHoursSummary.total_hours_scheduled || 0}</p>
+                  <p className="text-sm text-muted-foreground">Hours Scheduled</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-orange-500">{myHoursSummary.total_hours_worked || 0}</p>
+                  <p className="text-sm text-muted-foreground">Hours Worked (YTD)</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* My Volunteer Status */}
         <Card className="mb-6" data-testid="my-volunteer-card">
           <CardHeader>
@@ -365,11 +408,11 @@ export const VolunteerAvailabilityPage = () => {
                     {formData.assigned_shift && formData.assigned_station_id && (
                       <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
                         <p className="text-sm text-green-500">
-                          You will be assigned to <strong>{formData.assigned_shift} Shift</strong> at{' '}
+                          You will be <strong>automatically assigned</strong> to <strong>{formData.assigned_shift} Shift</strong> at{' '}
                           <strong>Station {stations.find(s => s.id === formData.assigned_station_id)?.station_number}</strong>
                         </p>
                         <p className="text-xs text-green-400 mt-1">
-                          This will automatically reflect on the daily worksheet, on-duty list, and apparatus assignments.
+                          No approval needed! This will immediately reflect on the daily worksheet, on-duty list, and apparatus assignments.
                         </p>
                       </div>
                     )}
