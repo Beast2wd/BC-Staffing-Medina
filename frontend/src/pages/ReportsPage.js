@@ -630,10 +630,34 @@ export const ReportsPage = () => {
                               </div>
                               <div className="text-center">
                                 <p className="text-xl font-bold text-green-500">{vol.total_hours_worked}</p>
-                                <p className="text-xs text-muted-foreground">Hours</p>
+                                <p className="text-xs text-muted-foreground">Period Hours</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xl font-bold text-orange-500">{vol.ytd_hours || 0}</p>
+                                <p className="text-xs text-muted-foreground">YTD Hours</p>
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Monthly Breakdown */}
+                          {vol.monthly_breakdown?.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-muted">
+                              <p className="text-xs text-muted-foreground mb-2 font-semibold">Monthly Breakdown:</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-3">
+                                {vol.monthly_breakdown.map((month, mIdx) => {
+                                  const monthDate = new Date(month.month + '-01');
+                                  const monthName = monthDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                                  return (
+                                    <div key={mIdx} className="p-2 bg-background rounded text-center">
+                                      <p className="text-xs text-muted-foreground">{monthName}</p>
+                                      <p className="text-lg font-bold text-green-500">{month.hours_worked}h</p>
+                                      <p className="text-xs text-muted-foreground">{month.shifts_count} shift{month.shifts_count !== 1 ? 's' : ''}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           
                           {/* Shift Details */}
                           {vol.shifts?.length > 0 && (

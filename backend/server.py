@@ -1681,7 +1681,7 @@ async def get_volunteer_hours_summary(
     battalion_id: str = "",
     current_user: dict = Depends(get_current_user)
 ):
-    """Get volunteer hours summary report"""
+    """Get volunteer hours summary report with monthly breakdown"""
     # Build query
     query = {
         "date": {"$gte": start_date, "$lte": end_date},
@@ -1705,7 +1705,25 @@ async def get_volunteer_hours_summary(
     stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
-    # Aggregate by volunteer
+    # Also get YTD records for year-to-date calculation
+    current_year = datetime.now().year
+    ytd_query = {
+        "date": {"$gte": f"{current_year}-01-01", "$lte": end_date},
+        "status": "assigned"
+    }
+    if battalion_id:
+        ytd_query["battalion_id"] = battalion_id
+    ytd_records = await db.volunteer_records.find(ytd_query, {"_id": 0}).to_list(2000)
+    
+    # Build YTD totals by volunteer
+    ytd_by_volunteer = {}
+    for record in ytd_records:
+        vid = record.get("personnel_id")
+        if vid not in ytd_by_volunteer:
+            ytd_by_volunteer[vid] = 0
+        ytd_by_volunteer[vid] += record.get("hours_worked", 0) or record.get("hours", 0)
+    
+    # Aggregate by volunteer with monthly breakdown
     volunteer_hours = {}
     for record in volunteer_records:
         vid = record.get("personnel_id")
@@ -1725,7 +1743,9 @@ async def get_volunteer_hours_summary(
                 "contact_email": volunteer.get("contact_email", ""),
                 "total_hours_scheduled": 0,
                 "total_hours_worked": 0,
+                "ytd_hours": ytd_by_volunteer.get(vid, 0),
                 "shifts_count": 0,
+                "monthly_breakdown": {},
                 "shifts": []
             }
         
@@ -1736,6 +1756,20 @@ async def get_volunteer_hours_summary(
         volunteer_hours[vid]["total_hours_scheduled"] += scheduled_hours
         volunteer_hours[vid]["total_hours_worked"] += worked_hours
         volunteer_hours[vid]["shifts_count"] += 1
+        
+        # Track monthly breakdown
+        record_date = record.get("date", "")
+        if record_date:
+            month_key = record_date[:7]  # YYYY-MM format
+            if month_key not in volunteer_hours[vid]["monthly_breakdown"]:
+                volunteer_hours[vid]["monthly_breakdown"][month_key] = {
+                    "hours_scheduled": 0,
+                    "hours_worked": 0,
+                    "shifts_count": 0
+                }
+            volunteer_hours[vid]["monthly_breakdown"][month_key]["hours_scheduled"] += scheduled_hours
+            volunteer_hours[vid]["monthly_breakdown"][month_key]["hours_worked"] += worked_hours
+            volunteer_hours[vid]["monthly_breakdown"][month_key]["shifts_count"] += 1
         
         # Track individual shifts
         station = stations_dict.get(record.get("assigned_station_id") or record.get("station_id"), {})
@@ -1748,6 +1782,13 @@ async def get_volunteer_hours_summary(
             "check_in": record.get("check_in_time", ""),
             "check_out": record.get("check_out_time", "")
         })
+    
+    # Convert monthly_breakdown dict to sorted list for each volunteer
+    for vid in volunteer_hours:
+        monthly = volunteer_hours[vid]["monthly_breakdown"]
+        volunteer_hours[vid]["monthly_breakdown"] = [
+            {"month": k, **v} for k, v in sorted(monthly.items())
+        ]
     
     # Sort volunteers by total hours worked (descending)
     sorted_volunteers = sorted(
