@@ -18,6 +18,7 @@ export const ApparatusPage = () => {
   const { api, canEdit } = useAuth();
   const { stations, personnel, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
   const [assignments, setAssignments] = useState([]);
+  const [volunteerAssignments, setVolunteerAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -43,7 +44,8 @@ export const ApparatusPage = () => {
   useEffect(() => {
     fetchAllData();
     fetchAssignments();
-  }, [selectedDate, selectedBattalion]);
+    fetchVolunteerAssignments();
+  }, [selectedDate, selectedBattalion, currentShift]);
 
   const fetchAssignments = async () => {
     try {
@@ -53,6 +55,17 @@ export const ApparatusPage = () => {
       setAssignments(response.data);
     } catch (error) {
       console.error('Error fetching assignments:', error);
+    }
+  };
+
+  const fetchVolunteerAssignments = async () => {
+    try {
+      const response = await api.get('/volunteer-assignments', {
+        params: { date: selectedDate, shift: currentShift }
+      });
+      setVolunteerAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching volunteer assignments:', error);
     }
   };
 
@@ -166,12 +179,39 @@ export const ApparatusPage = () => {
   };
 
   const getPersonnelName = (personnelId) => {
+    // Check regular personnel first
     const person = personnel.find(p => p.id === personnelId);
-    return person ? `${person.rank} ${person.name}` : personnelId;
+    if (person) {
+      return `${person.rank} ${person.name}`;
+    }
+    // Check volunteers
+    const volunteer = volunteerAssignments.find(v => v.personnel_id === personnelId);
+    if (volunteer) {
+      return `Vol. ${volunteer.volunteer_name}`;
+    }
+    return personnelId;
+  };
+
+  // Get volunteers assigned to a specific station for the current date/shift
+  const getStationVolunteers = (stationId) => {
+    return volunteerAssignments.filter(v => v.assigned_station_id === stationId);
   };
 
   const getStationPersonnel = (stationId) => {
-    return personnel.filter(p => p.station_id === stationId && p.shift === currentShift);
+    // Get regular personnel for this station and shift
+    const regularPersonnel = personnel.filter(p => p.station_id === stationId && p.shift === currentShift);
+    
+    // Get volunteers assigned to this station for this date/shift
+    const volunteers = getStationVolunteers(stationId).map(v => ({
+      id: v.personnel_id,
+      name: v.volunteer_name,
+      rank: 'Volunteer',
+      isVolunteer: true,
+      phone: v.volunteer_phone || v.phone_number
+    }));
+    
+    // Combine both lists
+    return [...regularPersonnel, ...volunteers];
   };
 
   const handlePersonnelToggle = (personId, isChecked) => {
@@ -310,14 +350,21 @@ export const ApparatusPage = () => {
                       <Label>Assigned Personnel & Riding Position</Label>
                       <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
                         {selectedStation && getStationPersonnel(selectedStation).map(person => (
-                          <div key={person.id} className="flex items-center gap-2 p-1 hover:bg-muted rounded">
+                          <div 
+                            key={person.id} 
+                            className={`flex items-center gap-2 p-1 hover:bg-muted rounded ${
+                              person.isVolunteer ? 'bg-green-500/10 border-l-2 border-green-500' : ''
+                            }`}
+                          >
                             <input
                               type="checkbox"
                               checked={assignedPersonnel.includes(person.id)}
                               onChange={(e) => handlePersonnelToggle(person.id, e.target.checked)}
                               className="rounded"
                             />
-                            <span className="text-sm flex-1">{person.rank} {person.name}</span>
+                            <span className={`text-sm flex-1 ${person.isVolunteer ? 'text-green-600 dark:text-green-400' : ''}`}>
+                              {person.isVolunteer ? `Vol. ${person.name}` : `${person.rank} ${person.name}`}
+                            </span>
                             {assignedPersonnel.includes(person.id) && (
                               <Select 
                                 value={positionAssignments[person.id] || ''} 
@@ -336,7 +383,7 @@ export const ApparatusPage = () => {
                           </div>
                         ))}
                         {selectedStation && getStationPersonnel(selectedStation).length === 0 && (
-                          <p className="text-sm text-muted-foreground p-2">No personnel on this shift</p>
+                          <p className="text-sm text-muted-foreground p-2">No personnel or volunteers on this shift</p>
                         )}
                       </div>
                     </div>
@@ -392,12 +439,20 @@ export const ApparatusPage = () => {
                         <TableCell>
                           {assignment && assignment.personnel_ids && assignment.personnel_ids.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                              {getPersonnelWithPosition(assignment).map(p => (
-                                <span key={p.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
-                                  <span className="font-semibold text-primary">{p.position}</span>
-                                  <span>{p.name}</span>
-                                </span>
-                              ))}
+                              {getPersonnelWithPosition(assignment).map(p => {
+                                const isVol = p.name.startsWith('Vol.');
+                                return (
+                                  <span 
+                                    key={p.id} 
+                                    className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
+                                      isVol ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-muted'
+                                    }`}
+                                  >
+                                    <span className="font-semibold text-primary">{p.position}</span>
+                                    <span>{p.name}</span>
+                                  </span>
+                                );
+                              })}
                             </div>
                           ) : (
                             <span className="text-muted-foreground italic">Not assigned</span>
@@ -459,7 +514,12 @@ export const ApparatusPage = () => {
                 <Label>Assigned Personnel & Riding Position</Label>
                 <div className="max-h-64 overflow-y-auto border rounded-md p-2 space-y-1">
                   {selectedStation && getStationPersonnel(selectedStation).map(person => (
-                    <div key={person.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded">
+                    <div 
+                      key={person.id} 
+                      className={`flex items-center gap-2 p-2 hover:bg-muted rounded ${
+                        person.isVolunteer ? 'bg-green-500/10 border-l-2 border-green-500' : ''
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={assignedPersonnel.includes(person.id)}
@@ -467,7 +527,9 @@ export const ApparatusPage = () => {
                         className="rounded"
                         data-testid={`checkbox-${person.id}`}
                       />
-                      <span className="text-sm flex-1">{person.rank} {person.name}</span>
+                      <span className={`text-sm flex-1 ${person.isVolunteer ? 'text-green-600 dark:text-green-400' : ''}`}>
+                        {person.isVolunteer ? `Vol. ${person.name}` : `${person.rank} ${person.name}`}
+                      </span>
                       {assignedPersonnel.includes(person.id) && (
                         <Select 
                           value={positionAssignments[person.id] || ''} 
@@ -486,7 +548,7 @@ export const ApparatusPage = () => {
                     </div>
                   ))}
                   {selectedStation && getStationPersonnel(selectedStation).length === 0 && (
-                    <p className="text-sm text-muted-foreground p-2">No personnel on this shift</p>
+                    <p className="text-sm text-muted-foreground p-2">No personnel or volunteers on this shift</p>
                   )}
                 </div>
               </div>
