@@ -965,9 +965,11 @@ async def get_my_volunteer_hours(
     stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
-    # Calculate totals
+    # Calculate totals and monthly breakdown
     total_hours_scheduled = 0
     total_hours_worked = 0
+    current_month_hours = 0
+    current_month = datetime.now().strftime("%Y-%m")
     shifts = []
     
     for record in records:
@@ -975,6 +977,11 @@ async def get_my_volunteer_hours(
         worked = record.get("hours_worked", 0) or scheduled
         total_hours_scheduled += scheduled
         total_hours_worked += worked
+        
+        # Track current month hours
+        record_date = record.get("date", "")
+        if record_date and record_date[:7] == current_month:
+            current_month_hours += worked
         
         station = stations_dict.get(record.get("assigned_station_id") or record.get("station_id"), {})
         shifts.append({
@@ -992,12 +999,17 @@ async def get_my_volunteer_hours(
     # Sort by date descending
     shifts.sort(key=lambda x: x["date"], reverse=True)
     
+    # Get current month name for display
+    current_month_name = datetime.now().strftime("%B %Y")
+    
     return {
         "volunteer_id": volunteer_id,
         "start_date": start_date,
         "end_date": end_date,
         "total_hours_scheduled": total_hours_scheduled,
         "total_hours_worked": total_hours_worked,
+        "current_month_hours": current_month_hours,
+        "current_month_name": current_month_name,
         "shifts_count": len(shifts),
         "shifts": shifts
     }

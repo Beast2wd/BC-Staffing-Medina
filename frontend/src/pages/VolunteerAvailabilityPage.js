@@ -269,7 +269,7 @@ export const VolunteerAvailabilityPage = () => {
 
         {/* My Hours Summary */}
         {myHoursSummary && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" data-testid="my-hours-summary">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" data-testid="my-hours-summary">
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
@@ -283,6 +283,14 @@ export const VolunteerAvailabilityPage = () => {
                 <div className="text-center">
                   <p className="text-3xl font-bold text-blue-500">{myHoursSummary.total_hours_scheduled || 0}</p>
                   <p className="text-sm text-muted-foreground">Hours Scheduled</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-purple-500">{myHoursSummary.current_month_hours || 0}</p>
+                  <p className="text-sm text-muted-foreground">Hours Worked ({myHoursSummary.current_month_name || 'Monthly'})</p>
                 </div>
               </CardContent>
             </Card>
