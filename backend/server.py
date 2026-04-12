@@ -1130,12 +1130,32 @@ async def create_volunteer_record(
 async def update_volunteer_record(
     record_id: str,
     data: VolunteerRecordCreate,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+    current_user: dict = Depends(get_current_user)
 ):
+    """Update a volunteer record. Users can update their own records, BC/Admin/Captain/Lt can update any."""
     # Get the existing record to check previous status
     existing = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
+    
+    # Check permissions - admin/BC/Captain/Lt can edit any, others can only edit their own
+    is_privileged = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+    
+    # Check if user owns this record
+    is_own_record = False
+    if current_user.get("role") == UserRole.VOLUNTEER:
+        # For volunteers, check volunteer_id
+        user_doc = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+        if user_doc and user_doc.get("volunteer_id") == existing.get("personnel_id"):
+            is_own_record = True
+    else:
+        # For regular personnel
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        if user_personnel and user_personnel.get("id") == existing.get("personnel_id"):
+            is_own_record = True
+    
+    if not is_privileged and not is_own_record:
+        raise HTTPException(status_code=403, detail="Not authorized to update this record")
     
     result = await db.volunteer_records.find_one_and_update(
         {"id": record_id},

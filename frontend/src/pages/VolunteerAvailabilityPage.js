@@ -280,15 +280,33 @@ export const VolunteerAvailabilityPage = () => {
   const handleUpdateVolunteerRecord = async (recordId, updates) => {
     try {
       const record = volunteerRecords.find(r => r.id === recordId);
-      if (!record) return;
+      if (!record) {
+        toast.error('Record not found');
+        return;
+      }
       
       const oldStationId = record.assigned_station_id || record.station_id;
       const newStationId = updates.assigned_station_id || updates.station_id || oldStationId;
       
-      await api.put(`/volunteer/${recordId}`, {
-        ...record,
-        ...updates
-      });
+      // Build the update payload with only the fields the backend expects
+      const payload = {
+        personnel_id: record.personnel_id,
+        date: record.date,
+        hours: updates.hours !== undefined ? updates.hours : record.hours,
+        station_id: updates.station_id || record.station_id,
+        battalion_id: record.battalion_id || selectedBattalion,
+        status: updates.status || record.status || 'assigned',
+        notes: updates.notes !== undefined ? updates.notes : (record.notes || ''),
+        phone_number: updates.phone_number || record.phone_number || '',
+        shift_type: updates.shift_type || record.shift_type || '24',
+        assigned_shift: updates.assigned_shift || record.assigned_shift || '',
+        assigned_station_id: updates.assigned_station_id || record.assigned_station_id || '',
+        hours_worked: record.hours_worked || 0,
+        check_in_time: record.check_in_time || '',
+        check_out_time: record.check_out_time || ''
+      };
+      
+      await api.put(`/volunteer/${recordId}`, payload);
       
       // If station changed and volunteer is assigned, update worksheet counts
       if (record.status === 'assigned' && oldStationId !== newStationId) {
