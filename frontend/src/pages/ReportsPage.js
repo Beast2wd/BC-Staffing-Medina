@@ -78,11 +78,29 @@ export const ReportsPage = () => {
     const printContent = reportRef.current;
     const printWindow = window.open('', '_blank');
     
+    // Determine report title based on type
+    const getReportTitle = () => {
+      switch(reportType) {
+        case 'daily': return 'Daily Staffing Summary';
+        case 'overtime': return 'Overtime Summary';
+        case 'volunteer-hours': return 'Volunteer Hours Summary';
+        default: return 'Report';
+      }
+    };
+    
+    // Get date range display
+    const getDateDisplay = () => {
+      if (reportType === 'daily') {
+        return reportData.date;
+      }
+      return `${reportData.start_date} to ${reportData.end_date}`;
+    };
+    
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Medina County BC Staffing - ${reportType === 'daily' ? 'Daily Summary' : 'Overtime Summary'}</title>
+          <title>Medina County BC Staffing - ${getReportTitle()}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
@@ -129,6 +147,7 @@ export const ReportsPage = () => {
             }
             .stat-box .positive { color: #22c55e; }
             .stat-box .negative { color: #ef4444; }
+            .stat-box .orange { color: #f97316; }
             .section { margin-bottom: 25px; }
             .section h2 {
               font-size: 16px;
@@ -137,17 +156,69 @@ export const ReportsPage = () => {
               padding-bottom: 8px;
               margin-bottom: 15px;
             }
-            .station-row {
+            .station-row, .volunteer-row {
               display: flex;
               justify-content: space-between;
               padding: 10px;
               border-bottom: 1px solid #eee;
             }
-            .station-row:nth-child(even) { background: #f9f9f9; }
-            .station-name { font-weight: bold; }
-            .station-stats { display: flex; gap: 20px; }
+            .station-row:nth-child(even), .volunteer-row:nth-child(even) { background: #f9f9f9; }
+            .station-name, .volunteer-name { font-weight: bold; }
+            .station-stats, .volunteer-stats { display: flex; gap: 20px; }
             .positive { color: #22c55e; }
             .negative { color: #ef4444; }
+            .orange { color: #f97316; }
+            .volunteer-card {
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin-bottom: 15px;
+              border-radius: 4px;
+            }
+            .volunteer-card h3 {
+              font-size: 16px;
+              margin-bottom: 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .monthly-grid {
+              display: grid;
+              grid-template-columns: repeat(6, 1fr);
+              gap: 10px;
+              margin: 15px 0;
+            }
+            .month-box {
+              border: 1px solid #ddd;
+              padding: 10px;
+              text-align: center;
+              border-radius: 4px;
+              background: #f9f9f9;
+            }
+            .month-box .month-name {
+              font-size: 11px;
+              color: #666;
+            }
+            .month-box .hours {
+              font-size: 18px;
+              font-weight: bold;
+              color: #22c55e;
+            }
+            .month-box .shifts {
+              font-size: 10px;
+              color: #666;
+            }
+            .shift-list {
+              font-size: 12px;
+              color: #666;
+              margin-top: 10px;
+              padding-top: 10px;
+              border-top: 1px solid #eee;
+            }
+            .shift-item {
+              display: flex;
+              justify-content: space-between;
+              padding: 5px 0;
+            }
             .footer {
               margin-top: 40px;
               text-align: center;
@@ -164,8 +235,8 @@ export const ReportsPage = () => {
         </head>
         <body>
           <div class="header">
-            <h1>${reportType === 'daily' ? 'Daily Staffing Summary' : 'Overtime Summary'}</h1>
-            <p>${getBattalionName()} - ${reportType === 'daily' ? reportData.date : `${reportData.start_date} to ${reportData.end_date}`}</p>
+            <h1>${getReportTitle()}</h1>
+            <p>${getBattalionName()} - ${getDateDisplay()}</p>
           </div>
           
           ${reportType === 'daily' ? `
@@ -204,13 +275,13 @@ export const ReportsPage = () => {
                 </div>
               `).join('') || ''}
             </div>
-          ` : `
+          ` : reportType === 'overtime' ? `
             <div class="section">
               <h2>Overtime Records</h2>
               ${reportData.personnel_overtime?.length > 0 ? 
                 reportData.personnel_overtime.map(item => `
                   <div class="station-row">
-                    <span>Personnel ID: ${item._id}</span>
+                    <span>${item.personnel_name || 'Personnel ID: ' + item._id}</span>
                     <div class="station-stats">
                       <span>Hours: <strong>${item.total_hours}</strong></span>
                       <span>Entries: <strong>${item.count}</strong></span>
@@ -220,7 +291,74 @@ export const ReportsPage = () => {
                 '<p style="text-align:center;color:#666;padding:20px;">No overtime records found</p>'
               }
             </div>
-          `}
+          ` : reportType === 'volunteer-hours' ? `
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="value orange">${reportData.volunteer_count || 0}</div>
+                <div class="label">Total Volunteers</div>
+              </div>
+              <div class="stat-box">
+                <div class="value">${reportData.total_shifts || 0}</div>
+                <div class="label">Total Shifts</div>
+              </div>
+              <div class="stat-box">
+                <div class="value">${reportData.total_hours_scheduled || 0}</div>
+                <div class="label">Hours Scheduled</div>
+              </div>
+              <div class="stat-box">
+                <div class="value positive">${reportData.total_hours_worked || 0}</div>
+                <div class="label">Hours Worked</div>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2>Volunteer Breakdown</h2>
+              ${reportData.volunteer_hours?.length > 0 ? 
+                reportData.volunteer_hours.map(vol => `
+                  <div class="volunteer-card">
+                    <h3>
+                      <span>${vol.volunteer_name} ${vol.contact_phone ? '(' + vol.contact_phone + ')' : ''}</span>
+                      <span>
+                        <span style="color:#3b82f6">${vol.shifts_count} shifts</span> | 
+                        <span style="color:#22c55e">${vol.total_hours_worked}h period</span> | 
+                        <span style="color:#f97316">${vol.ytd_hours || 0}h YTD</span>
+                      </span>
+                    </h3>
+                    
+                    ${vol.monthly_breakdown?.length > 0 ? `
+                      <div style="margin-bottom:10px;font-weight:bold;font-size:12px;">Monthly Breakdown:</div>
+                      <div class="monthly-grid">
+                        ${vol.monthly_breakdown.map(month => {
+                          const monthDate = new Date(month.month + '-01');
+                          const monthName = monthDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                          return `
+                            <div class="month-box">
+                              <div class="month-name">${monthName}</div>
+                              <div class="hours">${month.hours_worked}h</div>
+                              <div class="shifts">${month.shifts_count} shift${month.shifts_count !== 1 ? 's' : ''}</div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : ''}
+                    
+                    ${vol.shifts?.length > 0 ? `
+                      <div class="shift-list">
+                        <strong>Shift Details:</strong>
+                        ${vol.shifts.map(shift => `
+                          <div class="shift-item">
+                            <span>${shift.date} - ${shift.shift} Shift</span>
+                            <span>${shift.station} (${shift.hours_worked}h)</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('') : 
+                '<p style="text-align:center;color:#666;padding:20px;">No volunteer records found</p>'
+              }
+            </div>
+          ` : ''}
           
           <div class="footer">
             <p>Medina County BC Staffing System</p>
