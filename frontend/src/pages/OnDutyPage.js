@@ -69,6 +69,7 @@ export const OnDutyPage = () => {
   const getStationApparatusWithPersonnel = (stationId) => {
     const stationApparatusAssignments = apparatusAssignments.filter(a => a.station_id === stationId);
     const onDutyPersonnel = getOnDutyPersonnel(stationId);
+    const stationVolunteers = getStationVolunteers(stationId);
     const station = stations.find(s => s.id === stationId);
     const stationApparatusList = station?.apparatus || [];
     
@@ -82,10 +83,43 @@ export const OnDutyPage = () => {
       
       if (assignment && assignment.personnel_ids?.length > 0) {
         const personnelWithPositions = assignment.personnel_ids.map(pid => {
+          // Check regular personnel
           const person = personnel.find(p => p.id === pid);
-          const position = assignment.position_assignments?.[pid] || 'Z'; // Z for unassigned position (sorts last)
-          assignedPersonnelIds.add(pid);
-          return { ...person, position };
+          if (person) {
+            const position = assignment.position_assignments?.[pid] || 'Z';
+            assignedPersonnelIds.add(pid);
+            return { ...person, position, isVolunteer: false };
+          }
+          
+          // Check volunteers
+          const volunteer = stationVolunteers.find(v => v.personnel_id === pid);
+          if (volunteer) {
+            const position = assignment.position_assignments?.[pid] || 'Z';
+            assignedPersonnelIds.add(pid);
+            return { 
+              id: pid, 
+              name: volunteer.volunteer_name, 
+              rank: 'Volunteer',
+              position, 
+              isVolunteer: true 
+            };
+          }
+          
+          // Check assignment's personnel_names
+          if (assignment.personnel_names?.[pid]) {
+            const position = assignment.position_assignments?.[pid] || 'Z';
+            assignedPersonnelIds.add(pid);
+            const displayName = assignment.personnel_names[pid];
+            return { 
+              id: pid, 
+              name: displayName.replace('Vol. ', ''), 
+              rank: displayName.startsWith('Vol.') ? 'Volunteer' : '',
+              position, 
+              isVolunteer: displayName.startsWith('Vol.') 
+            };
+          }
+          
+          return null;
         }).filter(p => p).sort((a, b) => a.position.localeCompare(b.position));
         
         apparatusGroups.push({
@@ -95,10 +129,20 @@ export const OnDutyPage = () => {
       }
     });
     
-    // Get unassigned personnel
+    // Get unassigned personnel (regular personnel only)
     const unassignedPersonnel = onDutyPersonnel.filter(p => !assignedPersonnelIds.has(p.id));
     
-    return { apparatusGroups, unassignedPersonnel };
+    // Get unassigned volunteers (volunteers not assigned to any apparatus)
+    const unassignedVolunteers = stationVolunteers
+      .filter(v => !assignedPersonnelIds.has(v.personnel_id))
+      .map(v => ({
+        id: v.personnel_id,
+        name: v.volunteer_name,
+        rank: 'Volunteer',
+        isVolunteer: true
+      }));
+    
+    return { apparatusGroups, unassignedPersonnel, unassignedVolunteers };
   };
 
   return (
@@ -129,9 +173,9 @@ export const OnDutyPage = () => {
           {/* Stations Personnel Section */}
           <div className="flex-1 space-y-4">
             {stations.map(station => {
-              const { apparatusGroups, unassignedPersonnel } = getStationApparatusWithPersonnel(station.id);
+              const { apparatusGroups, unassignedPersonnel, unassignedVolunteers } = getStationApparatusWithPersonnel(station.id);
               const stationVolunteers = getStationVolunteers(station.id);
-              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0 || stationVolunteers.length > 0;
+              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0 || unassignedVolunteers.length > 0;
               
               return (
                 <Card key={station.id} data-testid={`station-card-${station.id}`}>
@@ -165,17 +209,29 @@ export const OnDutyPage = () => {
                               {group.personnel.map(person => (
                                 <div 
                                   key={person.id} 
-                                  className="flex items-center gap-2 p-2 bg-muted rounded-lg"
+                                  className={`flex items-center gap-2 p-2 rounded-lg ${
+                                    person.isVolunteer 
+                                      ? 'bg-green-500/10 border border-green-500/30' 
+                                      : 'bg-muted'
+                                  }`}
                                   data-testid={`personnel-card-${person.id}`}
                                 >
                                   {person.position && person.position !== 'Z' && (
-                                    <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded">
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                      person.isVolunteer 
+                                        ? 'bg-green-500 text-white' 
+                                        : 'bg-primary text-primary-foreground'
+                                    }`}>
                                       {person.position}
                                     </span>
                                   )}
                                   <div>
-                                    <p className="font-medium text-sm">{person.name}</p>
-                                    <p className="text-xs text-muted-foreground">{person.rank}</p>
+                                    <p className={`font-medium text-sm ${person.isVolunteer ? 'text-green-600 dark:text-green-400' : ''}`}>
+                                      {person.name}
+                                    </p>
+                                    <p className={`text-xs ${person.isVolunteer ? 'text-green-500/70' : 'text-muted-foreground'}`}>
+                                      {person.rank}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -205,32 +261,24 @@ export const OnDutyPage = () => {
                           </div>
                         )}
 
-                        {/* Volunteers */}
-                        {getStationVolunteers(station.id).length > 0 && (
-                          <div className="border border-green-500/30 bg-green-500/5 rounded-lg p-3">
+                        {/* Unassigned Volunteers */}
+                        {unassignedVolunteers.length > 0 && (
+                          <div className="border border-dashed border-green-500/30 bg-green-500/5 rounded-lg p-3">
                             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-green-500/30">
                               <Hand className="h-4 w-4 text-green-500" />
-                              <span className="font-semibold text-green-500">Volunteers</span>
-                              <Badge variant="outline" className="border-green-500 text-green-500">
-                                {getStationVolunteers(station.id).length}
-                              </Badge>
+                              <span className="font-semibold text-green-500">Volunteers Not Assigned to Apparatus</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {getStationVolunteers(station.id).map(vol => (
+                              {unassignedVolunteers.map(vol => (
                                 <div 
                                   key={vol.id} 
                                   className="p-2 bg-green-500/10 rounded-lg border border-green-500/20"
                                   data-testid={`volunteer-card-${vol.id}`}
                                 >
                                   <p className="font-medium text-sm text-green-600 dark:text-green-400">
-                                    {vol.volunteer_name}
+                                    {vol.name}
                                   </p>
-                                  <p className="text-xs text-green-500/70">
-                                    {vol.is_volunteer_ff ? 'Volunteer FF' : 'Volunteer'}
-                                  </p>
-                                  {vol.phone_number && (
-                                    <p className="text-xs text-muted-foreground mt-1">{vol.phone_number}</p>
-                                  )}
+                                  <p className="text-xs text-green-500/70">{vol.rank}</p>
                                 </div>
                               ))}
                             </div>

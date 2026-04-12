@@ -1,13 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { useStaffing } from '../../context/StaffingContext';
+import { useAuth } from '../../context/AuthContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { Badge } from '../../components/ui/badge';
 import { ShiftCalendar } from '../../components/dashboard/ShiftCalendar';
 
 export const DayOfStaffingPage = () => {
+  const { api } = useAuth();
   const { 
     stations, 
     personnel, 
@@ -17,10 +19,28 @@ export const DayOfStaffingPage = () => {
     currentShift,
     selectedBattalion
   } = useStaffing();
+  const [volunteerAssignments, setVolunteerAssignments] = useState([]);
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData]);
+    fetchVolunteerAssignments();
+  }, [fetchAllData, selectedDate, currentShift]);
+
+  const fetchVolunteerAssignments = async () => {
+    try {
+      const response = await api.get('/volunteer-assignments', {
+        params: { date: selectedDate, shift: currentShift }
+      });
+      setVolunteerAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching volunteer assignments:', error);
+    }
+  };
+
+  // Get volunteers assigned to a station
+  const getStationVolunteers = (stationId) => {
+    return volunteerAssignments.filter(v => v.assigned_station_id === stationId);
+  };
 
   // Group assignments by station
   const stationData = useMemo(() => {
@@ -29,16 +49,52 @@ export const DayOfStaffingPage = () => {
         p => p.station_id === station.id && p.shift === currentShift
       );
       
+      const stationVolunteers = getStationVolunteers(station.id);
+      
       const stationAssignments = apparatusAssignments.filter(
         a => a.station_id === station.id
       );
 
-      // Create apparatus data
+      // Create apparatus data with volunteers included
       const apparatusData = station.apparatus?.map(appName => {
         const assignment = stationAssignments.find(a => a.apparatus_name === appName);
-        const assignedPersonnel = assignment?.personnel_ids?.map(pid => 
-          personnel.find(p => p.id === pid)
-        ).filter(Boolean) || [];
+        const assignedPersonnel = assignment?.personnel_ids?.map(pid => {
+          // Check regular personnel
+          const person = personnel.find(p => p.id === pid);
+          if (person) {
+            return { 
+              ...person, 
+              isVolunteer: false,
+              position: assignment.position_assignments?.[pid] || '-'
+            };
+          }
+          // Check volunteers
+          const volunteer = stationVolunteers.find(v => v.personnel_id === pid);
+          if (volunteer) {
+            return {
+              id: pid,
+              name: volunteer.volunteer_name,
+              rank: 'Volunteer',
+              isVolunteer: true,
+              position: assignment.position_assignments?.[pid] || '-'
+            };
+          }
+          // Use personnel_names from API
+          if (assignment.personnel_names?.[pid]) {
+            const displayName = assignment.personnel_names[pid];
+            return {
+              id: pid,
+              name: displayName.replace('Vol. ', ''),
+              rank: displayName.startsWith('Vol.') ? 'Volunteer' : '',
+              isVolunteer: displayName.startsWith('Vol.'),
+              position: assignment.position_assignments?.[pid] || '-'
+            };
+          }
+          return null;
+        }).filter(Boolean).sort((a, b) => {
+          const posOrder = {'A': 1, 'B': 2, 'C': 3, 'D': 4, '-': 5};
+          return (posOrder[a.position] || 5) - (posOrder[b.position] || 5);
+        }) || [];
 
         return {
           name: appName,
@@ -49,12 +105,13 @@ export const DayOfStaffingPage = () => {
       return {
         station,
         personnel: stationPersonnel,
+        volunteers: stationVolunteers,
         apparatus: apparatusData,
-        totalAssigned: stationPersonnel.length,
+        totalAssigned: stationPersonnel.length + stationVolunteers.length,
         minimumStaffing: station.minimum_staffing || 3
       };
     });
-  }, [stations, personnel, apparatusAssignments, currentShift]);
+  }, [stations, personnel, apparatusAssignments, currentShift, volunteerAssignments]);
 
   const totalPersonnel = stationData.reduce((sum, s) => sum + s.totalAssigned, 0);
   const totalMinimum = stationData.reduce((sum, s) => sum + s.minimumStaffing, 0);
@@ -137,12 +194,17 @@ export const DayOfStaffingPage = () => {
 
           {/* Staffing Details */}
           <div className="lg:col-span-9 space-y-4">
-            {stationData.map(({ station, personnel: stationPersonnel, apparatus, totalAssigned, minimumStaffing }) => (
+            {stationData.map(({ station, personnel: stationPersonnel, volunteers, apparatus, totalAssigned, minimumStaffing }) => (
               <Card key={station.id} data-testid={`station-card-${station.id}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="font-heading text-xl uppercase">
+                    <CardTitle className="font-heading text-xl uppercase flex items-center gap-2">
                       Station {station.station_number}
+                      {volunteers.length > 0 && (
+                        <Badge variant="outline" className="border-green-500 text-green-500 text-xs">
+                          +{volunteers.length} Vol
+                        </Badge>
+                      )}
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">
@@ -171,8 +233,20 @@ export const DayOfStaffingPage = () => {
                               {app.assigned.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                   {app.assigned.map(person => (
-                                    <span key={person.id} className="text-xs bg-muted px-2 py-1 rounded">
-                                      {person.rank} {person.name}
+                                    <span 
+                                      key={person.id} 
+                                      className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
+                                        person.isVolunteer 
+                                          ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30' 
+                                          : 'bg-muted'
+                                      }`}
+                                    >
+                                      {person.position && person.position !== '-' && (
+                                        <span className={`font-bold ${person.isVolunteer ? 'text-green-500' : 'text-primary'}`}>
+                                          {person.position}
+                                        </span>
+                                      )}
+                                      {person.isVolunteer ? `Vol. ${person.name}` : `${person.rank} ${person.name}`}
                                     </span>
                                   ))}
                                 </div>
