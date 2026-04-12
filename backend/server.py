@@ -228,6 +228,7 @@ class ApparatusAssignment(BaseModel):
     shift: str
     personnel_ids: List[str] = []
     position_assignments: dict = {}  # personnel_id -> riding_position (A, B, C, D)
+    personnel_names: dict = {}  # personnel_id -> display name (enriched by API)
 
 class ApparatusAssignmentCreate(BaseModel):
     date: str
@@ -835,6 +836,24 @@ async def get_apparatus_assignments(
         query["station_id"] = station_id
     
     assignments = await db.apparatus_assignments.find(query, {"_id": 0}).to_list(500)
+    
+    # Enrich assignments with personnel/volunteer names for display
+    for assignment in assignments:
+        personnel_names = {}
+        for pid in assignment.get("personnel_ids", []):
+            # Check personnel first
+            person = await db.personnel.find_one({"id": pid}, {"_id": 0, "name": 1, "rank": 1})
+            if person:
+                personnel_names[pid] = f"{person.get('rank', '')} {person.get('name', '')}"
+            else:
+                # Check volunteers
+                volunteer = await db.volunteers.find_one({"id": pid}, {"_id": 0, "name": 1})
+                if volunteer:
+                    personnel_names[pid] = f"Vol. {volunteer.get('name', '')}"
+                else:
+                    personnel_names[pid] = pid  # Fallback to ID
+        assignment["personnel_names"] = personnel_names
+    
     return assignments
 
 @api_router.post("/apparatus-assignments", response_model=ApparatusAssignment)

@@ -178,13 +178,17 @@ export const ApparatusPage = () => {
     return station?.apparatus || [];
   };
 
-  const getPersonnelName = (personnelId) => {
-    // Check regular personnel first
+  const getPersonnelName = (personnelId, assignment = null) => {
+    // First check if the assignment has personnel_names from the API
+    if (assignment?.personnel_names?.[personnelId]) {
+      return assignment.personnel_names[personnelId];
+    }
+    // Check regular personnel
     const person = personnel.find(p => p.id === personnelId);
     if (person) {
       return `${person.rank} ${person.name}`;
     }
-    // Check volunteers
+    // Check volunteers from current assignments
     const volunteer = volunteerAssignments.find(v => v.personnel_id === personnelId);
     if (volunteer) {
       return `Vol. ${volunteer.volunteer_name}`;
@@ -237,7 +241,7 @@ export const ApparatusPage = () => {
     const positions = assignment.position_assignments || {};
     return (assignment.personnel_ids || []).map(pid => ({
       id: pid,
-      name: getPersonnelName(pid),
+      name: getPersonnelName(pid, assignment),
       position: positions[pid] || '-'
     })).sort((a, b) => {
       const posOrder = {'A': 1, 'B': 2, 'C': 3, 'D': 4, '-': 5};
