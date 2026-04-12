@@ -173,6 +173,24 @@ export const VolunteerPage = () => {
     }
   };
 
+  const handleUpdateHours = async (recordId, newHours) => {
+    try {
+      const record = volunteerRecords.find(r => r.id === recordId);
+      if (!record) return;
+      
+      await api.put(`/volunteer/${recordId}`, {
+        ...record,
+        hours: parseInt(newHours),
+        shift_type: newHours
+      });
+      
+      toast.success('Hours updated');
+      fetchVolunteerRecords();
+    } catch (error) {
+      toast.error('Failed to update hours');
+    }
+  };
+
   const getPersonnelName = (personnelId) => {
     const person = personnel.find(p => p.id === personnelId);
     return person ? `${person.rank} ${person.name}` : personnelId;
@@ -306,29 +324,29 @@ export const VolunteerPage = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label>Shift Type</Label>
+                      <Label>Hours</Label>
                       <Select 
-                        value={formData.shift_type} 
-                        onValueChange={(v) => setFormData({...formData, shift_type: v, hours: parseInt(v)})}
+                        value={String(formData.hours)} 
+                        onValueChange={(v) => setFormData({...formData, hours: parseInt(v), shift_type: v})}
                       >
-                        <SelectTrigger data-testid="shift-type-select">
-                          <SelectValue />
+                        <SelectTrigger data-testid="hours-select">
+                          <SelectValue placeholder="Select hours" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="12">12-Hour Shift</SelectItem>
-                          <SelectItem value="24">24-Hour Shift</SelectItem>
+                          <SelectItem value="2">2 Hours</SelectItem>
+                          <SelectItem value="4">4 Hours</SelectItem>
+                          <SelectItem value="6">6 Hours</SelectItem>
+                          <SelectItem value="8">8 Hours</SelectItem>
+                          <SelectItem value="10">10 Hours</SelectItem>
+                          <SelectItem value="12">12 Hours</SelectItem>
+                          <SelectItem value="14">14 Hours</SelectItem>
+                          <SelectItem value="16">16 Hours</SelectItem>
+                          <SelectItem value="18">18 Hours</SelectItem>
+                          <SelectItem value="20">20 Hours</SelectItem>
+                          <SelectItem value="22">22 Hours</SelectItem>
+                          <SelectItem value="24">24 Hours</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Hours</Label>
-                      <Input
-                        type="number"
-                        value={formData.hours}
-                        onChange={(e) => setFormData({...formData, hours: parseFloat(e.target.value)})}
-                        data-testid="hours-input"
-                      />
                     </div>
 
                     <div className="space-y-2">
@@ -453,7 +471,34 @@ export const VolunteerPage = () => {
                           getStationName(record.station_id)
                         )}
                       </TableCell>
-                      <TableCell>{record.hours} hrs</TableCell>
+                      <TableCell>
+                        {canEdit ? (
+                          <Select 
+                            value={String(record.hours)} 
+                            onValueChange={(v) => handleUpdateHours(record.id, v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-20" data-testid={`hours-select-${record.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">2 hrs</SelectItem>
+                              <SelectItem value="4">4 hrs</SelectItem>
+                              <SelectItem value="6">6 hrs</SelectItem>
+                              <SelectItem value="8">8 hrs</SelectItem>
+                              <SelectItem value="10">10 hrs</SelectItem>
+                              <SelectItem value="12">12 hrs</SelectItem>
+                              <SelectItem value="14">14 hrs</SelectItem>
+                              <SelectItem value="16">16 hrs</SelectItem>
+                              <SelectItem value="18">18 hrs</SelectItem>
+                              <SelectItem value="20">20 hrs</SelectItem>
+                              <SelectItem value="22">22 hrs</SelectItem>
+                              <SelectItem value="24">24 hrs</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          `${record.hours} hrs`
+                        )}
+                      </TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
                       <TableCell className="max-w-[150px] truncate">{record.notes || '-'}</TableCell>
                       {canEdit && (
