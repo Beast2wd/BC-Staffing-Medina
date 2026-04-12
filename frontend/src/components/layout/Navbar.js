@@ -141,7 +141,7 @@ export const Navbar = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/battalion-chief/volunteer" className="flex items-center gap-2" data-testid="nav-volunteer">
-                    <Hand className="h-4 w-4" /> Volunteer Availability
+                    <Hand className="h-4 w-4" /> Volunteer Scheduled
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
