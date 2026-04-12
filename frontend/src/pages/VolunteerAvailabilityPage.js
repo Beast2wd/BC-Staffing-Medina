@@ -199,12 +199,19 @@ export const VolunteerAvailabilityPage = () => {
     
     try {
       const record = volunteerRecords.find(r => r.id === recordId);
+      if (!record) {
+        toast.error('Record not found');
+        return;
+      }
+      
+      const recordDate = record.date;
+      const stationId = record.assigned_station_id || record.station_id;
       
       // Remove from apparatus assignments
-      await removeVolunteerFromApparatus(record.personnel_id, record.date, record.assigned_station_id || record.station_id);
+      await removeVolunteerFromApparatus(record.personnel_id, recordDate, stationId);
       
       // Decrement volunteer count on worksheet
-      await syncVolunteerToWorksheet(record.assigned_station_id || record.station_id, -1);
+      await syncVolunteerToWorksheetByDate(stationId, -1, recordDate);
       
       // Delete the volunteer record
       await api.delete(`/volunteer/${recordId}`);
@@ -244,10 +251,14 @@ export const VolunteerAvailabilityPage = () => {
   };
 
   const syncVolunteerToWorksheet = async (stationId, delta) => {
+    await syncVolunteerToWorksheetByDate(stationId, delta, selectedDate);
+  };
+
+  const syncVolunteerToWorksheetByDate = async (stationId, delta, date) => {
     try {
       // Fetch staffing records for this date
       const response = await api.get('/staffing', {
-        params: { date: selectedDate, battalion_id: selectedBattalion }
+        params: { date, battalion_id: selectedBattalion }
       });
       
       const existingRecord = response.data.find(r => r.station_id === stationId);
@@ -263,6 +274,34 @@ export const VolunteerAvailabilityPage = () => {
       }
     } catch (error) {
       console.error('Error syncing volunteer to worksheet:', error);
+    }
+  };
+
+  const handleUpdateVolunteerRecord = async (recordId, updates) => {
+    try {
+      const record = volunteerRecords.find(r => r.id === recordId);
+      if (!record) return;
+      
+      const oldStationId = record.assigned_station_id || record.station_id;
+      const newStationId = updates.assigned_station_id || updates.station_id || oldStationId;
+      
+      await api.put(`/volunteer/${recordId}`, {
+        ...record,
+        ...updates
+      });
+      
+      // If station changed and volunteer is assigned, update worksheet counts
+      if (record.status === 'assigned' && oldStationId !== newStationId) {
+        await syncVolunteerToWorksheetByDate(oldStationId, -1, record.date);
+        await syncVolunteerToWorksheetByDate(newStationId, 1, record.date);
+      }
+      
+      toast.success('Record updated successfully');
+      fetchVolunteerRecords();
+      fetchVolunteerStats();
+    } catch (error) {
+      toast.error('Failed to update record');
+      console.error('Update error:', error);
     }
   };
 
@@ -662,6 +701,9 @@ export const VolunteerAvailabilityPage = () => {
                         {record.personnel_id === myPersonnel?.id && (
                           <Badge variant="outline" className="ml-2 text-xs">You</Badge>
                         )}
+                        {record.personnel_id === myVolunteerId && (
+                          <Badge variant="outline" className="ml-2 text-xs">You</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
@@ -669,8 +711,47 @@ export const VolunteerAvailabilityPage = () => {
                           {record.phone_number || '-'}
                         </div>
                       </TableCell>
-                      <TableCell>{getStationName(record.assigned_station_id || record.station_id)}</TableCell>
-                      <TableCell>{record.hours} hrs</TableCell>
+                      <TableCell>
+                        <Select 
+                          value={record.assigned_station_id || record.station_id} 
+                          onValueChange={(v) => handleUpdateVolunteerRecord(record.id, { assigned_station_id: v, station_id: v })}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-28" data-testid={`station-select-${record.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {stations.map(station => (
+                              <SelectItem key={station.id} value={station.id}>
+                                Station {station.station_number}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select 
+                          value={String(record.hours)} 
+                          onValueChange={(v) => handleUpdateVolunteerRecord(record.id, { hours: parseInt(v), shift_type: v })}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-20" data-testid={`hours-select-${record.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="2">2 hrs</SelectItem>
+                            <SelectItem value="4">4 hrs</SelectItem>
+                            <SelectItem value="6">6 hrs</SelectItem>
+                            <SelectItem value="8">8 hrs</SelectItem>
+                            <SelectItem value="10">10 hrs</SelectItem>
+                            <SelectItem value="12">12 hrs</SelectItem>
+                            <SelectItem value="14">14 hrs</SelectItem>
+                            <SelectItem value="16">16 hrs</SelectItem>
+                            <SelectItem value="18">18 hrs</SelectItem>
+                            <SelectItem value="20">20 hrs</SelectItem>
+                            <SelectItem value="22">22 hrs</SelectItem>
+                            <SelectItem value="24">24 hrs</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
                       <TableCell>
                         {record.status === 'assigned' && (
