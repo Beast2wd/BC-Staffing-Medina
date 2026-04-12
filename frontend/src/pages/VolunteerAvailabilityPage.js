@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { formatDisplayDate } from '../utils/dateUtils';
 
 export const VolunteerAvailabilityPage = () => {
-  const { api, user } = useAuth();
+  const { api, user, isVolunteer } = useAuth();
   const { personnel, stations, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
   const [volunteerRecords, setVolunteerRecords] = useState([]);
   const [myRecords, setMyRecords] = useState([]);
@@ -30,11 +30,14 @@ export const VolunteerAvailabilityPage = () => {
     status: 'available',
     notes: '',
     phone_number: '',
-    shift_type: '24'
+    shift_type: '24',
+    assigned_shift: '',
+    assigned_station_id: ''
   });
 
-  // Find the current user's personnel record
+  // Find the current user's personnel record or volunteer record
   const myPersonnel = personnel.find(p => p.payroll_number === user?.payroll_number);
+  const myVolunteerId = user?.volunteer_id;
   
   // Calculate max allowed date (12 months in advance for volunteers)
   const getMaxAllowedDate = () => {
@@ -58,12 +61,13 @@ export const VolunteerAvailabilityPage = () => {
 
   // Update myRecords when volunteerRecords or myPersonnel changes
   useEffect(() => {
-    if (myPersonnel && volunteerRecords.length > 0) {
-      setMyRecords(volunteerRecords.filter(r => r.personnel_id === myPersonnel.id));
+    const myId = isVolunteer ? myVolunteerId : myPersonnel?.id;
+    if (myId && volunteerRecords.length > 0) {
+      setMyRecords(volunteerRecords.filter(r => r.personnel_id === myId));
     } else {
       setMyRecords([]);
     }
-  }, [volunteerRecords, myPersonnel]);
+  }, [volunteerRecords, myPersonnel, myVolunteerId, isVolunteer]);
 
   const isDateAllowed = (dateStr) => {
     const today = new Date();
@@ -92,7 +96,9 @@ export const VolunteerAvailabilityPage = () => {
   };
 
   const handleAddAvailability = async () => {
-    if (!myPersonnel) {
+    const myId = isVolunteer ? myVolunteerId : myPersonnel?.id;
+    
+    if (!myId && !isVolunteer) {
       toast.error('Your personnel record was not found. Please contact your administrator.');
       return;
     }
@@ -101,24 +107,41 @@ export const VolunteerAvailabilityPage = () => {
       toast.error('You can only submit availability up to 12 months in advance');
       return;
     }
+
+    // Validate shift and station selection for volunteers
+    if (isVolunteer && (!formData.assigned_shift || !formData.assigned_station_id)) {
+      toast.error('Please select both a shift and station for your assignment');
+      return;
+    }
     
     setLoading(true);
     try {
       await api.post('/volunteer', {
-        personnel_id: myPersonnel.id,
+        personnel_id: myId || '',
         date: formData.date,
         hours: formData.hours,
-        station_id: myPersonnel.station_id,
+        station_id: formData.assigned_station_id || (myPersonnel?.station_id || ''),
         battalion_id: selectedBattalion,
         status: 'available',
         notes: formData.notes,
-        phone_number: formData.phone_number || myPersonnel.contact_phone,
-        shift_type: formData.shift_type
+        phone_number: formData.phone_number || myPersonnel?.contact_phone || '',
+        shift_type: formData.shift_type,
+        assigned_shift: formData.assigned_shift,
+        assigned_station_id: formData.assigned_station_id
       });
       toast.success('Availability submitted');
       setShowAddDialog(false);
       fetchVolunteerRecords();
-      setFormData({ date: selectedDate, hours: 24, status: 'available', notes: '', phone_number: '', shift_type: '24' });
+      setFormData({ 
+        date: selectedDate, 
+        hours: 24, 
+        status: 'available', 
+        notes: '', 
+        phone_number: '', 
+        shift_type: '24',
+        assigned_shift: '',
+        assigned_station_id: ''
+      });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to submit availability');
     } finally {
@@ -245,9 +268,15 @@ export const VolunteerAvailabilityPage = () => {
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="p-3 bg-muted rounded-lg">
-                      <p className="text-sm font-medium">{myPersonnel?.rank} {myPersonnel?.name}</p>
-                      <p className="text-xs text-muted-foreground">Payroll: {user?.payroll_number}</p>
-                      <p className="text-xs text-muted-foreground">Home Station: Station {stations.find(s => s.id === myPersonnel?.station_id)?.station_number || 'N/A'}</p>
+                      <p className="text-sm font-medium">
+                        {isVolunteer ? 'Volunteer Firefighter' : myPersonnel?.rank} {user?.name || myPersonnel?.name}
+                      </p>
+                      {!isVolunteer && (
+                        <>
+                          <p className="text-xs text-muted-foreground">Payroll: {user?.payroll_number}</p>
+                          <p className="text-xs text-muted-foreground">Home Station: Station {stations.find(s => s.id === myPersonnel?.station_id)?.station_number || 'N/A'}</p>
+                        </>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -294,6 +323,56 @@ export const VolunteerAvailabilityPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Shift Assignment - Required for volunteers */}
+                    <div className="space-y-2">
+                      <Label>Assign to Shift {isVolunteer && <span className="text-red-500">*</span>}</Label>
+                      <Select 
+                        value={formData.assigned_shift} 
+                        onValueChange={(v) => setFormData({...formData, assigned_shift: v})}
+                      >
+                        <SelectTrigger data-testid="assigned-shift-select">
+                          <SelectValue placeholder="Select shift to work" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A">A Shift</SelectItem>
+                          <SelectItem value="B">B Shift</SelectItem>
+                          <SelectItem value="C">C Shift</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Station Assignment - Required for volunteers */}
+                    <div className="space-y-2">
+                      <Label>Assign to Station {isVolunteer && <span className="text-red-500">*</span>}</Label>
+                      <Select 
+                        value={formData.assigned_station_id} 
+                        onValueChange={(v) => setFormData({...formData, assigned_station_id: v})}
+                      >
+                        <SelectTrigger data-testid="assigned-station-select">
+                          <SelectValue placeholder="Select station to work" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stations.map(station => (
+                            <SelectItem key={station.id} value={station.id}>
+                              Station {station.station_number}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.assigned_shift && formData.assigned_station_id && (
+                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        <p className="text-sm text-green-500">
+                          You will be assigned to <strong>{formData.assigned_shift} Shift</strong> at{' '}
+                          <strong>Station {stations.find(s => s.id === formData.assigned_station_id)?.station_number}</strong>
+                        </p>
+                        <p className="text-xs text-green-400 mt-1">
+                          This will automatically reflect on the daily worksheet, on-duty list, and apparatus assignments.
+                        </p>
+                      </div>
+                    )}
                     
                     <div className="space-y-2">
                       <Label>Hours Available</Label>

@@ -305,6 +305,8 @@ class VolunteerRecord(BaseModel):
     notes: str = ""
     phone_number: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
+    assigned_shift: str = ""  # A, B, or C - the shift volunteer is assigning themselves to
+    assigned_station_id: str = ""  # The station volunteer is assigning themselves to
 
 class VolunteerRecordCreate(BaseModel):
     personnel_id: str
@@ -316,6 +318,8 @@ class VolunteerRecordCreate(BaseModel):
     notes: str = ""
     phone_number: str = ""
     shift_type: str = "24"
+    assigned_shift: str = ""
+    assigned_station_id: str = ""
 
 # ===================== VOLUNTEER FIREFIGHTER MODELS =====================
 
@@ -901,18 +905,34 @@ async def create_volunteer_record(
     current_user: dict = Depends(get_current_user)
 ):
     """Create volunteer record - any user can submit their own availability"""
-    # Verify personnel exists
-    personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
-    if not personnel:
-        raise HTTPException(status_code=404, detail="Personnel not found")
+    # For volunteer firefighters, get their volunteer record ID
+    is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
     
-    # Check if user is submitting for themselves or has elevated permissions
-    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
-    is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
-    has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
-    
-    if not is_own_record and not has_permissions:
-        raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
+    if is_volunteer_ff:
+        # Find the volunteer record linked to this user
+        volunteer = await db.volunteers.find_one({"id": current_user.get("volunteer_id")}, {"_id": 0})
+        if not volunteer:
+            # Try finding by user's volunteer_id field
+            user = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+            if user and user.get("volunteer_id"):
+                data.personnel_id = user.get("volunteer_id")
+            else:
+                raise HTTPException(status_code=404, detail="Volunteer profile not found")
+        else:
+            data.personnel_id = volunteer.get("id")
+    else:
+        # Regular personnel
+        personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+        if not personnel:
+            raise HTTPException(status_code=404, detail="Personnel not found")
+        
+        # Check if user is submitting for themselves or has elevated permissions
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
+        has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+        
+        if not is_own_record and not has_permissions:
+            raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
     
     record_id = str(uuid.uuid4())
     record_doc = {"id": record_id, **data.model_dump()}
@@ -966,6 +986,43 @@ async def delete_volunteer_record(
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
     return {"message": "Volunteer record deleted"}
+
+# Get volunteer assignments for staffing grid
+@api_router.get("/volunteer-assignments")
+async def get_volunteer_assignments(
+    date: str,
+    shift: Optional[str] = None,
+    station_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get volunteer assignments for a specific date and optionally shift/station"""
+    query = {"date": date, "assigned_shift": {"$ne": ""}, "assigned_station_id": {"$ne": ""}}
+    if shift:
+        query["assigned_shift"] = shift
+    if station_id:
+        query["assigned_station_id"] = station_id
+    
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Enrich with volunteer/personnel info
+    enriched = []
+    for record in records:
+        # First try to find in volunteers collection (for volunteer firefighters)
+        volunteer = await db.volunteers.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+        if volunteer:
+            record["volunteer_name"] = volunteer.get("name", "Unknown")
+            record["volunteer_phone"] = volunteer.get("contact_phone", "")
+            record["is_volunteer_ff"] = True
+        else:
+            # Try personnel collection (for regular firefighters volunteering)
+            person = await db.personnel.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+            if person:
+                record["volunteer_name"] = person.get("name", "Unknown")
+                record["volunteer_phone"] = person.get("contact_phone", "")
+                record["is_volunteer_ff"] = False
+        enriched.append(record)
+    
+    return enriched
 
 # ===================== VOLUNTEER FIREFIGHTER MANAGEMENT ROUTES =====================
 

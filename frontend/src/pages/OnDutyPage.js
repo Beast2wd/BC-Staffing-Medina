@@ -5,8 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
-import { Users, MapPin, Truck } from 'lucide-react';
+import { Users, MapPin, Truck, Hand } from 'lucide-react';
 import { formatDisplayDate } from '../utils/dateUtils';
+import { Badge } from '../components/ui/badge';
 
 export const OnDutyPage = () => {
   const { api } = useAuth();
@@ -20,10 +21,12 @@ export const OnDutyPage = () => {
   } = useStaffing();
   const [loading, setLoading] = useState(false);
   const [apparatusAssignments, setApparatusAssignments] = useState([]);
+  const [volunteerAssignments, setVolunteerAssignments] = useState([]);
 
   useEffect(() => {
     fetchAllData();
     fetchApparatusAssignments();
+    fetchVolunteerAssignments();
   }, [selectedBattalion, selectedDate]);
 
   const fetchApparatusAssignments = async () => {
@@ -35,6 +38,22 @@ export const OnDutyPage = () => {
     } catch (error) {
       console.error('Error fetching apparatus assignments:', error);
     }
+  };
+
+  const fetchVolunteerAssignments = async () => {
+    try {
+      const response = await api.get('/volunteer-assignments', {
+        params: { date: selectedDate, shift: currentShift }
+      });
+      setVolunteerAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching volunteer assignments:', error);
+    }
+  };
+
+  // Get volunteers assigned to a station
+  const getStationVolunteers = (stationId) => {
+    return volunteerAssignments.filter(v => v.assigned_station_id === stationId);
   };
 
   // Get personnel on duty for the selected shift
@@ -111,7 +130,8 @@ export const OnDutyPage = () => {
           <div className="flex-1 space-y-4">
             {stations.map(station => {
               const { apparatusGroups, unassignedPersonnel } = getStationApparatusWithPersonnel(station.id);
-              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0;
+              const stationVolunteers = getStationVolunteers(station.id);
+              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0 || stationVolunteers.length > 0;
               
               return (
                 <Card key={station.id} data-testid={`station-card-${station.id}`}>
@@ -119,6 +139,11 @@ export const OnDutyPage = () => {
                     <CardTitle className="font-heading uppercase flex items-center gap-2">
                       <MapPin className="h-5 w-5 text-primary" />
                       Station {station.station_number}
+                      {stationVolunteers.length > 0 && (
+                        <Badge variant="outline" className="border-green-500 text-green-500 text-xs">
+                          +{stationVolunteers.length} Vol
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -174,6 +199,38 @@ export const OnDutyPage = () => {
                                 >
                                   <p className="font-medium text-sm">{person.name}</p>
                                   <p className="text-xs text-muted-foreground">{person.rank}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Volunteers */}
+                        {getStationVolunteers(station.id).length > 0 && (
+                          <div className="border border-green-500/30 bg-green-500/5 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-green-500/30">
+                              <Hand className="h-4 w-4 text-green-500" />
+                              <span className="font-semibold text-green-500">Volunteers</span>
+                              <Badge variant="outline" className="border-green-500 text-green-500">
+                                {getStationVolunteers(station.id).length}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {getStationVolunteers(station.id).map(vol => (
+                                <div 
+                                  key={vol.id} 
+                                  className="p-2 bg-green-500/10 rounded-lg border border-green-500/20"
+                                  data-testid={`volunteer-card-${vol.id}`}
+                                >
+                                  <p className="font-medium text-sm text-green-600 dark:text-green-400">
+                                    {vol.volunteer_name}
+                                  </p>
+                                  <p className="text-xs text-green-500/70">
+                                    {vol.is_volunteer_ff ? 'Volunteer FF' : 'Volunteer'}
+                                  </p>
+                                  {vol.phone_number && (
+                                    <p className="text-xs text-muted-foreground mt-1">{vol.phone_number}</p>
+                                  )}
                                 </div>
                               ))}
                             </div>

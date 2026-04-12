@@ -45,6 +45,36 @@ export const StaffingGrid = () => {
   const { api, canEdit } = useAuth();
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+
+  // Fetch volunteer assignments for the selected date and shift
+  useEffect(() => {
+    const fetchVolunteerAssignments = async () => {
+      try {
+        const response = await api.get('/volunteer-assignments', {
+          params: { date: selectedDate, shift: currentShift }
+        });
+        setVolunteerAssignments(response.data);
+      } catch (error) {
+        console.error('Error fetching volunteer assignments:', error);
+      }
+    };
+    if (selectedDate && currentShift) {
+      fetchVolunteerAssignments();
+    }
+  }, [selectedDate, currentShift, api]);
+
+  // Calculate volunteer counts by station
+  const volunteerCounts = useMemo(() => {
+    const counts = {};
+    volunteerAssignments.forEach(record => {
+      const stationId = record.assigned_station_id;
+      if (stationId) {
+        counts[stationId] = (counts[stationId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [volunteerAssignments]);
 
   // Calculate leave counts by station and type
   const leaveCounts = useMemo(() => {
@@ -108,6 +138,11 @@ export const StaffingGrid = () => {
           // For vacation, sick, holiday - use leave records count if available
           if (cat.leaveType && leaveCounts[station.id]?.[cat.leaveType]) {
             stationData[cat.key] = leaveCounts[station.id][cat.leaveType];
+          } else if (cat.key === 'volunteer') {
+            // For volunteer - add volunteer assignments count to manual entries
+            const manualVolunteer = record?.categories?.volunteer || 0;
+            const assignedVolunteers = volunteerCounts[station.id] || 0;
+            stationData[cat.key] = manualVolunteer + assignedVolunteers;
           } else {
             stationData[cat.key] = record?.categories?.[cat.key] || 0;
           }
@@ -143,7 +178,7 @@ export const StaffingGrid = () => {
     });
 
     return { data, totals };
-  }, [stations, staffingRecords, personnel, currentShift, leaveCounts]);
+  }, [stations, staffingRecords, personnel, currentShift, leaveCounts, volunteerCounts]);
 
   const handleCellClick = (stationId, categoryKey, currentValue) => {
     if (!canEdit) return;
