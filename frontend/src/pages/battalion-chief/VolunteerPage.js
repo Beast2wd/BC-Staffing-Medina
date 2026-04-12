@@ -119,6 +119,8 @@ export const VolunteerPage = () => {
         await syncVolunteerToWorksheet(record.station_id, 1);
       } else if (newStatus === 'declined' && prevStatus === 'assigned') {
         await syncVolunteerToWorksheet(record.station_id, -1);
+        // Remove volunteer from apparatus assignments when declined
+        await removeVolunteerFromApparatus(record.personnel_id, record.date);
       }
       
       toast.success('Status updated');
@@ -126,6 +128,31 @@ export const VolunteerPage = () => {
       fetchStaffingRecords();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const removeVolunteerFromApparatus = async (personnelId, date) => {
+    try {
+      // Find apparatus assignments for this date that include this volunteer
+      const response = await api.get('/apparatus-assignments', {
+        params: { date, battalion_id: selectedBattalion }
+      });
+      
+      for (const assignment of response.data) {
+        if (assignment.personnel_ids?.includes(personnelId)) {
+          // Remove volunteer from this apparatus
+          const newPersonnelIds = assignment.personnel_ids.filter(id => id !== personnelId);
+          const newPositionAssignments = { ...assignment.position_assignments };
+          delete newPositionAssignments[personnelId];
+          
+          await api.put(`/apparatus-assignments/${assignment.id}`, {
+            personnel_ids: newPersonnelIds,
+            position_assignments: newPositionAssignments
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error removing volunteer from apparatus:', error);
     }
   };
 
@@ -137,6 +164,8 @@ export const VolunteerPage = () => {
       
       if (record?.status === 'assigned') {
         await syncVolunteerToWorksheet(record.station_id, -1);
+        // Remove volunteer from apparatus assignments when deleted
+        await removeVolunteerFromApparatus(record.personnel_id, record.date);
       }
       
       await api.delete(`/volunteer/${recordId}`);
