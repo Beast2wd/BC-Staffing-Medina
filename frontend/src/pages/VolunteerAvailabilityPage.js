@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Navbar } from '../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -22,7 +22,7 @@ import { format } from 'date-fns';
 
 export const VolunteerAvailabilityPage = () => {
   const { api, user, isVolunteer } = useAuth();
-  const { personnel, stations, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
+  const { personnel, stations, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift, getShiftForDate } = useStaffing();
   const [volunteerRecords, setVolunteerRecords] = useState([]);
   const [myRecords, setMyRecords] = useState([]);
   const [myHoursSummary, setMyHoursSummary] = useState(null);
@@ -504,17 +504,47 @@ export const VolunteerAvailabilityPage = () => {
                               data-testid="calendar-trigger"
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {formData.date ? format(new Date(formData.date + 'T00:00:00'), 'MM/dd/yyyy') : 'Pick a date'}
+                              {formData.date ? (
+                                <>
+                                  {format(new Date(formData.date + 'T00:00:00'), 'MM/dd/yyyy')}
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`ml-2 text-xs ${
+                                      getShiftForDate(formData.date) === 'A' ? 'bg-red-500/20 text-red-500 border-red-500' :
+                                      getShiftForDate(formData.date) === 'B' ? 'bg-green-500/20 text-green-500 border-green-500' :
+                                      'bg-blue-500/20 text-blue-500 border-blue-500'
+                                    }`}
+                                  >
+                                    {getShiftForDate(formData.date)} Shift
+                                  </Badge>
+                                </>
+                              ) : 'Pick a date'}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
+                            <div className="p-2 border-b bg-muted/50">
+                              <div className="flex items-center justify-center gap-4 text-xs">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                  <span>A Shift</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                  <span>B Shift</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                  <span>C Shift</span>
+                                </div>
+                              </div>
+                            </div>
                             <Calendar
                               mode="single"
                               selected={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
                               onSelect={(date) => {
                                 if (date) {
                                   const dateStr = format(date, 'yyyy-MM-dd');
-                                  setFormData({...formData, date: dateStr});
+                                  setFormData({...formData, date: dateStr, assigned_shift: getShiftForDate(dateStr)});
                                 }
                               }}
                               disabled={(date) => {
@@ -523,6 +553,16 @@ export const VolunteerAvailabilityPage = () => {
                                 const maxDateObj = new Date(maxDate + 'T00:00:00');
                                 return date < today || date > maxDateObj;
                               }}
+                              modifiers={{
+                                shiftA: (date) => getShiftForDate(format(date, 'yyyy-MM-dd')) === 'A',
+                                shiftB: (date) => getShiftForDate(format(date, 'yyyy-MM-dd')) === 'B',
+                                shiftC: (date) => getShiftForDate(format(date, 'yyyy-MM-dd')) === 'C',
+                              }}
+                              modifiersClassNames={{
+                                shiftA: 'bg-red-500/20 text-red-700 dark:text-red-300 hover:bg-red-500/30',
+                                shiftB: 'bg-green-500/20 text-green-700 dark:text-green-300 hover:bg-green-500/30',
+                                shiftC: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 hover:bg-blue-500/30',
+                              }}
                               initialFocus
                             />
                           </PopoverContent>
@@ -530,7 +570,10 @@ export const VolunteerAvailabilityPage = () => {
                         <Input
                           type="date"
                           value={formData.date}
-                          onChange={(e) => setFormData({...formData, date: e.target.value})}
+                          onChange={(e) => {
+                            const dateStr = e.target.value;
+                            setFormData({...formData, date: dateStr, assigned_shift: getShiftForDate(dateStr)});
+                          }}
                           min={new Date().toISOString().split('T')[0]}
                           max={maxDate}
                           className="w-36"
