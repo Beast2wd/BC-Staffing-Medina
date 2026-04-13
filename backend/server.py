@@ -1172,21 +1172,34 @@ async def delete_volunteer_record(
     record_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete a volunteer record. Users can delete their own records, BC/Admin can delete any."""
+    """Delete a volunteer record. Users can delete/revoke their own records, BC/Admin/Captain/Lt can delete any."""
     record = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
     # Check permissions
-    is_admin_or_bc = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF]
-    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
-    is_own_record = user_personnel and user_personnel.get("id") == record.get("personnel_id")
+    is_privileged = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
     
-    if not is_admin_or_bc and not is_own_record:
+    # Check if user owns this record
+    is_own_record = False
+    if current_user.get("role") == UserRole.VOLUNTEER:
+        # For volunteers, the payroll_number is VOL-{volunteer_id}
+        # Extract the volunteer_id from payroll_number
+        payroll = current_user.get("payroll_number", "")
+        if payroll.startswith("VOL-"):
+            volunteer_id_from_payroll = payroll[4:].lower()  # Remove "VOL-" prefix
+            record_personnel_id = record.get("personnel_id", "").lower()
+            # Check if the volunteer_id matches the personnel_id (case insensitive)
+            if volunteer_id_from_payroll and record_personnel_id.startswith(volunteer_id_from_payroll):
+                is_own_record = True
+    else:
+        # For regular personnel
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        if user_personnel and user_personnel.get("id") == record.get("personnel_id"):
+            is_own_record = True
+    
+    if not is_privileged and not is_own_record:
         raise HTTPException(status_code=403, detail="You can only remove your own volunteer availability")
-    
-    if not is_admin_or_bc and record.get("status") == "assigned":
-        raise HTTPException(status_code=400, detail="Cannot remove yourself after being assigned. Contact your Battalion Chief.")
     
     result = await db.volunteer_records.delete_one({"id": record_id})
     if result.deleted_count == 0:

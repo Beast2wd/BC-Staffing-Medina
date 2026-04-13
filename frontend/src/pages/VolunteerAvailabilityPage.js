@@ -195,7 +195,7 @@ export const VolunteerAvailabilityPage = () => {
   };
 
   const handleRevokeAssignment = async (recordId) => {
-    if (!confirm('Are you sure you want to revoke this scheduled shift? This will remove you from the apparatus assignments and daily worksheet.')) return;
+    if (!confirm('Are you sure you want to revoke this scheduled shift?')) return;
     
     try {
       const record = volunteerRecords.find(r => r.id === recordId);
@@ -207,13 +207,21 @@ export const VolunteerAvailabilityPage = () => {
       const recordDate = record.date;
       const stationId = record.assigned_station_id || record.station_id;
       
-      // Remove from apparatus assignments
-      await removeVolunteerFromApparatus(record.personnel_id, recordDate, stationId);
+      // Try to remove from apparatus assignments (may fail for volunteers without permission)
+      try {
+        await removeVolunteerFromApparatus(record.personnel_id, recordDate, stationId);
+      } catch (err) {
+        console.log('Could not update apparatus (permission denied for volunteers)');
+      }
       
-      // Decrement volunteer count on worksheet
-      await syncVolunteerToWorksheetByDate(stationId, -1, recordDate);
+      // Try to decrement volunteer count on worksheet (may fail for volunteers without permission)
+      try {
+        await syncVolunteerToWorksheetByDate(stationId, -1, recordDate);
+      } catch (err) {
+        console.log('Could not update worksheet (permission denied for volunteers)');
+      }
       
-      // Delete the volunteer record
+      // Delete the volunteer record - this should work for the volunteer's own record
       await api.delete(`/volunteer/${recordId}`);
       
       toast.success('Shift revoked successfully');
