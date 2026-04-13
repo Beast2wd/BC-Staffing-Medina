@@ -214,11 +214,11 @@ export const UserManagementPage = () => {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Payroll Number *</Label>
+                  <Label>Employee Number *</Label>
                   <Input
                     value={formData.payroll_number}
                     onChange={(e) => setFormData({...formData, payroll_number: e.target.value})}
-                    placeholder="Enter payroll number"
+                    placeholder="Enter employee number"
                     data-testid="payroll-input"
                   />
                 </div>
@@ -335,7 +335,7 @@ export const UserManagementPage = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name or payroll..."
+                    placeholder="Search by name or employee #..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -369,7 +369,7 @@ export const UserManagementPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Payroll #</TableHead>
+                  <TableHead>Emp #</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Rank</TableHead>
                   <TableHead>Role</TableHead>
@@ -460,7 +460,7 @@ export const UserManagementPage = () => {
             {editingUser && (
               <div className="space-y-4 py-4">
                 <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm font-medium">Payroll: {editingUser.payroll_number}</p>
+                  <p className="text-sm font-medium">Employee #: {editingUser.payroll_number}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -582,7 +582,7 @@ export const UserManagementPage = () => {
               <div className="space-y-4 py-4">
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-sm font-medium">{resetPasswordUser.name}</p>
-                  <p className="text-xs text-muted-foreground">Payroll: {resetPasswordUser.payroll_number}</p>
+                  <p className="text-xs text-muted-foreground">Employee #: {resetPasswordUser.payroll_number}</p>
                 </div>
 
                 <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">

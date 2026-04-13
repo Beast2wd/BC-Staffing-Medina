@@ -111,11 +111,11 @@ const PersonnelFormDialog = memo(({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Payroll Number *</Label>
+            <Label>Employee Number *</Label>
             <Input
               value={payrollNumber}
               onChange={(e) => setPayrollNumber(e.target.value)}
-              placeholder="Enter payroll number"
+              placeholder="Enter employee number"
               data-testid="payroll-input"
             />
           </div>
@@ -487,7 +487,7 @@ export const PersonnelManagementPage = () => {
               {passwordPerson && (
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="font-medium">{passwordPerson.rank} {passwordPerson.name}</p>
-                  <p className="text-sm text-muted-foreground">Payroll: {passwordPerson.payroll_number}</p>
+                  <p className="text-sm text-muted-foreground">Employee #: {passwordPerson.payroll_number}</p>
                 </div>
               )}
               
@@ -538,7 +538,7 @@ export const PersonnelManagementPage = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name or payroll..."
+                    placeholder="Search by name or employee #..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -615,7 +615,7 @@ export const PersonnelManagementPage = () => {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="w-24">Payroll #</TableHead>
+                                <TableHead className="w-24">Emp #</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Rank</TableHead>
                                 <TableHead>Phone</TableHead>

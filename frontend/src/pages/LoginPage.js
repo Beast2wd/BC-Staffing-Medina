@@ -67,14 +67,14 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="payroll" className="text-zinc-200">
-                Payroll Number or Email
+                Employee Number or Email
               </Label>
               <div className="relative">
                 <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
                 <Input
                   id="payroll"
                   type="text"
-                  placeholder="Payroll # or volunteer email"
+                  placeholder="Employee # or volunteer email"
                   value={payrollNumber}
                   onChange={(e) => setPayrollNumber(e.target.value)}
                   className="pl-10 bg-zinc-900/50 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-red-500"
@@ -122,7 +122,7 @@ export const LoginPage = () => {
 
           <div className="mt-6 pt-6 border-t border-zinc-700">
             <p className="text-xs text-zinc-400 text-center">
-              <strong className="text-zinc-300">Staff:</strong> Use payroll number (add leading zeros if less than 6 digits)
+              <strong className="text-zinc-300">Staff:</strong> Use employee number (add leading zeros if less than 6 digits)
               <br />
               <strong className="text-zinc-300">Volunteers:</strong> Use your email address
             </p>
