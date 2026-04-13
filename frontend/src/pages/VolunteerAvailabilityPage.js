@@ -139,7 +139,7 @@ export const VolunteerAvailabilityPage = () => {
         hours: formData.hours,
         station_id: formData.assigned_station_id || (myPersonnel?.station_id || ''),
         battalion_id: selectedBattalion,
-        status: 'available',
+        status: 'assigned',
         notes: formData.notes,
         phone_number: formData.phone_number || myPersonnel?.contact_phone || '',
         shift_type: formData.shift_type,
@@ -149,7 +149,7 @@ export const VolunteerAvailabilityPage = () => {
       toast.success('Availability submitted - You are now assigned!');
       setShowAddDialog(false);
       fetchVolunteerRecords();
-      fetchMyHoursSummary();
+      fetchVolunteerStats();
       setFormData({ 
         date: selectedDate, 
         hours: 24, 

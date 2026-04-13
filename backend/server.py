@@ -1073,17 +1073,21 @@ async def create_volunteer_record(
     is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
     
     if is_volunteer_ff:
-        # Find the volunteer record linked to this user
-        volunteer = await db.volunteers.find_one({"id": current_user.get("volunteer_id")}, {"_id": 0})
-        if not volunteer:
-            # Try finding by user's volunteer_id field
-            user = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
-            if user and user.get("volunteer_id"):
-                data.personnel_id = user.get("volunteer_id")
+        # Extract volunteer_id from payroll_number (format: VOL-{volunteer_id})
+        payroll = current_user.get("payroll_number", "")
+        if payroll.startswith("VOL-"):
+            volunteer_id_prefix = payroll[4:].lower()  # Remove "VOL-" prefix
+            # Find volunteer by matching ID prefix
+            volunteer = await db.volunteers.find_one(
+                {"id": {"$regex": f"^{volunteer_id_prefix}", "$options": "i"}}, 
+                {"_id": 0}
+            )
+            if volunteer:
+                data.personnel_id = volunteer.get("id")
             else:
                 raise HTTPException(status_code=404, detail="Volunteer profile not found")
         else:
-            data.personnel_id = volunteer.get("id")
+            raise HTTPException(status_code=400, detail="Invalid volunteer account")
     else:
         # Regular personnel
         personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
