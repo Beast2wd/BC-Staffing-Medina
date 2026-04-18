@@ -170,17 +170,32 @@ export const Navbar = () => {
             </DropdownMenu>
           )}
 
-          {/* Overtime Tab - Available to ALL users except volunteers */}
-          {!isVolunteer && (
-            <NavLink to="/overtime" active={isActive('/overtime')}>
-              Overtime
-            </NavLink>
-          )}
-
-          {/* Volunteer Tab - Available to ALL users */}
-          <NavLink to="/volunteer" active={isActive('/volunteer')}>
-            Volunteer
-          </NavLink>
+          {/* Personnel Dropdown - Available to ALL users */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className="font-heading text-sm uppercase tracking-wider gap-1"
+                data-testid="personnel-dropdown"
+              >
+                Personnel <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {!isVolunteer && (
+                <DropdownMenuItem asChild>
+                  <Link to="/overtime" className="flex items-center gap-2" data-testid="nav-overtime-personnel">
+                    <Clock className="h-4 w-4" /> Overtime
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem asChild>
+                <Link to="/volunteer" className="flex items-center gap-2" data-testid="nav-volunteer-personnel">
+                  <Hand className="h-4 w-4" /> Volunteer
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {canAccessFullMenu && (
             <NavLink to="/reports" active={isActive('/reports')}>
@@ -301,24 +316,31 @@ export const Navbar = () => {
                 Daily Worksheet
               </Link>
             )}
+            <Link to="/on-duty" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-onduty">
+              On Duty
+            </Link>
             {canAccessFullMenu && (
               <Link to="/battalion-chief/apparatus" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-apparatus">
                 Apparatus Assignments
               </Link>
             )}
             {canAccessFullMenu && (
-              <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-overtime-bc">
-                Overtime Available (BC)
-              </Link>
-            )}
-            <Link to="/overtime" className="px-4 py-2 hover:bg-muted rounded-md font-semibold text-red-500" data-testid="mobile-nav-overtime">
-              Overtime
-            </Link>
-            {canAccessFullMenu && (
               <Link to="/deputy-chief/day-of-staffing" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-day-staffing">
                 Day of Staffing
               </Link>
             )}
+            
+            {/* Personnel Section */}
+            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground">Personnel</div>
+            {!isVolunteer && (
+              <Link to="/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-overtime">
+                <Clock className="h-4 w-4 inline mr-2" /> Overtime
+              </Link>
+            )}
+            <Link to="/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-volunteer">
+              <Hand className="h-4 w-4 inline mr-2" /> Volunteer
+            </Link>
+            
             {canAccessFullMenu && (
               <Link to="/reports" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-reports">
                 Reports
