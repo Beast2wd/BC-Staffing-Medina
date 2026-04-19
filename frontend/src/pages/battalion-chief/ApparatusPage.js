@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Edit2, Trash2, Save, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ChevronLeft, ChevronRight, UserMinus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { formatDisplayDate, formatDisplayDateWithDay } from '../../utils/dateUtils';
@@ -22,6 +22,9 @@ export const ApparatusPage = () => {
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [removeAssignment, setRemoveAssignment] = useState(null);
+  const [selectedRemovePersonnel, setSelectedRemovePersonnel] = useState(null);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [selectedStation, setSelectedStation] = useState('');
   const [selectedApparatus, setSelectedApparatus] = useState('');
@@ -161,15 +164,80 @@ export const ApparatusPage = () => {
     }
   };
 
-  const handleDeleteAssignment = async (assignmentId) => {
-    if (!confirm('Are you sure you want to remove this assignment?')) return;
-    
+  const handleDeleteAssignment = async (assignment) => {
+    // If assignment has more than one personnel, show the remove dialog
+    if (assignment.personnel_ids && assignment.personnel_ids.length > 1) {
+      setRemoveAssignment(assignment);
+      setSelectedRemovePersonnel(null);
+      setShowRemoveDialog(true);
+    } else {
+      // Only one or no personnel, confirm and delete the entire assignment
+      if (!confirm('Are you sure you want to remove this assignment?')) return;
+      
+      try {
+        await api.delete(`/apparatus-assignments/${assignment.id}`);
+        toast.success('Assignment removed');
+        fetchAssignments();
+      } catch (error) {
+        toast.error('Failed to remove assignment');
+      }
+    }
+  };
+
+  const handleRemoveSinglePersonnel = async () => {
+    if (!removeAssignment || !selectedRemovePersonnel) {
+      toast.error('Please select a riding position to remove');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await api.delete(`/apparatus-assignments/${assignmentId}`);
+      // Filter out the selected personnel
+      const newPersonnelIds = removeAssignment.personnel_ids.filter(id => id !== selectedRemovePersonnel);
+      const newPositionAssignments = { ...removeAssignment.position_assignments };
+      delete newPositionAssignments[selectedRemovePersonnel];
+
+      if (newPersonnelIds.length === 0) {
+        // No personnel left, delete the entire assignment
+        await api.delete(`/apparatus-assignments/${removeAssignment.id}`);
+        toast.success('Assignment removed');
+      } else {
+        // Update the assignment with remaining personnel
+        await api.put(`/apparatus-assignments/${removeAssignment.id}`, {
+          personnel_ids: newPersonnelIds,
+          position_assignments: newPositionAssignments
+        });
+        toast.success('Personnel removed from assignment');
+      }
+
+      setShowRemoveDialog(false);
+      setRemoveAssignment(null);
+      setSelectedRemovePersonnel(null);
+      fetchAssignments();
+    } catch (error) {
+      toast.error('Failed to remove personnel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveAllPersonnel = async () => {
+    if (!removeAssignment) return;
+    
+    if (!confirm('Are you sure you want to remove ALL personnel from this assignment?')) return;
+
+    setLoading(true);
+    try {
+      await api.delete(`/apparatus-assignments/${removeAssignment.id}`);
       toast.success('Assignment removed');
+      setShowRemoveDialog(false);
+      setRemoveAssignment(null);
+      setSelectedRemovePersonnel(null);
       fetchAssignments();
     } catch (error) {
       toast.error('Failed to remove assignment');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -479,7 +547,7 @@ export const ApparatusPage = () => {
                                   variant="ghost" 
                                   size="sm" 
                                   className="text-red-500"
-                                  onClick={() => handleDeleteAssignment(assignment.id)}
+                                  onClick={() => handleDeleteAssignment(assignment)}
                                   title="Remove Assignment"
                                   data-testid={`delete-assignment-${assignment.id}`}
                                 >
@@ -560,6 +628,90 @@ export const ApparatusPage = () => {
               <Button onClick={handleEditAssignment} disabled={loading} className="w-full" data-testid="save-edit-assignment-btn">
                 <Save className="h-4 w-4 mr-2" /> Save Assignment
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Remove Personnel Dialog */}
+        <Dialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase flex items-center gap-2">
+                <UserMinus className="h-5 w-5 text-red-500" />
+                Remove Personnel
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {removeAssignment && (
+                <>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium">
+                      {stations.find(s => s.id === removeAssignment.station_id)?.station_number 
+                        ? `Station ${stations.find(s => s.id === removeAssignment.station_id)?.station_number}` 
+                        : 'Station'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{removeAssignment.apparatus_name}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Select which riding position to remove:</Label>
+                    <div className="border rounded-md p-2 space-y-1">
+                      {getPersonnelWithPosition(removeAssignment).map(p => {
+                        const isVol = p.name.startsWith('Vol.');
+                        return (
+                          <div 
+                            key={p.id}
+                            onClick={() => setSelectedRemovePersonnel(p.id)}
+                            className={`flex items-center gap-3 p-3 rounded cursor-pointer transition-colors ${
+                              selectedRemovePersonnel === p.id 
+                                ? 'bg-red-500/20 border border-red-500' 
+                                : 'hover:bg-muted border border-transparent'
+                            } ${isVol ? 'border-l-2 border-l-green-500' : ''}`}
+                            data-testid={`remove-option-${p.id}`}
+                          >
+                            <input
+                              type="radio"
+                              name="removePersonnel"
+                              checked={selectedRemovePersonnel === p.id}
+                              onChange={() => setSelectedRemovePersonnel(p.id)}
+                              className="accent-red-500"
+                            />
+                            <span className={`font-semibold text-primary min-w-[24px]`}>
+                              {p.position}
+                            </span>
+                            <span className={`flex-1 ${isVol ? 'text-green-600 dark:text-green-400' : ''}`}>
+                              {p.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      onClick={handleRemoveSinglePersonnel} 
+                      disabled={loading || !selectedRemovePersonnel} 
+                      className="flex-1 bg-red-600 hover:bg-red-700"
+                      data-testid="confirm-remove-single-btn"
+                    >
+                      <UserMinus className="h-4 w-4 mr-2" /> Remove Selected
+                    </Button>
+                  </div>
+
+                  <div className="border-t pt-3">
+                    <Button 
+                      variant="outline"
+                      onClick={handleRemoveAllPersonnel} 
+                      disabled={loading} 
+                      className="w-full text-red-500 border-red-500 hover:bg-red-500/10"
+                      data-testid="remove-all-btn"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Remove All Personnel
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </DialogContent>
         </Dialog>

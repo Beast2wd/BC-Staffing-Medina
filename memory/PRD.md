@@ -114,6 +114,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Delete Functionality** - Remove assignments
 - ✅ **Riding Positions (A, B, C, D)** - Assign personnel to specific riding positions on apparatus (April 1, 2026)
 - ✅ **Position Display** - Riding positions shown in assignments table, reports, and exports
+- ✅ **Selective Personnel Removal** - When removing from assignment with multiple personnel, dialog asks which riding position to remove (April 19, 2026)
 
 ### UI/UX Improvements (April 1, 2026)
 - ✅ **Navbar Spacing** - Properly spaced header links with consistent padding
