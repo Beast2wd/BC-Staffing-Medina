@@ -276,16 +276,69 @@ export const ReportsPage = () => {
               `).join('') || ''}
             </div>
           ` : reportType === 'overtime' ? `
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="stat-box">
+                <div class="value" style="color: #3b82f6;">${reportData.personnel_overtime?.length || 0}</div>
+                <div class="label">Total Personnel</div>
+              </div>
+              <div class="stat-box">
+                <div class="value positive">${reportData.personnel_overtime?.reduce((sum, p) => sum + (p.total_hours || 0), 0) || 0}</div>
+                <div class="label">Total OT Hours</div>
+              </div>
+              <div class="stat-box">
+                <div class="value">${reportData.personnel_overtime?.reduce((sum, p) => sum + (p.count || 0), 0) || 0}</div>
+                <div class="label">Total OT Entries</div>
+              </div>
+            </div>
+            
             <div class="section">
-              <h2>Overtime Records</h2>
+              <h2>Personnel Overtime Breakdown</h2>
               ${reportData.personnel_overtime?.length > 0 ? 
                 reportData.personnel_overtime.map(item => `
-                  <div class="station-row">
-                    <span>${item.personnel_name || 'Emp #: ' + item._id}</span>
-                    <div class="station-stats">
-                      <span>Hours: <strong>${item.total_hours}</strong></span>
-                      <span>Entries: <strong>${item.count}</strong></span>
-                    </div>
+                  <div class="volunteer-card" style="border-color: #3b82f6;">
+                    <h3>
+                      <span>${item.personnel_name || 'Emp #: ' + item._id}</span>
+                      <span>
+                        <span style="color:#22c55e">${item.total_hours}h</span> | 
+                        <span style="color:#3b82f6">${item.count} entries</span>
+                      </span>
+                    </h3>
+                    ${item.approved_by ? `<p style="font-size:11px;color:#666;margin-bottom:10px;">Approved by: ${item.approved_by_name} (Emp #: ${item.approved_by})</p>` : ''}
+                    
+                    ${item.work_history?.length > 0 ? `
+                      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #eee;">
+                        <div style="font-size:12px;font-weight:bold;margin-bottom:8px;">Work History:</div>
+                        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                          <thead>
+                            <tr style="background:#f5f5f5;">
+                              <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Date</th>
+                              <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Shift</th>
+                              <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Station</th>
+                              <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;">Hours</th>
+                              <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${item.work_history.map(entry => `
+                              <tr>
+                                <td style="padding:6px;border-bottom:1px solid #eee;">${entry.date}</td>
+                                <td style="padding:6px;border-bottom:1px solid #eee;">${entry.shift}</td>
+                                <td style="padding:6px;border-bottom:1px solid #eee;">${entry.station}</td>
+                                <td style="text-align:center;padding:6px;border-bottom:1px solid #eee;font-weight:bold;">${entry.hours}h</td>
+                                <td style="text-align:center;padding:6px;border-bottom:1px solid #eee;">
+                                  <span style="padding:2px 8px;border-radius:4px;font-size:10px;${
+                                    entry.status === 'assigned' ? 'background:#dcfce7;color:#16a34a;' :
+                                    entry.status === 'available' ? 'background:#fef9c3;color:#ca8a04;' :
+                                    entry.status === 'declined' ? 'background:#fee2e2;color:#dc2626;' :
+                                    'background:#f3f4f6;color:#6b7280;'
+                                  }">${entry.status}</span>
+                                </td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+                    ` : ''}
                   </div>
                 `).join('') : 
                 '<p style="text-align:center;color:#666;padding:20px;">No overtime records found</p>'
@@ -684,24 +737,80 @@ export const ReportsPage = () => {
                     </p>
                   </div>
 
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-500">{reportData.personnel_overtime?.length || 0}</p>
+                      <p className="text-xs text-muted-foreground">Total Personnel</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-500">
+                        {reportData.personnel_overtime?.reduce((sum, p) => sum + (p.total_hours || 0), 0) || 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Total OT Hours</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg text-center">
+                      <p className="text-2xl font-bold">
+                        {reportData.personnel_overtime?.reduce((sum, p) => sum + (p.count || 0), 0) || 0}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Total OT Entries</p>
+                    </div>
+                  </div>
+
                   {reportData.personnel_overtime?.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-4">
+                      <h3 className="font-heading text-lg uppercase">Personnel Overtime Breakdown</h3>
                       {reportData.personnel_overtime.map((item, idx) => (
-                        <div key={idx} className="p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center justify-between">
+                        <div key={idx} className="p-4 bg-muted/50 rounded-lg border border-blue-500/20">
+                          <div className="flex items-center justify-between mb-3">
                             <div>
-                              <span className="font-semibold">{item.personnel_name || getPersonnelName(item._id)}</span>
+                              <span className="font-semibold text-lg">{item.personnel_name || getPersonnelName(item._id)}</span>
                               <span className="text-xs text-muted-foreground ml-2">(Emp #: {item.payroll_number || item._id})</span>
                             </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span>Hours: <strong>{item.total_hours}</strong></span>
-                              <span>Entries: <strong>{item.count}</strong></span>
+                            <div className="flex items-center gap-4">
+                              <div className="text-center">
+                                <p className="text-xl font-bold text-green-500">{item.total_hours}</p>
+                                <p className="text-xs text-muted-foreground">Hours</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xl font-bold text-blue-500">{item.count}</p>
+                                <p className="text-xs text-muted-foreground">Entries</p>
+                              </div>
                             </div>
                           </div>
                           {item.approved_by && (
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-xs text-muted-foreground mb-2">
                               Approved by: {item.approved_by_name} (Emp #: {item.approved_by})
                             </p>
+                          )}
+                          
+                          {/* Work History */}
+                          {item.work_history?.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-muted">
+                              <p className="text-xs text-muted-foreground mb-2 font-semibold">Work History:</p>
+                              <div className="space-y-1">
+                                {item.work_history.map((entry, eIdx) => (
+                                  <div key={eIdx} className="flex items-center justify-between text-sm p-2 bg-background rounded">
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-medium">{formatDisplayDate(entry.date)}</span>
+                                      <span className="text-muted-foreground">{entry.shift} Shift</span>
+                                      <span className="text-muted-foreground">{entry.station}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-semibold">{entry.hours}h</span>
+                                      <span className={`text-xs px-2 py-0.5 rounded ${
+                                        entry.status === 'assigned' ? 'bg-green-500/20 text-green-500' :
+                                        entry.status === 'available' ? 'bg-yellow-500/20 text-yellow-500' :
+                                        entry.status === 'declined' ? 'bg-red-500/20 text-red-500' :
+                                        'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {entry.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                       ))}

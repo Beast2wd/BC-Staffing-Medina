@@ -1729,6 +1729,10 @@ async def get_overtime_summary(
     personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
+    # Get stations for station name lookups
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
     # Get staffing records to find who approved (last_modified_by)
     staffing_records = await db.staffing_records.find(
         {"battalion_id": battalion_id},
@@ -1747,10 +1751,28 @@ async def get_overtime_summary(
                 "payroll_number": person.get("payroll_number", ""),
                 "total_hours": 0,
                 "count": 0,
-                "records": []
+                "work_history": []
             }
-        personnel_overtime[pid]["total_hours"] += record.get("hours", 0)
-        personnel_overtime[pid]["count"] += 1
+        
+        # Add to totals (only for assigned records)
+        if record.get("status") == "assigned":
+            personnel_overtime[pid]["total_hours"] += record.get("hours", 0)
+            personnel_overtime[pid]["count"] += 1
+        
+        # Get station name for this record
+        station_id = record.get("station_id") or record.get("overtime_station_id")
+        station = stations_dict.get(station_id, {})
+        station_name = f"Station {station.get('station_number', '')}" if station.get('station_number') else station_id or "N/A"
+        
+        # Add work history entry
+        work_entry = {
+            "date": record.get("date"),
+            "shift": record.get("shift"),
+            "station": station_name,
+            "hours": record.get("hours", 0),
+            "status": record.get("status", "unknown")
+        }
+        personnel_overtime[pid]["work_history"].append(work_entry)
         
         # Track approvers (who changed status to assigned)
         if record.get("status") == "assigned":
@@ -1761,6 +1783,10 @@ async def get_overtime_summary(
                 approver = next((p for p in personnel_list if p.get("payroll_number") == approver_payroll), None)
                 personnel_overtime[pid]["approved_by"] = approver_payroll
                 personnel_overtime[pid]["approved_by_name"] = f"{approver.get('rank', '')} {approver.get('name', '')}".strip() if approver else approver_payroll
+    
+    # Sort work history by date for each personnel
+    for pid in personnel_overtime:
+        personnel_overtime[pid]["work_history"].sort(key=lambda x: x["date"], reverse=True)
     
     return {
         "start_date": start_date,
