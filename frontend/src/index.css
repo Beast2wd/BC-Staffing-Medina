@@ -222,6 +222,25 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   --offset: 16px !important;
 }
 
+/* Date input dark mode styling */
+input[type="date"] {
+  color-scheme: light;
+}
+
+.dark input[type="date"] {
+  color-scheme: dark;
+}
+
+/* Ensure date picker icons and dropdowns match theme */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  cursor: pointer;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 @layer base {
   [data-debug-wrapper="true"] {
     display: contents !important;
