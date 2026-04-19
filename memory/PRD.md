@@ -121,6 +121,10 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Tab Names Single Line** - "Daily Worksheet", "On Duty" etc. now on single lines with whitespace-nowrap
 - ✅ **Renamed Volunteer Tab** - Changed from "Vol. FF Availability" to "Volunteer"
 
+### UI/UX Improvements (April 19, 2026)
+- ✅ **Custom Increment/Decrement Buttons** - Daily worksheet cells now have custom chevron up/down buttons instead of native number spinners for reliable value changes
+- ✅ **Selective Personnel Removal** - When removing apparatus assignment with multiple personnel, dialog asks which riding position to remove
+
 ### Date Formatting (April 3, 2026)
 - ✅ **Global MM/DD/YYYY format** - All dates across the site now display as MM/DD/YYYY (e.g., 04/03/2026)
 - ✅ **dateUtils.js utility** - Created `/app/frontend/src/utils/dateUtils.js` with formatting functions

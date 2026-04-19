@@ -2,11 +2,13 @@ import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 import { useStaffing } from '../../context/StaffingContext';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { formatDisplayDate } from '../../utils/dateUtils';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 
 const STAFFING_CATEGORIES = [
   { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: true, isStationField: true },
@@ -189,11 +191,13 @@ export const StaffingGrid = () => {
     setEditValue(currentValue?.toString() || '0');
   };
 
-  const handleCellSave = async () => {
+  const handleCellSave = async (e) => {
     if (!editingCell) return;
     
     const { stationId, categoryKey } = editingCell;
-    const newValue = parseInt(editValue) || 0;
+    // Use value from event target if available (for blur), otherwise use state
+    const valueToSave = e?.target?.value !== undefined ? e.target.value : editValue;
+    const newValue = parseInt(valueToSave) || 0;
     const category = STAFFING_CATEGORIES.find(c => c.key === categoryKey);
     
     try {
@@ -251,7 +255,23 @@ export const StaffingGrid = () => {
     } else if (e.key === 'Escape') {
       setEditingCell(null);
       setEditValue('');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      incrementValue();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      decrementValue();
     }
+  };
+
+  const incrementValue = () => {
+    const currentVal = parseInt(editValue) || 0;
+    setEditValue((currentVal + 1).toString());
+  };
+
+  const decrementValue = () => {
+    const currentVal = parseInt(editValue) || 0;
+    setEditValue(Math.max(0, currentVal - 1).toString());
   };
 
   const getShiftBadgeClass = (shift) => {
@@ -327,20 +347,43 @@ export const StaffingGrid = () => {
                         className={`text-center ${
                           category.key === 'variance' ? getVarianceClass(value) : ''
                         } ${isEditable ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
-                        onClick={() => handleCellClick(station.id, category.key, value)}
+                        onClick={() => !isEditing && handleCellClick(station.id, category.key, value)}
                         data-testid={`cell-${station.id}-${category.key}`}
                       >
                         {isEditing ? (
-                          <Input
-                            type="number"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={handleCellSave}
-                            onKeyDown={handleKeyDown}
-                            className="w-12 h-6 text-center p-0 text-xs"
-                            autoFocus
-                            data-testid={`edit-input-${station.id}-${category.key}`}
-                          />
+                          <div className="flex items-center justify-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-5 p-0"
+                              onMouseDown={(e) => { e.preventDefault(); decrementValue(); }}
+                              data-testid={`decrement-${station.id}-${category.key}`}
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onInput={(e) => setEditValue(e.target.value)}
+                              onBlur={handleCellSave}
+                              onKeyDown={handleKeyDown}
+                              className="w-8 h-6 text-center p-0 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              autoFocus
+                              data-testid={`edit-input-${station.id}-${category.key}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-5 p-0"
+                              onMouseDown={(e) => { e.preventDefault(); incrementValue(); }}
+                              data-testid={`increment-${station.id}-${category.key}`}
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </Button>
+                          </div>
                         ) : (
                           formattedValue
                         )}
