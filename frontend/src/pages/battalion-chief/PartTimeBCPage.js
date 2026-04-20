@@ -388,21 +388,29 @@ export const PartTimeBCPage = () => {
                             <p className="text-sm text-muted-foreground">No scheduled days</p>
                           ) : (
                             <div className="space-y-2">
-                              {assignedDays.slice(0, 5).map((record, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className="font-medium">{formatDisplayDate(record.date)}</span>
-                                    {getShiftBadge(record.shift)}
+                              {assignedDays.slice(0, 5).map((record, idx) => {
+                                const stationInfo = stations.find(s => s.id === record.assigned_station_id);
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-medium">{formatDisplayDate(record.date)}</span>
+                                      {getShiftBadge(record.shift)}
+                                      {stationInfo && (
+                                        <Badge variant="outline" className="text-xs">
+                                          Station {stationInfo.station_number}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span>{record.hours} hrs</span>
+                                      {getStatusBadge(record.status)}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span>{record.hours} hrs</span>
-                                    {getStatusBadge(record.status)}
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -419,6 +427,7 @@ export const PartTimeBCPage = () => {
                                 <TableRow>
                                   <TableHead>Date</TableHead>
                                   <TableHead>Shift</TableHead>
+                                  <TableHead>Station</TableHead>
                                   <TableHead>Hours</TableHead>
                                   <TableHead>Notes</TableHead>
                                 </TableRow>
@@ -428,6 +437,13 @@ export const PartTimeBCPage = () => {
                                   <TableRow key={idx}>
                                     <TableCell>{formatDisplayDate(entry.date)}</TableCell>
                                     <TableCell>{getShiftBadge(entry.shift)}</TableCell>
+                                    <TableCell>
+                                      {entry.station_name ? (
+                                        <Badge variant="outline" className="text-xs">
+                                          {entry.station_name}
+                                        </Badge>
+                                      ) : '-'}
+                                    </TableCell>
                                     <TableCell>{entry.hours} hrs</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                       {entry.notes || '-'}

@@ -1603,6 +1603,10 @@ async def get_part_time_employee_stats(
         {"_id": 0}
     ).to_list(500)
     
+    # Get stations for lookup
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
     # Get current date info
     now = datetime.now(timezone.utc)
     current_year = now.year
@@ -1620,6 +1624,12 @@ async def get_part_time_employee_stats(
         record_date = record.get("date", "")
         record_status = record.get("status", "")
         record_hours = record.get("hours", 24)
+        station_id = record.get("assigned_station_id", "")
+        
+        # Get station name
+        station_name = ""
+        if station_id and station_id in stations_dict:
+            station_name = f"Station {stations_dict[station_id].get('station_number', '')}"
         
         # Parse date
         try:
@@ -1645,6 +1655,8 @@ async def get_part_time_employee_stats(
                 "shift": record.get("shift", ""),
                 "hours": record_hours,
                 "status": record_status,
+                "station_id": station_id,
+                "station_name": station_name,
                 "notes": record.get("notes", "")
             })
     
