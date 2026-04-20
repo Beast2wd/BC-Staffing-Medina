@@ -21,11 +21,13 @@ export const DayOfStaffingPage = () => {
     selectedBattalion
   } = useStaffing();
   const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+  const [partTimeAssignments, setPartTimeAssignments] = useState([]);
 
   useEffect(() => {
     fetchAllData();
     fetchVolunteerAssignments();
-  }, [fetchAllData, selectedDate, currentShift]);
+    fetchPartTimeAssignments();
+  }, [fetchAllData, selectedDate, currentShift, selectedBattalion]);
 
   const fetchVolunteerAssignments = async () => {
     try {
@@ -36,6 +38,22 @@ export const DayOfStaffingPage = () => {
     } catch (error) {
       console.error('Error fetching volunteer assignments:', error);
     }
+  };
+
+  const fetchPartTimeAssignments = async () => {
+    try {
+      const response = await api.get('/part-time-availability/assigned', {
+        params: { date: selectedDate, battalion_id: selectedBattalion }
+      });
+      setPartTimeAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching part-time assignments:', error);
+    }
+  };
+
+  // Get part-time employees assigned to a station
+  const getStationPartTime = (stationId) => {
+    return partTimeAssignments.filter(pt => pt.assigned_station_id === stationId);
   };
 
   // Get volunteers assigned to a station
@@ -103,16 +121,19 @@ export const DayOfStaffingPage = () => {
         };
       }) || [];
 
+      const stationPartTime = getStationPartTime(station.id);
+
       return {
         station,
         personnel: stationPersonnel,
         volunteers: stationVolunteers,
+        partTime: stationPartTime,
         apparatus: apparatusData,
-        totalAssigned: stationPersonnel.length + stationVolunteers.length,
+        totalAssigned: stationPersonnel.length + stationVolunteers.length + stationPartTime.length,
         minimumStaffing: station.minimum_staffing || 3
       };
     });
-  }, [stations, personnel, apparatusAssignments, currentShift, volunteerAssignments]);
+  }, [stations, personnel, apparatusAssignments, currentShift, volunteerAssignments, partTimeAssignments]);
 
   const totalPersonnel = stationData.reduce((sum, s) => sum + s.totalAssigned, 0);
   const totalMinimum = stationData.reduce((sum, s) => sum + s.minimumStaffing, 0);
@@ -195,12 +216,17 @@ export const DayOfStaffingPage = () => {
 
           {/* Staffing Details */}
           <div className="lg:col-span-9 space-y-4">
-            {stationData.map(({ station, personnel: stationPersonnel, volunteers, apparatus, totalAssigned, minimumStaffing }) => (
+            {stationData.map(({ station, personnel: stationPersonnel, volunteers, partTime, apparatus, totalAssigned, minimumStaffing }) => (
               <Card key={station.id} data-testid={`station-card-${station.id}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="font-heading text-xl uppercase flex items-center gap-2">
                       Station {station.station_number}
+                      {partTime.length > 0 && (
+                        <Badge variant="outline" className="border-purple-500 text-purple-500 text-xs">
+                          +{partTime.length} PT
+                        </Badge>
+                      )}
                       {volunteers.length > 0 && (
                         <Badge variant="outline" className="border-green-500 text-green-500 text-xs">
                           +{volunteers.length} Vol
@@ -268,6 +294,23 @@ export const DayOfStaffingPage = () => {
                       )}
                     </TableBody>
                   </Table>
+
+                  {/* Part-Time Employees */}
+                  {partTime.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-purple-500/30">
+                      <p className="text-sm font-semibold mb-2 text-purple-500">Part-Time (+{partTime.length}):</p>
+                      <div className="flex flex-wrap gap-2">
+                        {partTime.map(pt => (
+                          <span 
+                            key={pt.id} 
+                            className="text-xs px-2 py-1 rounded bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400"
+                          >
+                            {pt.employee_name} ({pt.hours}h)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* All Personnel at Station */}
                   <div className="mt-4 pt-4 border-t">

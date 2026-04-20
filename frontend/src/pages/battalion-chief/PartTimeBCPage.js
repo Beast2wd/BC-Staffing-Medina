@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
@@ -20,11 +21,12 @@ import {
 
 export const PartTimeBCPage = () => {
   const { api } = useAuth();
-  const { selectedDate, setSelectedDate, selectedBattalion } = useStaffing();
+  const { selectedDate, setSelectedDate, selectedBattalion, stations } = useStaffing();
   const [availabilityRecords, setAvailabilityRecords] = useState([]);
   const [partTimeEmployees, setPartTimeEmployees] = useState([]);
   const [employeeStats, setEmployeeStats] = useState({});
   const [loading, setLoading] = useState(false);
+  const [selectedStations, setSelectedStations] = useState({}); // Track station selection per record
 
   useEffect(() => {
     fetchPartTimeEmployees();
@@ -82,18 +84,37 @@ export const PartTimeBCPage = () => {
   };
 
   const handleApprove = async (recordId) => {
+    const stationId = selectedStations[recordId];
+    if (!stationId) {
+      toast.error('Please select a station before approving');
+      return;
+    }
+    
     try {
-      await api.put(`/part-time-availability/${recordId}/approve`);
-      toast.success('Part-time availability approved');
+      await api.put(`/part-time-availability/${recordId}/approve?station_id=${stationId}`);
+      toast.success('Part-time availability approved and assigned to station');
       fetchAvailabilityRecords();
       // Refresh stats for the affected employee
       const record = availabilityRecords.find(r => r.id === recordId);
       if (record) {
         fetchEmployeeStats(record.employee_id);
       }
+      // Clear the selection
+      setSelectedStations(prev => {
+        const updated = { ...prev };
+        delete updated[recordId];
+        return updated;
+      });
     } catch (error) {
-      toast.error('Failed to approve availability');
+      toast.error(error.response?.data?.detail || 'Failed to approve availability');
     }
+  };
+
+  const handleStationSelect = (recordId, stationId) => {
+    setSelectedStations(prev => ({
+      ...prev,
+      [recordId]: stationId
+    }));
   };
 
   const handleDecline = async (recordId) => {
@@ -235,6 +256,7 @@ export const PartTimeBCPage = () => {
                   <TableHead>Date</TableHead>
                   <TableHead>Shift</TableHead>
                   <TableHead>Hours</TableHead>
+                  <TableHead>Station</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -242,7 +264,7 @@ export const PartTimeBCPage = () => {
               <TableBody>
                 {pendingRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No pending approvals
                     </TableCell>
                   </TableRow>
@@ -254,7 +276,24 @@ export const PartTimeBCPage = () => {
                       <TableCell>{formatDisplayDate(record.date)}</TableCell>
                       <TableCell>{getShiftBadge(record.shift)}</TableCell>
                       <TableCell>{record.hours} hrs</TableCell>
-                      <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
+                      <TableCell>
+                        <Select 
+                          value={selectedStations[record.id] || ''} 
+                          onValueChange={(v) => handleStationSelect(record.id, v)}
+                        >
+                          <SelectTrigger className="w-32 h-8 text-xs" data-testid={`station-select-${record.id}`}>
+                            <SelectValue placeholder="Select station" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {stations.map(station => (
+                              <SelectItem key={station.id} value={station.id}>
+                                Station {station.station_number}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="max-w-[100px] truncate text-sm text-muted-foreground">
                         {record.notes || '-'}
                       </TableCell>
                       <TableCell>
@@ -263,6 +302,7 @@ export const PartTimeBCPage = () => {
                             size="sm" 
                             className="bg-green-600 hover:bg-green-700 h-8"
                             onClick={() => handleApprove(record.id)}
+                            disabled={!selectedStations[record.id]}
                             data-testid={`approve-btn-${record.id}`}
                           >
                             <Check className="h-4 w-4 mr-1" /> Approve

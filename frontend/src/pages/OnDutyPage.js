@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
-import { Users, MapPin, Truck, Hand } from 'lucide-react';
+import { Users, MapPin, Truck, Hand, Clock } from 'lucide-react';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { Badge } from '../components/ui/badge';
 
@@ -22,11 +22,13 @@ export const OnDutyPage = () => {
   const [loading, setLoading] = useState(false);
   const [apparatusAssignments, setApparatusAssignments] = useState([]);
   const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+  const [partTimeAssignments, setPartTimeAssignments] = useState([]);
 
   useEffect(() => {
     fetchAllData();
     fetchApparatusAssignments();
     fetchVolunteerAssignments();
+    fetchPartTimeAssignments();
   }, [selectedBattalion, selectedDate]);
 
   const fetchApparatusAssignments = async () => {
@@ -49,6 +51,22 @@ export const OnDutyPage = () => {
     } catch (error) {
       console.error('Error fetching volunteer assignments:', error);
     }
+  };
+
+  const fetchPartTimeAssignments = async () => {
+    try {
+      const response = await api.get('/part-time-availability/assigned', {
+        params: { date: selectedDate, battalion_id: selectedBattalion }
+      });
+      setPartTimeAssignments(response.data);
+    } catch (error) {
+      console.error('Error fetching part-time assignments:', error);
+    }
+  };
+
+  // Get part-time employees assigned to a station
+  const getStationPartTime = (stationId) => {
+    return partTimeAssignments.filter(pt => pt.assigned_station_id === stationId);
   };
 
   // Get volunteers assigned to a station
@@ -175,7 +193,8 @@ export const OnDutyPage = () => {
             {stations.map(station => {
               const { apparatusGroups, unassignedPersonnel, unassignedVolunteers } = getStationApparatusWithPersonnel(station.id);
               const stationVolunteers = getStationVolunteers(station.id);
-              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0 || unassignedVolunteers.length > 0;
+              const stationPartTime = getStationPartTime(station.id);
+              const hasAnyPersonnel = apparatusGroups.length > 0 || unassignedPersonnel.length > 0 || unassignedVolunteers.length > 0 || stationPartTime.length > 0;
               
               return (
                 <Card key={station.id} data-testid={`station-card-${station.id}`}>
@@ -183,6 +202,11 @@ export const OnDutyPage = () => {
                     <CardTitle className="font-heading uppercase flex items-center gap-2">
                       <MapPin className="h-5 w-5 text-primary" />
                       Station {station.station_number}
+                      {stationPartTime.length > 0 && (
+                        <Badge variant="outline" className="border-purple-500 text-purple-500 text-xs">
+                          +{stationPartTime.length} PT
+                        </Badge>
+                      )}
                       {stationVolunteers.length > 0 && (
                         <Badge variant="outline" className="border-green-500 text-green-500 text-xs">
                           +{stationVolunteers.length} Vol
@@ -197,6 +221,34 @@ export const OnDutyPage = () => {
                       </p>
                     ) : (
                       <div className="space-y-4">
+                        {/* Part-Time Employees */}
+                        {stationPartTime.length > 0 && (
+                          <div className="border border-purple-500/30 rounded-lg p-3 bg-purple-500/5">
+                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-purple-500/30">
+                              <Clock className="h-4 w-4 text-purple-500" />
+                              <span className="font-semibold text-purple-500">Part-Time (+{stationPartTime.length})</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {stationPartTime.map(pt => (
+                                <div 
+                                  key={pt.id} 
+                                  className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 border border-purple-500/30"
+                                  data-testid={`part-time-card-${pt.id}`}
+                                >
+                                  <div>
+                                    <p className="font-medium text-sm text-purple-600 dark:text-purple-400">
+                                      {pt.employee_name}
+                                    </p>
+                                    <p className="text-xs text-purple-500/70">
+                                      {pt.employee_number} • {pt.hours}h
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Apparatus Groups */}
                         {apparatusGroups.map(group => (
                           <div key={group.name} className="border border-border rounded-lg p-3">

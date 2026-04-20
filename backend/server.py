@@ -404,8 +404,10 @@ class PartTimeAvailability(BaseModel):
     shift: str  # A, B, or C
     hours: int = 24
     status: str = "available"  # available, assigned, declined
+    assigned_station_id: str = ""  # Station assigned when approved
     notes: str = ""
     battalion_id: str = ""
+    approved_by: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class PartTimeAvailabilityCreate(BaseModel):
@@ -420,6 +422,7 @@ class PartTimeAvailabilityUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     hours: Optional[int] = None
+    assigned_station_id: Optional[str] = None
 
 class RemarkEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1661,20 +1664,56 @@ async def get_part_time_employee_stats(
 @api_router.put("/part-time-availability/{record_id}/approve")
 async def approve_part_time_availability(
     record_id: str,
+    station_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
-    """Approve part-time availability (BC+ only)"""
+    """Approve part-time availability (BC+ only) with station assignment"""
     record = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     
+    if not station_id:
+        raise HTTPException(status_code=400, detail="Station must be selected")
+    
     await db.part_time_availability.update_one(
         {"id": record_id},
-        {"$set": {"status": "assigned", "approved_by": current_user["payroll_number"]}}
+        {"$set": {
+            "status": "assigned", 
+            "approved_by": current_user["payroll_number"],
+            "assigned_station_id": station_id
+        }}
     )
     
     updated = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
     return updated
+
+@api_router.get("/part-time-availability/assigned")
+async def get_assigned_part_time(
+    date: str,
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get assigned part-time employees for a specific date"""
+    query = {
+        "date": date,
+        "status": "assigned"
+    }
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    records = await db.part_time_availability.find(query, {"_id": 0}).to_list(100)
+    
+    # Get station info for each record
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    for record in records:
+        station_id = record.get("assigned_station_id")
+        if station_id and station_id in stations_dict:
+            record["station_number"] = stations_dict[station_id].get("station_number", "")
+            record["station_name"] = f"Station {stations_dict[station_id].get('station_number', '')}"
+    
+    return records
 
 # ===================== LEAVE ROUTES =====================
 

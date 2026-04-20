@@ -13,6 +13,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 const STAFFING_CATEGORIES = [
   { key: 'minimum_staffing', label: 'Minimum Staffing:', isHeader: true, editable: true, isStationField: true },
   { key: 'personnel_assigned', label: 'Personnel Assigned (+)', className: 'font-semibold', editable: false },
+  { key: 'part_time', label: 'Part-Time (+)', className: 'text-purple-500', editable: false },
   { key: 'volunteer', label: 'Volunteer (+)', className: 'text-green-500', editable: true },
   { key: 'overtime', label: 'Overtime (+)', className: 'text-blue-500', editable: true },
   { key: 'hold_over', label: 'Hold Over* (+)', editable: true },
@@ -48,6 +49,7 @@ export const StaffingGrid = () => {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+  const [partTimeAssignments, setPartTimeAssignments] = useState([]);
 
   // Fetch volunteer assignments for the selected date and shift
   useEffect(() => {
@@ -58,13 +60,38 @@ export const StaffingGrid = () => {
         });
         setVolunteerAssignments(response.data);
       } catch (error) {
-        console.error('Error fetching volunteer assignments:', error);
+        console.error('Failed to fetch volunteer assignments:', error);
       }
     };
+    
+    const fetchPartTimeAssignments = async () => {
+      try {
+        const response = await api.get('/part-time-availability/assigned', {
+          params: { date: selectedDate, battalion_id: selectedBattalion }
+        });
+        setPartTimeAssignments(response.data);
+      } catch (error) {
+        console.error('Failed to fetch part-time assignments:', error);
+      }
+    };
+    
     if (selectedDate && currentShift) {
       fetchVolunteerAssignments();
+      fetchPartTimeAssignments();
     }
-  }, [selectedDate, currentShift, api]);
+  }, [selectedDate, currentShift, selectedBattalion, api]);
+
+  // Calculate part-time counts by station
+  const partTimeCounts = useMemo(() => {
+    const counts = {};
+    partTimeAssignments.forEach(record => {
+      const stationId = record.assigned_station_id;
+      if (stationId) {
+        counts[stationId] = (counts[stationId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [partTimeAssignments]);
 
   // Calculate volunteer counts by station
   const volunteerCounts = useMemo(() => {
@@ -145,6 +172,9 @@ export const StaffingGrid = () => {
             const manualVolunteer = record?.categories?.volunteer || 0;
             const assignedVolunteers = volunteerCounts[station.id] || 0;
             stationData[cat.key] = manualVolunteer + assignedVolunteers;
+          } else if (cat.key === 'part_time') {
+            // For part-time - use part-time assignments count
+            stationData[cat.key] = partTimeCounts[station.id] || 0;
           } else {
             stationData[cat.key] = record?.categories?.[cat.key] || 0;
           }
@@ -154,6 +184,7 @@ export const StaffingGrid = () => {
 
       // Calculate total on duty
       const additions = (stationData.personnel_assigned || 0) +
+        (stationData.part_time || 0) +
         (stationData.volunteer || 0) +
         (stationData.overtime || 0) +
         (stationData.hold_over || 0) +
@@ -180,7 +211,7 @@ export const StaffingGrid = () => {
     });
 
     return { data, totals };
-  }, [stations, staffingRecords, personnel, currentShift, leaveCounts, volunteerCounts]);
+  }, [stations, staffingRecords, personnel, currentShift, leaveCounts, volunteerCounts, partTimeCounts]);
 
   const handleCellClick = (stationId, categoryKey, currentValue) => {
     if (!canEdit) return;

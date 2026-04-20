@@ -105,11 +105,29 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ### Part-Time BC Management (April 20, 2026)
 - ✅ Battalion Chief > Part-Time Available page (between Overtime Available and Volunteer Scheduled)
 - ✅ Approve/Decline pending part-time availability requests
+- ✅ **Station selection dropdown** in pending approvals table (required before approval)
 - ✅ Only BC+ and Admin can approve
 - ✅ Shows hours scheduled, monthly hours, and YTD hours per employee
 - ✅ Recent approved scheduled days displayed
 - ✅ Work history tracking ordered by date
-- ✅ Once approved, status updates to "assigned" on employee's view
+- ✅ Once approved with station, status updates to "assigned" on employee's view
+
+### Daily Worksheet Part-Time Integration (April 20, 2026)
+- ✅ **Part-Time (+)** row added above Volunteer (+) in Daily Worksheet
+- ✅ Shows count of assigned part-time employees per station
+- ✅ Automatically reflects in Total Personnel On Duty calculations
+- ✅ Included in Stations Even/Over/Under variance
+
+### On Duty Part-Time Display (April 20, 2026)
+- ✅ Station cards show "+X PT" badge when part-time employees assigned
+- ✅ **Part-Time (+X)** section with purple styling per station
+- ✅ Shows employee name, number, and hours
+
+### Day of Staffing Part-Time Display (April 20, 2026)
+- ✅ Station headers show "+X PT" badge when part-time employees assigned
+- ✅ **Part-Time (+X):** section per station
+- ✅ Shows employee names with hours
+- ✅ Included in assigned count
 
 ### Reports
 - ✅ Daily Staffing Summary
