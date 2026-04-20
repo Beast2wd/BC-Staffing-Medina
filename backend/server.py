@@ -908,21 +908,34 @@ async def get_apparatus_assignments(
     
     assignments = await db.apparatus_assignments.find(query, {"_id": 0}).to_list(500)
     
-    # Enrich assignments with personnel/volunteer names for display
+    # Enrich assignments with personnel/volunteer/part-time names for display
     for assignment in assignments:
         personnel_names = {}
         for pid in assignment.get("personnel_ids", []):
-            # Check personnel first
-            person = await db.personnel.find_one({"id": pid}, {"_id": 0, "name": 1, "rank": 1})
-            if person:
-                personnel_names[pid] = f"{person.get('rank', '')} {person.get('name', '')}"
-            else:
-                # Check volunteers
-                volunteer = await db.volunteers.find_one({"id": pid}, {"_id": 0, "name": 1})
-                if volunteer:
-                    personnel_names[pid] = f"Vol. {volunteer.get('name', '')}"
+            # Check if it's a part-time employee (prefixed with pt-)
+            if pid.startswith("pt-"):
+                pt_availability_id = pid[3:]  # Remove 'pt-' prefix
+                pt_record = await db.part_time_availability.find_one({"id": pt_availability_id}, {"_id": 0})
+                if pt_record:
+                    pt_employee = await db.part_time_employees.find_one({"id": pt_record.get("employee_id")}, {"_id": 0})
+                    if pt_employee:
+                        personnel_names[pid] = f"PT {pt_employee.get('name', '')}"
+                    else:
+                        personnel_names[pid] = f"PT {pt_record.get('employee_name', '')}"
                 else:
-                    personnel_names[pid] = pid  # Fallback to ID
+                    personnel_names[pid] = pid
+            else:
+                # Check personnel first
+                person = await db.personnel.find_one({"id": pid}, {"_id": 0, "name": 1, "rank": 1})
+                if person:
+                    personnel_names[pid] = f"{person.get('rank', '')} {person.get('name', '')}"
+                else:
+                    # Check volunteers
+                    volunteer = await db.volunteers.find_one({"id": pid}, {"_id": 0, "name": 1})
+                    if volunteer:
+                        personnel_names[pid] = f"Vol. {volunteer.get('name', '')}"
+                    else:
+                        personnel_names[pid] = pid  # Fallback to ID
         assignment["personnel_names"] = personnel_names
     
     return assignments
@@ -1703,6 +1716,8 @@ async def approve_part_time_availability(
 async def get_assigned_part_time(
     date: str,
     battalion_id: Optional[str] = None,
+    station_id: Optional[str] = None,
+    shift: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     """Get assigned part-time employees for a specific date"""
@@ -1712,6 +1727,10 @@ async def get_assigned_part_time(
     }
     if battalion_id:
         query["battalion_id"] = battalion_id
+    if station_id:
+        query["assigned_station_id"] = station_id
+    if shift:
+        query["shift"] = shift
     
     records = await db.part_time_availability.find(query, {"_id": 0}).to_list(100)
     
@@ -1719,11 +1738,24 @@ async def get_assigned_part_time(
     stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
+    # Get part-time employee info for each record
+    pt_employees = await db.part_time_employees.find({}, {"_id": 0}).to_list(100)
+    pt_employees_dict = {e["id"]: e for e in pt_employees}
+    
     for record in records:
-        station_id = record.get("assigned_station_id")
-        if station_id and station_id in stations_dict:
-            record["station_number"] = stations_dict[station_id].get("station_number", "")
-            record["station_name"] = f"Station {stations_dict[station_id].get('station_number', '')}"
+        station_id_val = record.get("assigned_station_id")
+        if station_id_val and station_id_val in stations_dict:
+            record["station_number"] = stations_dict[station_id_val].get("station_number", "")
+            record["station_name"] = f"Station {stations_dict[station_id_val].get('station_number', '')}"
+        
+        # Add part-time employee details
+        emp_id = record.get("employee_id")
+        if emp_id and emp_id in pt_employees_dict:
+            pt_emp = pt_employees_dict[emp_id]
+            record["pt_employee_name"] = pt_emp.get("name", "")
+            record["pt_employee_number"] = pt_emp.get("employee_number", "")
+            record["pt_employee_rank"] = pt_emp.get("rank", "Part-Time")
+            record["pt_employee_phone"] = pt_emp.get("contact_phone", "")
     
     return records
 

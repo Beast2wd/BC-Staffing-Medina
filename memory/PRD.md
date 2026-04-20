@@ -162,6 +162,10 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Riding Positions (A, B, C, D)** - Assign personnel to specific riding positions on apparatus (April 1, 2026)
 - ✅ **Position Display** - Riding positions shown in assignments table, reports, and exports
 - ✅ **Selective Personnel Removal** - When removing from assignment with multiple personnel, dialog asks which riding position to remove (April 19, 2026)
+- ✅ **Part-Time Personnel Integration** - Assigned part-time employees now appear in Apparatus Assignments for their station/shift (April 20, 2026)
+  - Part-time employees show with purple styling (PT prefix)
+  - Can be assigned to riding positions (A, B, C, D)
+  - Displayed alongside regular personnel and volunteers
 
 ### UI/UX Improvements (April 1, 2026)
 - ✅ **Navbar Spacing** - Properly spaced header links with consistent padding
