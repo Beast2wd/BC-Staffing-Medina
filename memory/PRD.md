@@ -98,7 +98,18 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ 24-hour fixed shift duration
 - ✅ Color-coded calendar with shift badges (A=Red, B=Green, C=Blue)
 - ✅ Notes section for additional information
-- ✅ Status management (Available/Assigned/Declined)
+- ✅ Status dropdown shows only "Available" and "Declined" (removed "Assigned")
+- ✅ "Decline Shift" button for assigned shifts with confirmation
+- ✅ Important warning notice about declining assigned shifts
+
+### Part-Time BC Management (April 20, 2026)
+- ✅ Battalion Chief > Part-Time Available page (between Overtime Available and Volunteer Scheduled)
+- ✅ Approve/Decline pending part-time availability requests
+- ✅ Only BC+ and Admin can approve
+- ✅ Shows hours scheduled, monthly hours, and YTD hours per employee
+- ✅ Recent approved scheduled days displayed
+- ✅ Work history tracking ordered by date
+- ✅ Once approved, status updates to "assigned" on employee's view
 
 ### Reports
 - ✅ Daily Staffing Summary

@@ -1573,6 +1573,109 @@ async def delete_part_time_availability(
     await db.part_time_availability.delete_one({"id": record_id})
     return {"message": "Availability removed"}
 
+@api_router.get("/part-time-availability/all")
+async def get_all_part_time_availability(
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all part-time availability records (for BC view)"""
+    query = {}
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    records = await db.part_time_availability.find(query, {"_id": 0}).to_list(1000)
+    # Sort by date descending
+    records.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return records
+
+@api_router.get("/part-time/stats/{employee_id}")
+async def get_part_time_employee_stats(
+    employee_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get part-time employee statistics (hours scheduled, worked YTD, monthly)"""
+    # Get all records for this employee
+    records = await db.part_time_availability.find(
+        {"employee_id": employee_id},
+        {"_id": 0}
+    ).to_list(500)
+    
+    # Get current date info
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    current_month = now.month
+    current_month_name = now.strftime("%B")
+    
+    # Calculate stats
+    hours_scheduled = 0
+    hours_worked_ytd = 0
+    hours_worked_monthly = 0
+    shifts_assigned = 0
+    work_history = []
+    
+    for record in records:
+        record_date = record.get("date", "")
+        record_status = record.get("status", "")
+        record_hours = record.get("hours", 24)
+        
+        # Parse date
+        try:
+            record_year = int(record_date[:4])
+            record_month = int(record_date[5:7])
+        except:
+            continue
+        
+        if record_status == "assigned":
+            shifts_assigned += 1
+            hours_scheduled += record_hours
+            
+            # Check if date is in the past (worked)
+            if record_date <= now.strftime("%Y-%m-%d"):
+                hours_worked_ytd += record_hours
+                
+                if record_year == current_year and record_month == current_month:
+                    hours_worked_monthly += record_hours
+            
+            # Add to work history
+            work_history.append({
+                "date": record_date,
+                "shift": record.get("shift", ""),
+                "hours": record_hours,
+                "status": record_status,
+                "notes": record.get("notes", "")
+            })
+    
+    # Sort work history by date descending
+    work_history.sort(key=lambda x: x["date"], reverse=True)
+    
+    return {
+        "employee_id": employee_id,
+        "hours_scheduled": hours_scheduled,
+        "hours_worked_ytd": hours_worked_ytd,
+        "hours_worked_monthly": hours_worked_monthly,
+        "current_month_name": current_month_name,
+        "shifts_assigned": shifts_assigned,
+        "work_history": work_history[:10]  # Last 10 entries
+    }
+
+@api_router.put("/part-time-availability/{record_id}/approve")
+async def approve_part_time_availability(
+    record_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Approve part-time availability (BC+ only)"""
+    record = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    await db.part_time_availability.update_one(
+        {"id": record_id},
+        {"$set": {"status": "assigned", "approved_by": current_user["payroll_number"]}}
+    )
+    
+    updated = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    return updated
+
 # ===================== LEAVE ROUTES =====================
 
 @api_router.get("/leave-records", response_model=List[LeaveRecord])

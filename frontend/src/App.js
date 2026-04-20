@@ -13,6 +13,7 @@ import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
 import { LeaveManagementPage } from "./pages/battalion-chief/LeaveManagementPage";
 import { OvertimePage } from "./pages/battalion-chief/OvertimePage";
 import { VolunteerPage } from "./pages/battalion-chief/VolunteerPage";
+import { PartTimeBCPage } from "./pages/battalion-chief/PartTimeBCPage";
 import { DeploymentPage } from "./pages/battalion-chief/DeploymentPage";
 import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
 import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
@@ -103,6 +104,9 @@ const AppContent = () => {
         } />
         <Route path="/battalion-chief/overtime" element={
           <ProtectedRoute><OvertimePage /></ProtectedRoute>
+        } />
+        <Route path="/battalion-chief/part-time" element={
+          <ProtectedRoute><PartTimeBCPage /></ProtectedRoute>
         } />
         <Route path="/battalion-chief/volunteer" element={
           <ProtectedRoute><VolunteerPage /></ProtectedRoute>

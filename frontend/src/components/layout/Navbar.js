@@ -140,6 +140,11 @@ export const Navbar = () => {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/part-time" className="flex items-center gap-2" data-testid="nav-part-time-bc">
+                    <Clock className="h-4 w-4" /> Part-Time Available
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to="/battalion-chief/volunteer" className="flex items-center gap-2" data-testid="nav-volunteer">
                     <Hand className="h-4 w-4" /> Volunteer Scheduled
                   </Link>

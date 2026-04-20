@@ -9,11 +9,12 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, ChevronLeft, ChevronRight, Clock, CalendarIcon, Trash2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Clock, CalendarIcon, Trash2, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
@@ -130,6 +131,26 @@ export const PartTimeAvailabilityPage = () => {
       fetchAvailabilityRecords();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleDeclineAssigned = async (recordId) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to decline this ASSIGNED shift?\n\n' +
+      'IMPORTANT: It is YOUR responsibility to contact the Officer or Battalion Chief of the station and shift that staffing is being affected, via department email and phone call.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      await api.put(`/part-time-availability/${recordId}`, {
+        status: 'declined'
+      });
+      toast.warning('Assigned shift declined. Please notify the Battalion Chief immediately.');
+      fetchAvailabilityRecords();
+      // TODO: Send email and text notification to on-duty Battalion Chief
+    } catch (error) {
+      toast.error('Failed to decline shift');
     }
   };
 
@@ -498,19 +519,30 @@ export const PartTimeAvailabilityPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Select 
-                            value={record.status} 
-                            onValueChange={(v) => handleUpdateStatus(record.id, v)}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-28" data-testid={`status-select-${record.id}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="available">Available</SelectItem>
-                              <SelectItem value="assigned">Assigned</SelectItem>
-                              <SelectItem value="declined">Declined</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {record.status !== 'assigned' ? (
+                            <Select 
+                              value={record.status} 
+                              onValueChange={(v) => handleUpdateStatus(record.id, v)}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-28" data-testid={`status-select-${record.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="available">Available</SelectItem>
+                                <SelectItem value="declined">Declined</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="h-8 text-xs text-red-500 border-red-500 hover:bg-red-500/10"
+                              onClick={() => handleDeclineAssigned(record.id)}
+                              data-testid={`decline-assigned-btn-${record.id}`}
+                            >
+                              Decline Shift
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -528,6 +560,14 @@ export const PartTimeAvailabilityPage = () => {
                 )}
               </TableBody>
             </Table>
+            
+            {/* Important Notice about declining assigned shifts */}
+            <Alert className="mt-4 border-red-500/50 bg-red-500/10">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertDescription className="text-red-500 text-sm">
+                <strong>Important:</strong> If you decline an assigned part-time shift, it is YOUR responsibility to contact the Officer or Battalion Chief of the station and shift that staffing is being affected, via department email and phone call.
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
       </main>
