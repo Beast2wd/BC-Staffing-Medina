@@ -190,6 +190,11 @@ export const Navbar = () => {
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem asChild>
+                <Link to="/part-time" className="flex items-center gap-2" data-testid="nav-part-time-personnel">
+                  <Clock className="h-4 w-4" /> Part-Time
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link to="/volunteer" className="flex items-center gap-2" data-testid="nav-volunteer-personnel">
                   <Hand className="h-4 w-4" /> Volunteer
                 </Link>
@@ -342,6 +347,9 @@ export const Navbar = () => {
                 <Clock className="h-4 w-4 inline mr-2" /> Overtime
               </Link>
             )}
+            <Link to="/part-time" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-part-time">
+              <Clock className="h-4 w-4 inline mr-2" /> Part-Time
+            </Link>
             <Link to="/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-volunteer">
               <Hand className="h-4 w-4 inline mr-2" /> Volunteer
             </Link>

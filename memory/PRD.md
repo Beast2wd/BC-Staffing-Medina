@@ -91,6 +91,15 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Search and filter by rank
 - ✅ Located under Tools dropdown below User Management
 
+### Part-Time Availability (April 20, 2026)
+- ✅ Part-Time Availability page under Personnel dropdown (between Overtime and Volunteer)
+- ✅ Submit availability for part-time employees (NOT auto-assigned like volunteers)
+- ✅ No station selection required
+- ✅ 24-hour fixed shift duration
+- ✅ Color-coded calendar with shift badges (A=Red, B=Green, C=Blue)
+- ✅ Notes section for additional information
+- ✅ Status management (Available/Assigned/Declined)
+
 ### Reports
 - ✅ Daily Staffing Summary
 - ✅ Overtime Summary

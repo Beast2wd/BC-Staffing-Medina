@@ -23,6 +23,7 @@ import { PartTimeManagementPage } from "./pages/tools/PartTimeManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
+import { PartTimeAvailabilityPage } from "./pages/PartTimeAvailabilityPage";
 import { OnDutyPage } from "./pages/OnDutyPage";
 
 // Protected Route Component
@@ -137,6 +138,11 @@ const AppContent = () => {
         {/* Overtime Availability - Available to ALL users including firefighters */}
         <Route path="/overtime" element={
           <ProtectedRoute><OvertimeAvailabilityPage /></ProtectedRoute>
+        } />
+        
+        {/* Part-Time Availability - Available to ALL users */}
+        <Route path="/part-time" element={
+          <ProtectedRoute><PartTimeAvailabilityPage /></ProtectedRoute>
         } />
         
         {/* Volunteer Availability - Available to Volunteer Firefighters */}

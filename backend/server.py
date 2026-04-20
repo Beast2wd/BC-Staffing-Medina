@@ -393,6 +393,34 @@ class PartTimeEmployeeUpdate(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = None
 
+# Part-Time Availability Models
+class PartTimeAvailability(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_id: str  # Reference to part-time employee
+    employee_name: str = ""
+    employee_number: str = ""
+    date: str
+    shift: str  # A, B, or C
+    hours: int = 24
+    status: str = "available"  # available, assigned, declined
+    notes: str = ""
+    battalion_id: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class PartTimeAvailabilityCreate(BaseModel):
+    employee_id: str
+    date: str
+    shift: str
+    hours: int = 24
+    notes: str = ""
+    battalion_id: str = ""
+
+class PartTimeAvailabilityUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    hours: Optional[int] = None
+
 class RemarkEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1459,6 +1487,91 @@ async def delete_part_time_employee(
     )
     
     return {"message": "Part-time employee removed"}
+
+# ===================== PART-TIME AVAILABILITY ROUTES =====================
+
+@api_router.get("/part-time-availability")
+async def get_part_time_availability(
+    date: Optional[str] = None,
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get part-time availability records for a date"""
+    query = {}
+    if date:
+        query["date"] = date
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    records = await db.part_time_availability.find(query, {"_id": 0}).to_list(500)
+    return records
+
+@api_router.post("/part-time-availability")
+async def create_part_time_availability(
+    data: PartTimeAvailabilityCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit part-time availability"""
+    # Get employee details
+    employee = await db.part_time_employees.find_one({"id": data.employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Part-time employee not found")
+    
+    # Check for existing availability on same date
+    existing = await db.part_time_availability.find_one({
+        "employee_id": data.employee_id,
+        "date": data.date
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Availability already submitted for this date")
+    
+    record = PartTimeAvailability(
+        id=str(uuid.uuid4()),
+        employee_id=data.employee_id,
+        employee_name=employee.get("name", ""),
+        employee_number=employee.get("employee_number", ""),
+        date=data.date,
+        shift=data.shift,
+        hours=data.hours,
+        status="available",  # Not auto-assigned
+        notes=data.notes,
+        battalion_id=data.battalion_id,
+        created_at=datetime.now(timezone.utc).isoformat()
+    )
+    
+    await db.part_time_availability.insert_one(record.model_dump())
+    return record.model_dump()
+
+@api_router.put("/part-time-availability/{record_id}")
+async def update_part_time_availability(
+    record_id: str,
+    data: PartTimeAvailabilityUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update part-time availability record"""
+    record = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        await db.part_time_availability.update_one({"id": record_id}, {"$set": update_data})
+    
+    updated = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/part-time-availability/{record_id}")
+async def delete_part_time_availability(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete part-time availability record"""
+    record = await db.part_time_availability.find_one({"id": record_id})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    await db.part_time_availability.delete_one({"id": record_id})
+    return {"message": "Availability removed"}
 
 # ===================== LEAVE ROUTES =====================
 
