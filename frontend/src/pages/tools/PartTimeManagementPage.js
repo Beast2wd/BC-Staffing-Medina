@@ -186,7 +186,8 @@ export const PartTimeManagementPage = () => {
   // Get unique ranks from employees for filter
   const uniqueRanks = [...new Set(employees.map(e => e.rank).filter(Boolean))];
 
-  const EmployeeForm = ({ onSave, buttonText }) => (
+  // Form JSX - inline to prevent focus loss on re-render
+  const renderForm = (onSave, buttonText) => (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -322,7 +323,7 @@ export const PartTimeManagementPage = () => {
               <DialogHeader>
                 <DialogTitle>Add New Part-Time Employee</DialogTitle>
               </DialogHeader>
-              <EmployeeForm onSave={handleAddEmployee} buttonText="Add Employee" />
+              {renderForm(handleAddEmployee, "Add Employee")}
             </DialogContent>
           </Dialog>
         </div>
@@ -483,7 +484,7 @@ export const PartTimeManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Edit Part-Time Employee</DialogTitle>
             </DialogHeader>
-            <EmployeeForm onSave={handleEditEmployee} buttonText="Save Changes" />
+            {renderForm(handleEditEmployee, "Save Changes")}
           </DialogContent>
         </Dialog>
       </main>
