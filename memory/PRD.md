@@ -108,9 +108,10 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Station selection dropdown** in pending approvals table (required before approval)
 - ✅ Only BC+ and Admin can approve
 - ✅ Shows hours scheduled, monthly hours, and YTD hours per employee
-- ✅ Recent approved scheduled days displayed
-- ✅ Work history tracking ordered by date
+- ✅ Recent approved scheduled days displayed with station badge
+- ✅ Work history tracking ordered by date with station column
 - ✅ Once approved with station, status updates to "assigned" on employee's view
+- ✅ **Station badges in Employee Details** - Recent Approved Scheduled Days and Days Worked sections now show assigned station (April 20, 2026)
 
 ### Daily Worksheet Part-Time Integration (April 20, 2026)
 - ✅ **Part-Time (+)** row added above Volunteer (+) in Daily Worksheet
