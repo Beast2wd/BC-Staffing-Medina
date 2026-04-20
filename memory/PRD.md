@@ -199,6 +199,20 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 2. **Real-time WebSocket updates** - Live updates across all connected users (P2)
 3. Shift notification alerts when below minimum staffing (P3)
 
+### Calendar View (April 20, 2026)
+- ✅ **New page under Deputy Chief** - Calendar View showing all scheduled overtime, part-time, and volunteer personnel
+- ✅ **Color-coded personnel types**:
+  - Overtime: Blue
+  - Part-Time: Purple  
+  - Volunteers: Green
+- ✅ **Shift-colored calendar days** - A (red), B (green), C (blue) backgrounds
+- ✅ **Station assignments displayed** - Each personnel shows their assigned station
+- ✅ **Right-click context menu** - Remove personnel directly from calendar
+- ✅ **Confirmation dialog** - Confirms removal before updating status to declined
+- ✅ **Real-time sync** - Removed personnel are immediately removed from all related views
+- ✅ **Summary statistics** - Shows count of OT, PT, and Volunteer shifts for the month
+- ✅ **Month navigation** - Navigate between months with prev/next buttons
+
 ## API Endpoints Added (March 26, 2026)
 - `POST /api/auth/set-temporary-password` - Admin sets temp password for personnel (creates user account)
 - `POST /api/auth/change-password` - User changes password (clears must_change_password flag)

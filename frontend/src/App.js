@@ -16,6 +16,7 @@ import { VolunteerPage } from "./pages/battalion-chief/VolunteerPage";
 import { PartTimeBCPage } from "./pages/battalion-chief/PartTimeBCPage";
 import { DeploymentPage } from "./pages/battalion-chief/DeploymentPage";
 import { DayOfStaffingPage } from "./pages/deputy-chief/DayOfStaffingPage";
+import { CalendarViewPage } from "./pages/deputy-chief/CalendarViewPage";
 import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
 import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
@@ -115,6 +116,9 @@ const AppContent = () => {
         {/* Deputy Chief Routes */}
         <Route path="/deputy-chief/day-of-staffing" element={
           <ProtectedRoute><DayOfStaffingPage /></ProtectedRoute>
+        } />
+        <Route path="/deputy-chief/calendar-view" element={
+          <ProtectedRoute><CalendarViewPage /></ProtectedRoute>
         } />
         
         {/* Tools Routes (Admin Only) */}

@@ -171,6 +171,11 @@ export const Navbar = () => {
                     <ClipboardList className="h-4 w-4" /> Day of Staffing
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/deputy-chief/calendar-view" className="flex items-center gap-2" data-testid="nav-calendar-view">
+                    <Calendar className="h-4 w-4" /> Calendar View
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
