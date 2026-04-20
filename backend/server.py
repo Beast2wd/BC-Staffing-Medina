@@ -360,6 +360,39 @@ class VolunteerUpdate(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = None
 
+# Part-Time Employee Models
+class PartTimeEmployee(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    employee_number: str
+    name: str
+    rank: str = ""
+    certifications: List[str] = []
+    contact_phone: str = ""
+    contact_email: str = ""
+    notes: str = ""
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class PartTimeEmployeeCreate(BaseModel):
+    employee_number: str
+    name: str
+    rank: str = ""
+    certifications: List[str] = []
+    contact_phone: str = ""
+    contact_email: str = ""
+    notes: str = ""
+
+class PartTimeEmployeeUpdate(BaseModel):
+    employee_number: Optional[str] = None
+    name: Optional[str] = None
+    rank: Optional[str] = None
+    certifications: Optional[List[str]] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class RemarkEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1350,6 +1383,82 @@ async def delete_volunteer(
     )
     
     return {"message": "Volunteer removed"}
+
+# ===================== PART-TIME EMPLOYEE ROUTES =====================
+
+@api_router.get("/part-time-employees", response_model=List[PartTimeEmployee])
+async def get_part_time_employees(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all part-time employees sorted alphabetically by name"""
+    employees = await db.part_time_employees.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    # Sort alphabetically by name
+    employees.sort(key=lambda x: x.get("name", "").lower())
+    return employees
+
+@api_router.post("/part-time-employees", response_model=PartTimeEmployee)
+async def create_part_time_employee(
+    data: PartTimeEmployeeCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Create a new part-time employee"""
+    # Check if employee number already exists
+    existing = await db.part_time_employees.find_one({"employee_number": data.employee_number})
+    if existing:
+        raise HTTPException(status_code=400, detail="Employee number already exists")
+    
+    employee = PartTimeEmployee(
+        id=str(uuid.uuid4()),
+        **data.model_dump(),
+        created_at=datetime.now(timezone.utc).isoformat()
+    )
+    
+    await db.part_time_employees.insert_one(employee.model_dump())
+    return employee
+
+@api_router.put("/part-time-employees/{employee_id}", response_model=PartTimeEmployee)
+async def update_part_time_employee(
+    employee_id: str,
+    data: PartTimeEmployeeUpdate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Update a part-time employee"""
+    employee = await db.part_time_employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Part-time employee not found")
+    
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        # Check if new employee number conflicts with existing
+        if "employee_number" in update_data:
+            existing = await db.part_time_employees.find_one({
+                "employee_number": update_data["employee_number"],
+                "id": {"$ne": employee_id}
+            })
+            if existing:
+                raise HTTPException(status_code=400, detail="Employee number already exists")
+        
+        await db.part_time_employees.update_one({"id": employee_id}, {"$set": update_data})
+    
+    updated = await db.part_time_employees.find_one({"id": employee_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/part-time-employees/{employee_id}")
+async def delete_part_time_employee(
+    employee_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Delete (deactivate) a part-time employee"""
+    employee = await db.part_time_employees.find_one({"id": employee_id})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Part-time employee not found")
+    
+    await db.part_time_employees.update_one(
+        {"id": employee_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    return {"message": "Part-time employee removed"}
 
 # ===================== LEAVE ROUTES =====================
 

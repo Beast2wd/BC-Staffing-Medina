@@ -84,6 +84,13 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Edit User** - Update name, rank, role, station, shift, status (March 27, 2026)
 - ✅ **Reset Password** - Admin can reset any user's password (March 27, 2026)
 
+### Part-Time Management (April 20, 2026)
+- ✅ Add/Edit/Delete part-time employees
+- ✅ Employee number, name, rank, certifications fields
+- ✅ Alphabetically sorted by name
+- ✅ Search and filter by rank
+- ✅ Located under Tools dropdown below User Management
+
 ### Reports
 - ✅ Daily Staffing Summary
 - ✅ Overtime Summary

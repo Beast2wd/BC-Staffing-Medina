@@ -19,6 +19,7 @@ import { PersonnelManagementPage } from "./pages/tools/PersonnelManagementPage";
 import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
 import { VolunteerManagementPage } from "./pages/tools/VolunteerManagementPage";
+import { PartTimeManagementPage } from "./pages/tools/PartTimeManagementPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
@@ -120,6 +121,9 @@ const AppContent = () => {
         } />
         <Route path="/tools/users" element={
           <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
+        } />
+        <Route path="/tools/part-time" element={
+          <ProtectedRoute adminOnly><PartTimeManagementPage /></ProtectedRoute>
         } />
         <Route path="/tools/volunteers" element={
           <ProtectedRoute adminOnly><VolunteerManagementPage /></ProtectedRoute>
