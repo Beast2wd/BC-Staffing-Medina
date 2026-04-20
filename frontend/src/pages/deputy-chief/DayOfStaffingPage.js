@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { Badge } from '../../components/ui/badge';
 import { ShiftCalendar } from '../../components/dashboard/ShiftCalendar';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const DayOfStaffingPage = () => {
   const { api } = useAuth();
@@ -136,7 +137,7 @@ export const DayOfStaffingPage = () => {
               Day of Staffing
             </h1>
             <p className="text-muted-foreground mt-1">
-              Complete staffing overview for {selectedDate}
+              Complete staffing overview for {formatDisplayDate(selectedDate)}
             </p>
           </div>
           
