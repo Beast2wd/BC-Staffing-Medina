@@ -467,6 +467,15 @@ export const PartTimeAvailabilityPage = () => {
               </Dialog>
             </div>
           </CardHeader>
+          <CardContent className="pt-0">
+            {/* Important Notice about declining assigned shifts */}
+            <Alert className="border-red-500/50 bg-red-500/10">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertDescription className="text-red-500 text-sm">
+                <strong>Important:</strong> If you decline an assigned part-time shift, it is YOUR responsibility to contact the Officer or Battalion Chief of the station and shift that staffing is being affected, via department email and phone call.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
         </Card>
 
         {/* All Part-Time Available */}
@@ -560,14 +569,6 @@ export const PartTimeAvailabilityPage = () => {
                 )}
               </TableBody>
             </Table>
-            
-            {/* Important Notice about declining assigned shifts */}
-            <Alert className="mt-4 border-red-500/50 bg-red-500/10">
-              <AlertCircle className="h-4 w-4 text-red-500" />
-              <AlertDescription className="text-red-500 text-sm">
-                <strong>Important:</strong> If you decline an assigned part-time shift, it is YOUR responsibility to contact the Officer or Battalion Chief of the station and shift that staffing is being affected, via department email and phone call.
-              </AlertDescription>
-            </Alert>
           </CardContent>
         </Card>
       </main>
