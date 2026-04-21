@@ -52,11 +52,31 @@ export const CalendarViewPage = () => {
     const { start, end } = getMonthRange();
     
     try {
-      // Fetch overtime records (assigned only)
+      // Fetch overtime records - need to enrich with personnel names
       const otResponse = await api.get('/overtime', {
         params: { start_date: start, end_date: end }
       });
-      setOvertimeRecords(otResponse.data.filter(r => r.status === 'assigned'));
+      // Filter for assigned only and within date range
+      const assignedOT = otResponse.data.filter(r => {
+        if (r.status !== 'assigned') return false;
+        return r.date >= start && r.date <= end;
+      });
+      
+      // Enrich overtime with personnel names
+      const enrichedOT = await Promise.all(assignedOT.map(async (record) => {
+        try {
+          // Try to get personnel name
+          const personnelResponse = await api.get(`/personnel/${record.personnel_id}`);
+          return {
+            ...record,
+            personnel_name: personnelResponse.data?.name || 'Unknown',
+            shift: record.shift || record.assigned_shift || ''
+          };
+        } catch {
+          return { ...record, personnel_name: 'Unknown', shift: record.shift || '' };
+        }
+      }));
+      setOvertimeRecords(enrichedOT);
 
       // Fetch part-time records (assigned only)
       const ptResponse = await api.get('/part-time-availability/all');
@@ -67,11 +87,43 @@ export const CalendarViewPage = () => {
       });
       setPartTimeRecords(filteredPT);
 
-      // Fetch volunteer records (assigned only)
+      // Fetch volunteer records using the enriched assignments endpoint
+      // We need to fetch for each date in the range that has volunteers
       const volResponse = await api.get('/volunteer', {
         params: { start_date: start, end_date: end }
       });
-      setVolunteerRecords(volResponse.data.filter(r => r.status === 'assigned'));
+      
+      // Filter for assigned and within range
+      const assignedVol = volResponse.data.filter(r => {
+        if (r.status !== 'assigned') return false;
+        return r.date >= start && r.date <= end;
+      });
+      
+      // Enrich volunteer records with names from volunteers/personnel collections
+      const enrichedVol = await Promise.all(assignedVol.map(async (record) => {
+        try {
+          // Try volunteer-assignments endpoint for the specific date to get enriched data
+          const enrichedResponse = await api.get('/volunteer-assignments', {
+            params: { date: record.date }
+          });
+          const enrichedRecord = enrichedResponse.data.find(r => r.id === record.id);
+          if (enrichedRecord) {
+            return {
+              ...record,
+              ...enrichedRecord,
+              shift: enrichedRecord.assigned_shift || record.assigned_shift || ''
+            };
+          }
+        } catch {
+          // Fallback
+        }
+        return { 
+          ...record, 
+          volunteer_name: 'Volunteer',
+          shift: record.assigned_shift || ''
+        };
+      }));
+      setVolunteerRecords(enrichedVol);
 
     } catch (error) {
       console.error('Error fetching calendar data:', error);
@@ -105,18 +157,17 @@ export const CalendarViewPage = () => {
 
   // Get all personnel for a specific date
   const getPersonnelForDate = (dateStr) => {
-    const shift = getShiftForDate(dateStr);
     const personnel = [];
 
     // Add overtime personnel
     overtimeRecords.forEach(record => {
-      if (record.date === dateStr && record.shift === shift) {
+      if (record.date === dateStr) {
         personnel.push({
           id: record.id,
-          name: record.personnel_name,
+          name: record.personnel_name || 'Unknown',
           type: 'overtime',
           station: getStationName(record.overtime_station_id || record.station_id),
-          shift: record.shift,
+          shift: record.shift || record.assigned_shift || '',
           hours: record.hours
         });
       }
@@ -124,13 +175,13 @@ export const CalendarViewPage = () => {
 
     // Add part-time personnel
     partTimeRecords.forEach(record => {
-      if (record.date === dateStr && record.shift === shift) {
+      if (record.date === dateStr) {
         personnel.push({
           id: record.id,
-          name: record.employee_name,
+          name: record.employee_name || 'Unknown',
           type: 'parttime',
           station: getStationName(record.assigned_station_id),
-          shift: record.shift,
+          shift: record.shift || '',
           hours: record.hours
         });
       }
@@ -138,13 +189,13 @@ export const CalendarViewPage = () => {
 
     // Add volunteer personnel
     volunteerRecords.forEach(record => {
-      if (record.date === dateStr && record.shift === shift) {
+      if (record.date === dateStr) {
         personnel.push({
           id: record.id,
-          name: record.volunteer_name,
+          name: record.volunteer_name || 'Volunteer',
           type: 'volunteer',
           station: getStationName(record.assigned_station_id),
-          shift: record.shift,
+          shift: record.assigned_shift || record.shift || '',
           hours: record.hours
         });
       }
