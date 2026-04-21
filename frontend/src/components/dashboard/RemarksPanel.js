@@ -15,7 +15,6 @@ const REMARK_TABS = [
   { id: 'sick', label: 'SICK' },
   { id: 'remarks', label: 'Remarks' },
   { id: 'district_fill_in', label: 'District Fill-In' },
-  { id: 'sap_adjust', label: 'SAP Adjust' },
 ];
 
 export const RemarksPanel = () => {

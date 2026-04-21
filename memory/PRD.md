@@ -30,11 +30,10 @@ Fire Chief, Asst. Chief, Deputy Chief, Battalion Chief, Captain, Lieutenant, Dri
 - Injured On Duty (-)
 - Scheduled Other (-)
 - UnScheduled Other (-)
-- SAP Adjusted Personnel (+/-)
 - In Battalion Fill In (+/-)
 
 ## Remarks & Notes Tabs
-Overtime, HOLIDAY, VACATION, SICK, Remarks, District Fill-In, SAP Adjust
+Overtime, HOLIDAY, VACATION, SICK, Remarks, District Fill-In
 
 ## Deployment Types
 TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignment, Administrative, Other

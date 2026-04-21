@@ -26,7 +26,6 @@ const STAFFING_CATEGORIES = [
   { key: 'injured_on_duty', label: 'Injured On Duty (-)', className: 'text-red-500', editable: true },
   { key: 'scheduled_other', label: 'Scheduled Other (-)', className: 'text-red-500', editable: true },
   { key: 'unscheduled_other', label: 'UnScheduled Other (-)', className: 'text-red-500', editable: true },
-  { key: 'sap_adjusted', label: 'SAP Adjusted Personnel (+/-)', className: 'text-yellow-500', editable: true },
   { key: 'in_battalion_fill_in_minus', label: 'In Battalion Fill In (-)', className: 'text-blue-500', editable: true },
   { key: 'in_battalion_fill_in_plus', label: 'In Battalion Fill In (+)', className: 'text-blue-500', editable: true },
   { key: 'total_on_duty', label: 'Total Personnel On Duty:', isFooter: true, className: 'font-bold', editable: false },
@@ -201,7 +200,7 @@ export const StaffingGrid = () => {
         (stationData.unscheduled_other || 0) +
         (stationData.in_battalion_fill_in_minus || 0);
 
-      stationData.total_on_duty = additions - subtractions + (stationData.sap_adjusted || 0);
+      stationData.total_on_duty = additions - subtractions;
       stationData.variance = stationData.total_on_duty - stationData.minimum_staffing;
 
       totals.total_on_duty += stationData.total_on_duty;
