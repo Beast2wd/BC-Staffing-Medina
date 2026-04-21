@@ -350,7 +350,7 @@ export const CalendarViewPage = () => {
                 <div
                   key={index}
                   className={`min-h-[140px] border-r border-b last:border-r-0 p-2 ${
-                    dayInfo ? getShiftColor(dayInfo.shift) : 'bg-muted/30'
+                    dayInfo ? '' : 'bg-muted/30'
                   }`}
                   data-testid={dayInfo ? `calendar-day-${dayInfo.date}` : `empty-cell-${index}`}
                 >
