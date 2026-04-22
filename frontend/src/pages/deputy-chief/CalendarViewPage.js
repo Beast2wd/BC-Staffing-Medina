@@ -1,12 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Calendar, Clock, Hand, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, Hand, Users, X, Building2 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import {
   ContextMenu,
@@ -24,6 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 
 export const CalendarViewPage = () => {
   const { api } = useAuth();
@@ -34,6 +41,7 @@ export const CalendarViewPage = () => {
   const [volunteerRecords, setVolunteerRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, record: null, type: null });
+  const [selectedStation, setSelectedStation] = useState('all');
 
   // Get first and last day of the month for fetching data
   const getMonthRange = useCallback(() => {
@@ -65,7 +73,6 @@ export const CalendarViewPage = () => {
       // Enrich overtime with personnel names
       const enrichedOT = await Promise.all(assignedOT.map(async (record) => {
         try {
-          // Try to get personnel name
           const personnelResponse = await api.get(`/personnel/${record.personnel_id}`);
           return {
             ...record,
@@ -87,22 +94,19 @@ export const CalendarViewPage = () => {
       });
       setPartTimeRecords(filteredPT);
 
-      // Fetch volunteer records using the enriched assignments endpoint
-      // We need to fetch for each date in the range that has volunteers
+      // Fetch volunteer records
       const volResponse = await api.get('/volunteer', {
         params: { start_date: start, end_date: end }
       });
       
-      // Filter for assigned and within range
       const assignedVol = volResponse.data.filter(r => {
         if (r.status !== 'assigned') return false;
         return r.date >= start && r.date <= end;
       });
       
-      // Enrich volunteer records with names from volunteers/personnel collections
+      // Enrich volunteer records with names
       const enrichedVol = await Promise.all(assignedVol.map(async (record) => {
         try {
-          // Try volunteer-assignments endpoint for the specific date to get enriched data
           const enrichedResponse = await api.get('/volunteer-assignments', {
             params: { date: record.date }
           });
@@ -152,56 +156,71 @@ export const CalendarViewPage = () => {
   // Get station name by ID
   const getStationName = (stationId) => {
     const station = stations.find(s => s.id === stationId);
-    return station ? `Sta ${station.station_number}` : '';
+    return station ? station.station_number : '';
   };
 
-  // Get all personnel for a specific date
-  const getPersonnelForDate = (dateStr) => {
-    const personnel = [];
+  // Get all personnel for a specific date grouped by station
+  const getPersonnelByStation = (dateStr) => {
+    const byStation = {};
+    
+    // Initialize all stations
+    stations.forEach(station => {
+      byStation[station.id] = {
+        stationId: station.id,
+        stationNumber: station.station_number,
+        personnel: []
+      };
+    });
 
     // Add overtime personnel
     overtimeRecords.forEach(record => {
       if (record.date === dateStr) {
-        personnel.push({
-          id: record.id,
-          name: record.personnel_name || 'Unknown',
-          type: 'overtime',
-          station: getStationName(record.overtime_station_id || record.station_id),
-          shift: record.shift || record.assigned_shift || '',
-          hours: record.hours
-        });
+        const stationId = record.overtime_station_id || record.station_id;
+        if (byStation[stationId]) {
+          byStation[stationId].personnel.push({
+            id: record.id,
+            name: record.personnel_name || 'Unknown',
+            type: 'overtime',
+            shift: record.shift || record.assigned_shift || '',
+            hours: record.hours
+          });
+        }
       }
     });
 
     // Add part-time personnel
     partTimeRecords.forEach(record => {
       if (record.date === dateStr) {
-        personnel.push({
-          id: record.id,
-          name: record.employee_name || 'Unknown',
-          type: 'parttime',
-          station: getStationName(record.assigned_station_id),
-          shift: record.shift || '',
-          hours: record.hours
-        });
+        const stationId = record.assigned_station_id;
+        if (byStation[stationId]) {
+          byStation[stationId].personnel.push({
+            id: record.id,
+            name: record.employee_name || 'Unknown',
+            type: 'parttime',
+            shift: record.shift || '',
+            hours: record.hours
+          });
+        }
       }
     });
 
     // Add volunteer personnel
     volunteerRecords.forEach(record => {
       if (record.date === dateStr) {
-        personnel.push({
-          id: record.id,
-          name: record.volunteer_name || 'Volunteer',
-          type: 'volunteer',
-          station: getStationName(record.assigned_station_id),
-          shift: record.assigned_shift || record.shift || '',
-          hours: record.hours
-        });
+        const stationId = record.assigned_station_id;
+        if (byStation[stationId]) {
+          byStation[stationId].personnel.push({
+            id: record.id,
+            name: record.volunteer_name || 'Volunteer',
+            type: 'volunteer',
+            shift: record.assigned_shift || record.shift || '',
+            hours: record.hours
+          });
+        }
       }
     });
 
-    return personnel;
+    return byStation;
   };
 
   // Handle remove personnel
@@ -238,7 +257,7 @@ export const CalendarViewPage = () => {
       }
 
       toast.success(`${record.name} has been removed from the shift`);
-      fetchAllData(); // Refresh data
+      fetchAllData();
     } catch (error) {
       console.error('Error removing personnel:', error);
       toast.error('Failed to remove personnel');
@@ -270,7 +289,7 @@ export const CalendarViewPage = () => {
         day,
         date: dateStr,
         shift: getShiftForDate(dateStr),
-        personnel: getPersonnelForDate(dateStr)
+        personnelByStation: getPersonnelByStation(dateStr)
       });
     }
 
@@ -280,21 +299,21 @@ export const CalendarViewPage = () => {
   const calendarDays = generateCalendarDays();
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const getShiftColor = (shift) => {
-    switch (shift) {
-      case 'A': return 'bg-red-500/20 border-red-500';
-      case 'B': return 'bg-green-500/20 border-green-500';
-      case 'C': return 'bg-blue-500/20 border-blue-500';
-      default: return 'bg-muted';
-    }
-  };
-
   const getShiftTextColor = (shift) => {
     switch (shift) {
       case 'A': return 'text-red-500';
       case 'B': return 'text-green-500';
       case 'C': return 'text-blue-500';
       default: return '';
+    }
+  };
+
+  const getShiftBorderColor = (shift) => {
+    switch (shift) {
+      case 'A': return 'border-red-500';
+      case 'B': return 'border-green-500';
+      case 'C': return 'border-blue-500';
+      default: return 'border-muted';
     }
   };
 
@@ -318,10 +337,15 @@ export const CalendarViewPage = () => {
 
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Count totals for the legend
+  // Count totals
   const totalOT = overtimeRecords.length;
   const totalPT = partTimeRecords.length;
   const totalVol = volunteerRecords.length;
+
+  // Filter stations for display
+  const displayStations = selectedStation === 'all' 
+    ? stations 
+    : stations.filter(s => s.id === selectedStation);
 
   return (
     <div className="min-h-screen bg-background" data-testid="calendar-view-page">
@@ -336,7 +360,7 @@ export const CalendarViewPage = () => {
               Calendar View
             </h1>
             <p className="text-muted-foreground mt-1">
-              Overview of all scheduled overtime, part-time, and volunteer personnel
+              Overview by station - overtime, part-time, and volunteer personnel
             </p>
           </div>
           
@@ -345,8 +369,9 @@ export const CalendarViewPage = () => {
           </div>
         </div>
 
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between mb-6">
+        {/* Controls Row */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          {/* Month Navigation */}
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => navigateMonth(-1)} data-testid="prev-month">
               <ChevronLeft className="h-4 w-4" />
@@ -362,9 +387,27 @@ export const CalendarViewPage = () => {
             </Button>
           </div>
 
-          {/* Legend */}
+          {/* Station Filter */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedStation} onValueChange={setSelectedStation}>
+                <SelectTrigger className="w-[160px]" data-testid="station-filter">
+                  <SelectValue placeholder="All Stations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stations</SelectItem>
+                  {stations.map(station => (
+                    <SelectItem key={station.id} value={station.id}>
+                      Station {station.station_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-2 border-l pl-4">
               <Badge variant="outline" className="bg-blue-500/20 text-blue-500 border-blue-500">
                 <Clock className="h-3 w-3 mr-1" /> OT ({totalOT})
               </Badge>
@@ -374,11 +417,6 @@ export const CalendarViewPage = () => {
               <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">
                 <Hand className="h-3 w-3 mr-1" /> Vol ({totalVol})
               </Badge>
-            </div>
-            <div className="flex items-center gap-2 ml-4 border-l pl-4">
-              <Badge variant="outline" className="bg-red-500/20 text-red-500 border-red-500">A Shift</Badge>
-              <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500">B Shift</Badge>
-              <Badge variant="outline" className="bg-blue-500/20 text-blue-500 border-blue-500">C Shift</Badge>
             </div>
           </div>
         </div>
@@ -400,62 +438,84 @@ export const CalendarViewPage = () => {
               {calendarDays.map((dayInfo, index) => (
                 <div
                   key={index}
-                  className={`min-h-[140px] border-r border-b last:border-r-0 p-2 ${
+                  className={`min-h-[180px] border-r border-b last:border-r-0 p-2 ${
                     dayInfo ? '' : 'bg-muted/30'
                   }`}
                   data-testid={dayInfo ? `calendar-day-${dayInfo.date}` : `empty-cell-${index}`}
                 >
                   {dayInfo && (
                     <>
+                      {/* Day Header */}
                       <div className="flex items-center justify-between mb-2">
                         <span className={`font-bold text-lg ${getShiftTextColor(dayInfo.shift)}`}>
                           {dayInfo.day}
                         </span>
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${getShiftColor(dayInfo.shift)} ${getShiftTextColor(dayInfo.shift)}`}
+                          className={`text-xs ${getShiftTextColor(dayInfo.shift)} ${getShiftBorderColor(dayInfo.shift)}`}
                         >
                           {dayInfo.shift}
                         </Badge>
                       </div>
                       
-                      {/* Personnel List */}
-                      <div className="space-y-1 max-h-[100px] overflow-y-auto">
-                        {dayInfo.personnel.map((person, pIdx) => (
-                          <ContextMenu key={`${person.type}-${person.id}-${pIdx}`}>
-                            <ContextMenuTrigger>
-                              <div 
-                                className={`text-xs p-1.5 rounded cursor-context-menu border ${getTypeColor(person.type)} hover:opacity-80 transition-opacity`}
-                                data-testid={`personnel-${person.type}-${person.id}`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium truncate flex-1">
-                                    {person.name}
-                                  </span>
-                                  <span className="text-[10px] opacity-70 ml-1">
-                                    {getTypeLabel(person.type)}
-                                  </span>
-                                </div>
-                                {person.station && (
-                                  <div className="text-[10px] opacity-70 mt-0.5">
-                                    {person.station}
-                                  </div>
-                                )}
+                      {/* Stations with Personnel */}
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+                        {displayStations.map(station => {
+                          const stationData = dayInfo.personnelByStation[station.id];
+                          if (!stationData || stationData.personnel.length === 0) return null;
+                          
+                          return (
+                            <div 
+                              key={station.id} 
+                              className="bg-muted/30 rounded p-1.5"
+                              data-testid={`station-${station.id}-day-${dayInfo.date}`}
+                            >
+                              {/* Station Header */}
+                              <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                Sta {station.station_number}
                               </div>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                              <ContextMenuItem 
-                                className="text-red-500 focus:text-red-500"
-                                onClick={() => handleRemove(person, person.type)}
-                              >
-                                <X className="h-4 w-4 mr-2" />
-                                Remove from Shift
-                              </ContextMenuItem>
-                            </ContextMenuContent>
-                          </ContextMenu>
-                        ))}
-                        {dayInfo.personnel.length === 0 && (
-                          <p className="text-xs text-muted-foreground italic text-center py-2">
+                              
+                              {/* Personnel List */}
+                              <div className="space-y-0.5">
+                                {stationData.personnel.map((person, pIdx) => (
+                                  <ContextMenu key={`${person.type}-${person.id}-${pIdx}`}>
+                                    <ContextMenuTrigger>
+                                      <div 
+                                        className={`text-[11px] px-1.5 py-0.5 rounded cursor-context-menu border ${getTypeColor(person.type)} hover:opacity-80 transition-opacity`}
+                                        data-testid={`personnel-${person.type}-${person.id}`}
+                                      >
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="font-medium truncate">
+                                            {person.name}
+                                          </span>
+                                          <span className="text-[9px] opacity-70 shrink-0">
+                                            {getTypeLabel(person.type)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </ContextMenuTrigger>
+                                    <ContextMenuContent>
+                                      <ContextMenuItem 
+                                        className="text-red-500 focus:text-red-500"
+                                        onClick={() => handleRemove(person, person.type)}
+                                      >
+                                        <X className="h-4 w-4 mr-2" />
+                                        Remove from Shift
+                                      </ContextMenuItem>
+                                    </ContextMenuContent>
+                                  </ContextMenu>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Show message if no personnel for displayed stations */}
+                        {displayStations.every(station => 
+                          !dayInfo.personnelByStation[station.id]?.personnel?.length
+                        ) && (
+                          <p className="text-[10px] text-muted-foreground italic text-center py-2">
                             No assigned personnel
                           </p>
                         )}
@@ -468,47 +528,66 @@ export const CalendarViewPage = () => {
           </CardContent>
         </Card>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <Clock className="h-6 w-6 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-blue-500">{totalOT}</p>
-                  <p className="text-sm text-muted-foreground">Overtime Shifts</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-purple-500">{totalPT}</p>
-                  <p className="text-sm text-muted-foreground">Part-Time Shifts</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <Hand className="h-6 w-6 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-500">{totalVol}</p>
-                  <p className="text-sm text-muted-foreground">Volunteer Shifts</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Summary Stats by Station */}
+        <div className="mt-6">
+          <h3 className="font-heading text-lg uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Summary by Station
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+            {stations.map(station => {
+              // Count personnel for this station
+              const otCount = overtimeRecords.filter(r => 
+                (r.overtime_station_id || r.station_id) === station.id
+              ).length;
+              const ptCount = partTimeRecords.filter(r => 
+                r.assigned_station_id === station.id
+              ).length;
+              const volCount = volunteerRecords.filter(r => 
+                r.assigned_station_id === station.id
+              ).length;
+              const total = otCount + ptCount + volCount;
+
+              return (
+                <Card 
+                  key={station.id} 
+                  className={`cursor-pointer transition-all hover:border-primary ${
+                    selectedStation === station.id ? 'border-primary ring-1 ring-primary' : ''
+                  }`}
+                  onClick={() => setSelectedStation(selectedStation === station.id ? 'all' : station.id)}
+                >
+                  <CardContent className="p-3">
+                    <div className="text-center">
+                      <p className="font-heading text-sm uppercase tracking-wider text-muted-foreground">
+                        Station
+                      </p>
+                      <p className="text-2xl font-bold">{station.station_number}</p>
+                      <div className="flex justify-center gap-1 mt-2">
+                        {otCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] px-1 bg-blue-500/20 text-blue-500 border-blue-500">
+                            {otCount} OT
+                          </Badge>
+                        )}
+                        {ptCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] px-1 bg-purple-500/20 text-purple-500 border-purple-500">
+                            {ptCount} PT
+                          </Badge>
+                        )}
+                        {volCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] px-1 bg-green-500/20 text-green-500 border-green-500">
+                            {volCount} Vol
+                          </Badge>
+                        )}
+                      </div>
+                      {total === 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-2">No assignments</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       </main>
 
