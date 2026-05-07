@@ -258,6 +258,46 @@ class LeaveRecordCreate(BaseModel):
     status: str = "approved"
     notes: str = ""
 
+# Deployment Tracker Models
+class DeploymentRoster(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    rank: str
+    ems_level: str
+    seniority_date: str = ""
+    eligible_tifmas: bool = False
+    eligible_emtf: bool = False
+    last_deployment: str = ""
+    deployments_last_12mo: int = 0
+    tifmas_score: float = 0
+    emtf_score: float = 0
+    last_tifmas_deploy: str = ""
+    last_emtf_deploy: str = ""
+    ff1: bool = False
+    crew_boss: bool = False
+    engine_boss: bool = False
+    mist: bool = False
+    wpu: bool = False
+    astl: bool = False
+    medl: bool = False
+    tech_spec: bool = False
+    pack_test_level: str = ""  # Arduous, Moderate, Light
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class DeploymentLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    date: str
+    incident_type: str  # TIFMAS, EMTF
+    incident_name: str
+    personnel_name: str
+    personnel_id: str = ""
+    position: str  # AST, FFT1, CRWB, ENGB, etc.
+    notes: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 class OvertimeRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -2495,6 +2535,166 @@ async def get_time_off_summary(
     }
     
     return formatted_summary
+
+# ===================== DEPLOYMENT TRACKER =====================
+
+@api_router.get("/deployment-roster")
+async def get_deployment_roster(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all deployment roster entries"""
+    roster = await db.deployment_roster.find({}, {"_id": 0}).to_list(1000)
+    # Sort by TIFMAS score by default
+    roster.sort(key=lambda x: x.get("tifmas_score", 0), reverse=True)
+    return roster
+
+@api_router.post("/deployment-roster")
+async def create_deployment_roster_entry(
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Create a new deployment roster entry"""
+    entry = DeploymentRoster(**data)
+    await db.deployment_roster.insert_one(entry.model_dump())
+    return {"message": "Roster entry created", "id": entry.id}
+
+@api_router.put("/deployment-roster/{entry_id}")
+async def update_deployment_roster_entry(
+    entry_id: str,
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Update a deployment roster entry"""
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.deployment_roster.find_one_and_update(
+        {"id": entry_id},
+        {"$set": data},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Roster entry not found")
+    result.pop("_id", None)
+    return result
+
+@api_router.delete("/deployment-roster/{entry_id}")
+async def delete_deployment_roster_entry(
+    entry_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Delete a deployment roster entry"""
+    result = await db.deployment_roster.delete_one({"id": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Roster entry not found")
+    return {"message": "Roster entry deleted"}
+
+@api_router.post("/deployment-roster/import")
+async def import_deployment_roster(
+    data: List[dict],
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Import multiple deployment roster entries"""
+    # Clear existing roster
+    await db.deployment_roster.delete_many({})
+    
+    entries = []
+    for item in data:
+        entry = DeploymentRoster(**item)
+        entries.append(entry.model_dump())
+    
+    if entries:
+        await db.deployment_roster.insert_many(entries)
+    
+    return {"message": f"Imported {len(entries)} roster entries"}
+
+@api_router.get("/deployment-roster/tifmas-rank")
+async def get_tifmas_rank(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get roster sorted by TIFMAS score"""
+    roster = await db.deployment_roster.find(
+        {"eligible_tifmas": True}, 
+        {"_id": 0}
+    ).to_list(1000)
+    roster.sort(key=lambda x: x.get("tifmas_score", 0), reverse=True)
+    return roster
+
+@api_router.get("/deployment-roster/emtf-rank")
+async def get_emtf_rank(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get roster sorted by EMTF score"""
+    roster = await db.deployment_roster.find(
+        {"eligible_emtf": True}, 
+        {"_id": 0}
+    ).to_list(1000)
+    roster.sort(key=lambda x: x.get("emtf_score", 0), reverse=True)
+    return roster
+
+@api_router.get("/deployment-log")
+async def get_deployment_log(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all deployment log entries"""
+    logs = await db.deployment_log.find({}, {"_id": 0}).to_list(1000)
+    logs.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return logs
+
+@api_router.post("/deployment-log")
+async def create_deployment_log_entry(
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Create a new deployment log entry"""
+    entry = DeploymentLog(**data)
+    await db.deployment_log.insert_one(entry.model_dump())
+    return {"message": "Deployment log entry created", "id": entry.id}
+
+@api_router.put("/deployment-log/{entry_id}")
+async def update_deployment_log_entry(
+    entry_id: str,
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Update a deployment log entry"""
+    result = await db.deployment_log.find_one_and_update(
+        {"id": entry_id},
+        {"$set": data},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Deployment log entry not found")
+    result.pop("_id", None)
+    return result
+
+@api_router.delete("/deployment-log/{entry_id}")
+async def delete_deployment_log_entry(
+    entry_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Delete a deployment log entry"""
+    result = await db.deployment_log.delete_one({"id": entry_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Deployment log entry not found")
+    return {"message": "Deployment log entry deleted"}
+
+@api_router.post("/deployment-log/import")
+async def import_deployment_log(
+    data: List[dict],
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Import multiple deployment log entries"""
+    # Clear existing log
+    await db.deployment_log.delete_many({})
+    
+    entries = []
+    for item in data:
+        entry = DeploymentLog(**item)
+        entries.append(entry.model_dump())
+    
+    if entries:
+        await db.deployment_log.insert_many(entries)
+    
+    return {"message": f"Imported {len(entries)} log entries"}
 
 # ===================== USERS MANAGEMENT (ADMIN) =====================
 

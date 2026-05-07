@@ -28,6 +28,12 @@ import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
 import { PartTimeAvailabilityPage } from "./pages/PartTimeAvailabilityPage";
 import { OnDutyPage } from "./pages/OnDutyPage";
 
+// Deployment Tracker Pages
+import { DeploymentRosterPage } from "./pages/deployment-tracker/DeploymentRosterPage";
+import { DeploymentLogPage } from "./pages/deployment-tracker/DeploymentLogPage";
+import { TIFMASRankPage } from "./pages/deployment-tracker/TIFMASRankPage";
+import { EMTFRankPage } from "./pages/deployment-tracker/EMTFRankPage";
+
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -141,6 +147,20 @@ const AppContent = () => {
         {/* Reports */}
         <Route path="/reports" element={
           <ProtectedRoute><ReportsPage /></ProtectedRoute>
+        } />
+        
+        {/* Deployment Tracker Routes */}
+        <Route path="/personnel/deployment-tracker/roster" element={
+          <ProtectedRoute><DeploymentRosterPage /></ProtectedRoute>
+        } />
+        <Route path="/personnel/deployment-tracker/log" element={
+          <ProtectedRoute><DeploymentLogPage /></ProtectedRoute>
+        } />
+        <Route path="/personnel/deployment-tracker/tifmas-rank" element={
+          <ProtectedRoute><TIFMASRankPage /></ProtectedRoute>
+        } />
+        <Route path="/personnel/deployment-tracker/emtf-rank" element={
+          <ProtectedRoute><EMTFRankPage /></ProtectedRoute>
         } />
         
         {/* Overtime Availability - Available to ALL users including firefighters */}

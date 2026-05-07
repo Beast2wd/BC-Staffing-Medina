@@ -9,6 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from '../ui/dropdown-menu';
 import { 
   ChevronDown, 
@@ -26,7 +30,10 @@ import {
   AlertCircle,
   Hand,
   Key,
-  UserPlus
+  UserPlus,
+  Flame,
+  Ambulance,
+  ChevronRight
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
@@ -209,6 +216,37 @@ export const Navbar = () => {
                   <Hand className="h-4 w-4" /> Volunteer
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {/* Deployment Tracker Submenu */}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="flex items-center gap-2">
+                  <Plane className="h-4 w-4" /> Deployment Tracker
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="w-48">
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/roster" className="flex items-center gap-2" data-testid="nav-deploy-roster">
+                        <Users className="h-4 w-4" /> Roster
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/log" className="flex items-center gap-2" data-testid="nav-deploy-log">
+                        <FileText className="h-4 w-4" /> Deployment Log
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/tifmas-rank" className="flex items-center gap-2" data-testid="nav-tifmas-rank">
+                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS Rank
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/emtf-rank" className="flex items-center gap-2" data-testid="nav-emtf-rank">
+                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Rank
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
 
