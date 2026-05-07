@@ -193,6 +193,14 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 | Lieutenant | Edit | View | View | - | Submit | View |
 | Firefighter | View | - | - | - | Submit | - |
 
+### Time Off Summary Report (May 7, 2026)
+- ✅ New report under Reports tab: "Time Off Summary"
+- ✅ Shows YTD totals for Sick (red), Vacation (blue), and Holiday (green) days
+- ✅ Monthly breakdown tables for each leave type
+- ✅ Displays which personnel were off each month
+- ✅ Year-based reporting (uses selected date's year)
+- ✅ Print and Export functionality
+
 ## Next Tasks (Backlog)
 1. **Deputy Chief drag-and-drop** - Drag personnel between stations with real-time worksheet sync (P1)
 2. **Real-time WebSocket updates** - Live updates across all connected users (P2)

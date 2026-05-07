@@ -2348,6 +2348,154 @@ async def get_volunteer_hours_summary(
         "generated_at": datetime.now(timezone.utc).isoformat()
     }
 
+@api_router.get("/reports/time-off-summary")
+async def get_time_off_summary(
+    year: int,
+    battalion_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN]))
+):
+    """Get time off summary (sick, vacation, holiday) for a year"""
+    
+    # Get all personnel for the battalion
+    personnel_list = await db.personnel.find(
+        {"battalion_id": battalion_id, "is_active": True}, 
+        {"_id": 0}
+    ).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Get all leave records for the year
+    start_date = f"{year}-01-01"
+    end_date = f"{year}-12-31"
+    
+    leave_records = await db.leave_records.find({
+        "date": {"$gte": start_date, "$lte": end_date},
+        "leave_type": {"$in": ["sick", "vacation", "holiday"]}
+    }, {"_id": 0}).to_list(10000)
+    
+    # Also get from staffing_records for leave tracking
+    staffing_leave_records = await db.staffing_records.find({
+        "date": {"$gte": start_date, "$lte": end_date},
+        "battalion_id": battalion_id
+    }, {"_id": 0}).to_list(10000)
+    
+    # Initialize summary structure
+    months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+    month_names = ["January", "February", "March", "April", "May", "June", 
+                   "July", "August", "September", "October", "November", "December"]
+    
+    summary = {
+        "sick": {
+            "ytd_total": 0,
+            "monthly": {m: {"count": 0, "personnel": []} for m in months}
+        },
+        "vacation": {
+            "ytd_total": 0,
+            "monthly": {m: {"count": 0, "personnel": []} for m in months}
+        },
+        "holiday": {
+            "ytd_total": 0,
+            "monthly": {m: {"count": 0, "personnel": []} for m in months}
+        }
+    }
+    
+    # Track unique personnel per month for each leave type
+    personnel_tracker = {
+        "sick": {m: set() for m in months},
+        "vacation": {m: set() for m in months},
+        "holiday": {m: set() for m in months}
+    }
+    
+    # Process leave records from leave_records collection
+    for record in leave_records:
+        leave_type = record.get("leave_type", "").lower()
+        if leave_type not in summary:
+            continue
+            
+        record_date = record.get("date", "")
+        if not record_date:
+            continue
+            
+        month = record_date[5:7]  # Extract MM from YYYY-MM-DD
+        personnel_id = record.get("personnel_id")
+        
+        if personnel_id and personnel_id in personnel_dict:
+            person = personnel_dict[personnel_id]
+            person_name = f"{person.get('rank', '')} {person.get('name', '')}".strip()
+            
+            summary[leave_type]["ytd_total"] += 1
+            summary[leave_type]["monthly"][month]["count"] += 1
+            
+            # Track unique personnel
+            if personnel_id not in personnel_tracker[leave_type][month]:
+                personnel_tracker[leave_type][month].add(personnel_id)
+                summary[leave_type]["monthly"][month]["personnel"].append({
+                    "id": personnel_id,
+                    "name": person_name,
+                    "date": record_date
+                })
+    
+    # Also process staffing records for leave data
+    for record in staffing_leave_records:
+        record_date = record.get("date", "")
+        if not record_date:
+            continue
+            
+        month = record_date[5:7]
+        
+        # Check sick, vacation, holiday fields in staffing records
+        for leave_type in ["sick", "vacation", "holiday"]:
+            count = record.get(leave_type, 0)
+            if count and count > 0:
+                summary[leave_type]["ytd_total"] += count
+                summary[leave_type]["monthly"][month]["count"] += count
+    
+    # Format monthly data for output
+    formatted_summary = {
+        "year": year,
+        "battalion_id": battalion_id,
+        "sick": {
+            "ytd_total": summary["sick"]["ytd_total"],
+            "monthly": [
+                {
+                    "month": month_names[int(m) - 1],
+                    "month_num": m,
+                    "count": summary["sick"]["monthly"][m]["count"],
+                    "personnel": summary["sick"]["monthly"][m]["personnel"]
+                }
+                for m in months
+            ]
+        },
+        "vacation": {
+            "ytd_total": summary["vacation"]["ytd_total"],
+            "monthly": [
+                {
+                    "month": month_names[int(m) - 1],
+                    "month_num": m,
+                    "count": summary["vacation"]["monthly"][m]["count"],
+                    "personnel": summary["vacation"]["monthly"][m]["personnel"]
+                }
+                for m in months
+            ]
+        },
+        "holiday": {
+            "ytd_total": summary["holiday"]["ytd_total"],
+            "monthly": [
+                {
+                    "month": month_names[int(m) - 1],
+                    "month_num": m,
+                    "count": summary["holiday"]["monthly"][m]["count"],
+                    "personnel": summary["holiday"]["monthly"][m]["personnel"]
+                }
+                for m in months
+            ]
+        },
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    return formatted_summary
+
 # ===================== USERS MANAGEMENT (ADMIN) =====================
 
 @api_router.get("/users", response_model=List[UserResponse])

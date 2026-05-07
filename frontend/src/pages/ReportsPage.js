@@ -57,6 +57,14 @@ export const ReportsPage = () => {
             battalion_id: selectedBattalion
           }
         });
+      } else if (reportType === 'time-off') {
+        const year = new Date(startDate).getFullYear();
+        response = await api.get('/reports/time-off-summary', {
+          params: {
+            year: year,
+            battalion_id: selectedBattalion
+          }
+        });
       }
       
       setReportData(response.data);
@@ -84,6 +92,7 @@ export const ReportsPage = () => {
         case 'daily': return 'Daily Staffing Summary';
         case 'overtime': return 'Overtime Summary';
         case 'volunteer-hours': return 'Volunteer Hours Summary';
+        case 'time-off': return 'Time Off Summary';
         default: return 'Report';
       }
     };
@@ -92,6 +101,9 @@ export const ReportsPage = () => {
     const getDateDisplay = () => {
       if (reportType === 'daily') {
         return reportData.date;
+      }
+      if (reportType === 'time-off') {
+        return `Year ${reportData.year}`;
       }
       return `${reportData.start_date} to ${reportData.end_date}`;
     };
@@ -411,6 +423,89 @@ export const ReportsPage = () => {
                 '<p style="text-align:center;color:#666;padding:20px;">No volunteer records found</p>'
               }
             </div>
+          ` : reportType === 'time-off' ? `
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="stat-box">
+                <div class="value" style="color: #ef4444;">${reportData.sick?.ytd_total || 0}</div>
+                <div class="label">Sick Days (YTD)</div>
+              </div>
+              <div class="stat-box">
+                <div class="value" style="color: #3b82f6;">${reportData.vacation?.ytd_total || 0}</div>
+                <div class="label">Vacation Days (YTD)</div>
+              </div>
+              <div class="stat-box">
+                <div class="value" style="color: #22c55e;">${reportData.holiday?.ytd_total || 0}</div>
+                <div class="label">Holiday Days (YTD)</div>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2 style="color: #ef4444;">Sick Leave Summary</h2>
+              <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <thead>
+                  <tr style="background:#fef2f2;">
+                    <th style="padding:8px;border:1px solid #fecaca;text-align:left;">Month</th>
+                    <th style="padding:8px;border:1px solid #fecaca;text-align:center;">Days Used</th>
+                    <th style="padding:8px;border:1px solid #fecaca;text-align:left;">Personnel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${reportData.sick?.monthly?.map(month => `
+                    <tr>
+                      <td style="padding:8px;border:1px solid #fee2e2;">${month.month}</td>
+                      <td style="padding:8px;border:1px solid #fee2e2;text-align:center;font-weight:bold;">${month.count}</td>
+                      <td style="padding:8px;border:1px solid #fee2e2;font-size:12px;">
+                        ${month.personnel?.length > 0 ? month.personnel.map(p => p.name).join(', ') : '-'}
+                      </td>
+                    </tr>
+                  `).join('') || ''}
+                </tbody>
+              </table>
+              
+              <h2 style="color: #3b82f6;">Vacation Leave Summary</h2>
+              <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <thead>
+                  <tr style="background:#eff6ff;">
+                    <th style="padding:8px;border:1px solid #bfdbfe;text-align:left;">Month</th>
+                    <th style="padding:8px;border:1px solid #bfdbfe;text-align:center;">Days Used</th>
+                    <th style="padding:8px;border:1px solid #bfdbfe;text-align:left;">Personnel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${reportData.vacation?.monthly?.map(month => `
+                    <tr>
+                      <td style="padding:8px;border:1px solid #dbeafe;">${month.month}</td>
+                      <td style="padding:8px;border:1px solid #dbeafe;text-align:center;font-weight:bold;">${month.count}</td>
+                      <td style="padding:8px;border:1px solid #dbeafe;font-size:12px;">
+                        ${month.personnel?.length > 0 ? month.personnel.map(p => p.name).join(', ') : '-'}
+                      </td>
+                    </tr>
+                  `).join('') || ''}
+                </tbody>
+              </table>
+              
+              <h2 style="color: #22c55e;">Holiday Leave Summary</h2>
+              <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <thead>
+                  <tr style="background:#f0fdf4;">
+                    <th style="padding:8px;border:1px solid #bbf7d0;text-align:left;">Month</th>
+                    <th style="padding:8px;border:1px solid #bbf7d0;text-align:center;">Days Used</th>
+                    <th style="padding:8px;border:1px solid #bbf7d0;text-align:left;">Personnel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${reportData.holiday?.monthly?.map(month => `
+                    <tr>
+                      <td style="padding:8px;border:1px solid #dcfce7;">${month.month}</td>
+                      <td style="padding:8px;border:1px solid #dcfce7;text-align:center;font-weight:bold;">${month.count}</td>
+                      <td style="padding:8px;border:1px solid #dcfce7;font-size:12px;">
+                        ${month.personnel?.length > 0 ? month.personnel.map(p => p.name).join(', ') : '-'}
+                      </td>
+                    </tr>
+                  `).join('') || ''}
+                </tbody>
+              </table>
+            </div>
           ` : ''}
           
           <div class="footer">
@@ -538,6 +633,7 @@ export const ReportsPage = () => {
                     <SelectItem value="daily">Daily Staffing Summary</SelectItem>
                     <SelectItem value="overtime">Overtime Summary</SelectItem>
                     <SelectItem value="volunteer-hours">Volunteer Hours Summary</SelectItem>
+                    <SelectItem value="time-off">Time Off Summary</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -928,6 +1024,134 @@ export const ReportsPage = () => {
                       No volunteer records found for this period
                     </p>
                   )}
+                </div>
+              ) : reportType === 'time-off' ? (
+                <div className="space-y-6">
+                  {/* Time Off Summary Header */}
+                  <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Medina County Fire/EMS" className="h-20 mx-auto mb-3" />
+                    <h2 className="font-heading text-2xl uppercase font-bold">
+                      Time Off Summary
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {getBattalionName()} - Year {reportData.year}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Generated by: {user?.name} (Emp #: {user?.payroll_number}) on {new Date().toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* YTD Totals */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-red-500">{reportData.sick?.ytd_total || 0}</p>
+                      <p className="text-sm text-muted-foreground">Sick Days (YTD)</p>
+                    </div>
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-blue-500">{reportData.vacation?.ytd_total || 0}</p>
+                      <p className="text-sm text-muted-foreground">Vacation Days (YTD)</p>
+                    </div>
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-green-500">{reportData.holiday?.ytd_total || 0}</p>
+                      <p className="text-sm text-muted-foreground">Holiday Days (YTD)</p>
+                    </div>
+                  </div>
+
+                  {/* Sick Leave Monthly Breakdown */}
+                  <div className="space-y-3">
+                    <h3 className="font-heading text-lg uppercase text-red-500 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                      Sick Leave
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-red-500/20 bg-red-500/5">
+                            <th className="text-left p-3 font-semibold">Month</th>
+                            <th className="text-center p-3 font-semibold">Days Used</th>
+                            <th className="text-left p-3 font-semibold">Personnel</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportData.sick?.monthly?.map((month, idx) => (
+                            <tr key={idx} className="border-b border-muted hover:bg-muted/30">
+                              <td className="p-3 font-medium">{month.month}</td>
+                              <td className="p-3 text-center font-bold text-red-500">{month.count}</td>
+                              <td className="p-3 text-muted-foreground text-xs">
+                                {month.personnel?.length > 0 
+                                  ? month.personnel.map(p => p.name).join(', ') 
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Vacation Leave Monthly Breakdown */}
+                  <div className="space-y-3">
+                    <h3 className="font-heading text-lg uppercase text-blue-500 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                      Vacation Leave
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-blue-500/20 bg-blue-500/5">
+                            <th className="text-left p-3 font-semibold">Month</th>
+                            <th className="text-center p-3 font-semibold">Days Used</th>
+                            <th className="text-left p-3 font-semibold">Personnel</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportData.vacation?.monthly?.map((month, idx) => (
+                            <tr key={idx} className="border-b border-muted hover:bg-muted/30">
+                              <td className="p-3 font-medium">{month.month}</td>
+                              <td className="p-3 text-center font-bold text-blue-500">{month.count}</td>
+                              <td className="p-3 text-muted-foreground text-xs">
+                                {month.personnel?.length > 0 
+                                  ? month.personnel.map(p => p.name).join(', ') 
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Holiday Leave Monthly Breakdown */}
+                  <div className="space-y-3">
+                    <h3 className="font-heading text-lg uppercase text-green-500 flex items-center gap-2">
+                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                      Holiday Leave
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-green-500/20 bg-green-500/5">
+                            <th className="text-left p-3 font-semibold">Month</th>
+                            <th className="text-center p-3 font-semibold">Days Used</th>
+                            <th className="text-left p-3 font-semibold">Personnel</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportData.holiday?.monthly?.map((month, idx) => (
+                            <tr key={idx} className="border-b border-muted hover:bg-muted/30">
+                              <td className="p-3 font-medium">{month.month}</td>
+                              <td className="p-3 text-center font-bold text-green-500">{month.count}</td>
+                              <td className="p-3 text-muted-foreground text-xs">
+                                {month.personnel?.length > 0 
+                                  ? month.personnel.map(p => p.name).join(', ') 
+                                  : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               ) : null}
               </div>
