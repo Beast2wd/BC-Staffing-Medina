@@ -203,6 +203,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Edit/Delete permissions for Lieutenant rank and above
 - ✅ Pack Test levels (Arduous/Moderate/Light)
 - ✅ EMS Level tracking (Paramedic, EMT-A, EMT-B)
+- ✅ **Sync with BC Deployments page** - Deployment Log data shows in Battalion Chief > Deployments
+- ✅ **Three view modes**: All, By Name, By Month
+- ✅ **Days calculation** per personnel and total
 
 ### Time Off Summary Report (May 7, 2026)
 - ✅ New report under Reports tab: "Time Off Summary"
