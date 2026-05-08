@@ -132,7 +132,7 @@ export const DeploymentRosterPage = () => {
   const handleImport = async () => {
     // Import the initial data from Excel
     const initialData = [
-      { name: "Hicks, Ben", rank: "Chief", ems_level: "Paramedic", seniority_date: "2022-12-14", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46483.2, emtf_score: 46527.4, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: true, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Hicks, Ben", rank: "Fire Chief", ems_level: "Paramedic", seniority_date: "2022-12-14", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46483.2, emtf_score: 46527.4, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: true, medl: false, tech_spec: false, pack_test_level: "Arduous" },
       { name: "Doucet, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2022-11-16", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46384, emtf_score: 46502.5, astl: true, pack_test_level: "Arduous" },
       { name: "Appleby, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2025-03-25", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46360.2, emtf_score: 46500.1, ff1: true, engine_boss: true, pack_test_level: "Arduous" },
       { name: "Hanson, Jonathon", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: false, eligible_emtf: true, tifmas_score: 0, emtf_score: 46475, pack_test_level: "Moderate" },
@@ -317,10 +317,13 @@ export const DeploymentRosterPage = () => {
               <Select value={formData.rank || ''} onValueChange={(v) => setFormData({...formData, rank: v})}>
                 <SelectTrigger><SelectValue placeholder="Select rank" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Chief">Chief</SelectItem>
+                  <SelectItem value="Fire Chief">Fire Chief</SelectItem>
+                  <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
+                  <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
                   <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
                   <SelectItem value="Captain">Captain</SelectItem>
                   <SelectItem value="Lieutenant">Lieutenant</SelectItem>
+                  <SelectItem value="Engineer">Engineer</SelectItem>
                   <SelectItem value="Firefighter">Firefighter</SelectItem>
                 </SelectContent>
               </Select>
