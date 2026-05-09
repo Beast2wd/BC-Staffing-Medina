@@ -2544,8 +2544,7 @@ async def get_deployment_roster(
 ):
     """Get all deployment roster entries"""
     roster = await db.deployment_roster.find({}, {"_id": 0}).to_list(1000)
-    # Sort by TIFMAS score by default
-    roster.sort(key=lambda x: x.get("tifmas_score", 0), reverse=True)
+    # Keep original order (order of insertion)
     return roster
 
 @api_router.post("/deployment-roster")

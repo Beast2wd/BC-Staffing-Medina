@@ -70,7 +70,7 @@ export const EMTFRankPage = () => {
           <CardHeader className="bg-blue-500/10 border-b border-blue-500/20">
             <CardTitle className="text-blue-500 flex items-center gap-2">
               <Ambulance className="h-5 w-5" />
-              EMTF Deployment Ranking (Highest Score = Next to Deploy)
+              EMTF Deployment Roster
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -82,7 +82,6 @@ export const EMTFRankPage = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Rank</TableHead>
                     <TableHead>EMS Level</TableHead>
-                    <TableHead className="text-right">EMTF Score</TableHead>
                     <TableHead className="text-center">Last Deploy</TableHead>
                     <TableHead className="text-center">Deploys (12mo)</TableHead>
                     <TableHead className="text-center">MIST</TableHead>
@@ -113,9 +112,6 @@ export const EMTFRankPage = () => {
                         <Badge variant={entry.ems_level === 'Paramedic' ? 'default' : 'secondary'}>
                           {entry.ems_level}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-bold text-blue-500">
-                        {entry.emtf_score?.toFixed(1) || '-'}
                       </TableCell>
                       <TableCell className="text-center">{entry.last_emtf_deploy || '-'}</TableCell>
                       <TableCell className="text-center">{entry.deployments_last_12mo || 0}</TableCell>

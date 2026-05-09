@@ -70,7 +70,7 @@ export const TIFMASRankPage = () => {
           <CardHeader className="bg-orange-500/10 border-b border-orange-500/20">
             <CardTitle className="text-orange-500 flex items-center gap-2">
               <Flame className="h-5 w-5" />
-              TIFMAS Deployment Ranking (Highest Score = Next to Deploy)
+              TIFMAS Deployment Roster
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -82,7 +82,6 @@ export const TIFMASRankPage = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Rank</TableHead>
                     <TableHead>EMS Level</TableHead>
-                    <TableHead className="text-right">TIFMAS Score</TableHead>
                     <TableHead className="text-center">Last Deploy</TableHead>
                     <TableHead className="text-center">Deploys (12mo)</TableHead>
                     <TableHead className="text-center">FF1</TableHead>
@@ -111,9 +110,6 @@ export const TIFMASRankPage = () => {
                         <Badge variant="outline">{entry.rank}</Badge>
                       </TableCell>
                       <TableCell>{entry.ems_level}</TableCell>
-                      <TableCell className="text-right font-mono font-bold text-orange-500">
-                        {entry.tifmas_score?.toFixed(1) || '-'}
-                      </TableCell>
                       <TableCell className="text-center">{entry.last_tifmas_deploy || '-'}</TableCell>
                       <TableCell className="text-center">{entry.deployments_last_12mo || 0}</TableCell>
                       <TableCell className="text-center"><BooleanBadge value={entry.ff1} /></TableCell>

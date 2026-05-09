@@ -130,34 +130,35 @@ export const DeploymentRosterPage = () => {
   };
 
   const handleImport = async () => {
-    // Import the initial data from Excel
+    // Import the initial data from Excel - maintaining exact order from spreadsheet
     const initialData = [
-      { name: "Hicks, Ben", rank: "Fire Chief", ems_level: "Paramedic", seniority_date: "2022-12-14", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46483.2, emtf_score: 46527.4, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: true, medl: false, tech_spec: false, pack_test_level: "Arduous" },
-      { name: "Doucet, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2022-11-16", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46384, emtf_score: 46502.5, astl: true, pack_test_level: "Arduous" },
-      { name: "Appleby, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2025-03-25", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46360.2, emtf_score: 46500.1, ff1: true, engine_boss: true, pack_test_level: "Arduous" },
-      { name: "Hanson, Jonathon", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: false, eligible_emtf: true, tifmas_score: 0, emtf_score: 46475, pack_test_level: "Moderate" },
-      { name: "Malsbury, Miles", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46258.9, emtf_score: 46475, pack_test_level: "Arduous" },
-      { name: "Scott, Xochitl", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: false, eligible_emtf: true, tifmas_score: 0, emtf_score: 46475, pack_test_level: "Moderate" },
-      { name: "Robbins, Charles", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-11-06", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46253.8, emtf_score: 46474.5, mist: true, pack_test_level: "Arduous" },
-      { name: "Medina, Logan", rank: "Lieutenant", ems_level: "EMT-A", seniority_date: "2025-01-07", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46362.9, emtf_score: 46400.4, pack_test_level: "Arduous" },
-      { name: "Fennell, Larry", rank: "Lieutenant", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46354.1, emtf_score: 46299.5, pack_test_level: "Arduous" },
-      { name: "Castillo, Albert", rank: "Lieutenant", ems_level: "EMT-B", seniority_date: "2026-02-20", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46350.9, emtf_score: 46299.2, pack_test_level: "Arduous" },
-      { name: "Floyd, Robert", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-05-18", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46289.2, emtf_score: 46278, pack_test_level: "Arduous" },
-      { name: "Waldron, Collin", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-10-08", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46285, emtf_score: 46277.6, pack_test_level: "Arduous" },
-      { name: "Sanchez, Brandon", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2023-02-27", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46281.1, emtf_score: 46277.2, pack_test_level: "Arduous" },
-      { name: "Strickland, Colt", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2024-04-04", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46269.8, emtf_score: 46276.1, pack_test_level: "Arduous" },
-      { name: "Leal, Efrain", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-02-18", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46261.2, emtf_score: 46275.2, pack_test_level: "Arduous" },
-      { name: "Peterson, Amber", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-02-18", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46261.2, emtf_score: 46275.2, pack_test_level: "Arduous" },
-      { name: "Smith, Chris", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-04-18", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46259.5, emtf_score: 46275.1, pack_test_level: "Arduous" },
-      { name: "Hill, Bryan", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46258.9, emtf_score: 46275, pack_test_level: "Arduous" },
-      { name: "Hart, Ethan", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46254.1, emtf_score: 46274.5, pack_test_level: "Arduous" },
-      { name: "Reyes, Alejandro", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46254.1, emtf_score: 46274.5, pack_test_level: "Arduous" },
-      { name: "Lara, Mike", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2025-01-02", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46363, emtf_score: 462.4, last_deployment: "2026-01-23", deployments_last_12mo: 1, last_emtf_deploy: "2026-01-23", pack_test_level: "Arduous" },
-      { name: "Lavoie, Steven", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-01-28", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46262.3, emtf_score: 437.3, last_deployment: "2026-01-23", deployments_last_12mo: 1, last_emtf_deploy: "2026-01-23", pack_test_level: "Arduous" },
-      { name: "Cyr, Matt", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46258.9, emtf_score: 406, last_deployment: "2026-02-23", deployments_last_12mo: 2, last_emtf_deploy: "2026-02-23", pack_test_level: "Arduous" },
-      { name: "Flores, Frank", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-01-13", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46262.7, emtf_score: 343.4, last_deployment: "2026-04-27", deployments_last_12mo: 1, last_emtf_deploy: "2026-04-27", pack_test_level: "Arduous" },
-      { name: "Rios, Chris", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2023-09-05", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46275.4, emtf_score: 206.6, last_deployment: "2026-02-24", deployments_last_12mo: 1, last_emtf_deploy: "2026-02-24", pack_test_level: "Arduous" },
-      { name: "Lopez, Lucas", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-06-29", eligible_tifmas: true, eligible_emtf: true, tifmas_score: 46288, emtf_score: 145.9, last_deployment: "2026-04-27", deployments_last_12mo: 1, last_emtf_deploy: "2026-04-27", pack_test_level: "Arduous" },
+      { name: "Hicks, Ben", rank: "Fire Chief", ems_level: "Paramedic", seniority_date: "2022-12-14", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Doucet, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2022-11-16", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Appleby, Brandon", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2025-03-25", eligible_tifmas: true, eligible_emtf: true, ff1: true, crew_boss: false, engine_boss: true, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Hanson, Jonathon", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: false, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Moderate" },
+      { name: "Malsbury, Miles", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Scott, Xochitl", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: false, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Moderate" },
+      { name: "Robbins, Charles", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-11-06", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: true, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Lara, Mike", rank: "Lieutenant", ems_level: "Paramedic", seniority_date: "2025-01-02", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Lavoie, Steven", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-01-28", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Cyr, Matt", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Flores, Frank", rank: "Firefighter", ems_level: "Paramedic", seniority_date: "2025-01-13", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Medina, Logan", rank: "Lieutenant", ems_level: "EMT-A", seniority_date: "2025-01-07", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Dixon, Matthew", rank: "Firefighter", ems_level: "EMT-A", seniority_date: "", eligible_tifmas: false, eligible_emtf: false, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Fennell, Larry", rank: "Lieutenant", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Castillo, Albert", rank: "Lieutenant", ems_level: "EMT-B", seniority_date: "2026-02-20", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Floyd, Robert", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-05-18", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Waldron, Collin", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-10-08", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Sanchez, Brandon", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2023-02-27", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Rios, Chris", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2023-09-05", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Strickland, Colt", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2024-04-04", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Leal, Efrain", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-02-18", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Peterson, Amber", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-02-18", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Hill, Bryan", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-04-12", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Smith, Chris", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-04-18", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Hart, Ethan", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Reyes, Alejandro", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2025-10-29", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
+      { name: "Lopez, Lucas", rank: "Firefighter", ems_level: "EMT-B", seniority_date: "2022-06-29", eligible_tifmas: true, eligible_emtf: true, ff1: false, crew_boss: false, engine_boss: false, mist: false, wpu: false, astl: false, medl: false, tech_spec: false, pack_test_level: "Arduous" },
     ];
 
     try {
@@ -226,8 +227,6 @@ export const DeploymentRosterPage = () => {
                     <TableHead>EMS Level</TableHead>
                     <TableHead className="text-center">TIFMAS</TableHead>
                     <TableHead className="text-center">EMTF</TableHead>
-                    <TableHead className="text-right">TIFMAS Score</TableHead>
-                    <TableHead className="text-right">EMTF Score</TableHead>
                     <TableHead className="text-center">FF1</TableHead>
                     <TableHead className="text-center">Crew Boss</TableHead>
                     <TableHead className="text-center">Engine Boss</TableHead>
@@ -254,8 +253,6 @@ export const DeploymentRosterPage = () => {
                       <TableCell className="text-center">
                         <BooleanBadge value={entry.eligible_emtf} />
                       </TableCell>
-                      <TableCell className="text-right font-mono">{entry.tifmas_score?.toFixed(1) || '-'}</TableCell>
-                      <TableCell className="text-right font-mono">{entry.emtf_score?.toFixed(1) || '-'}</TableCell>
                       <TableCell className="text-center"><BooleanBadge value={entry.ff1} /></TableCell>
                       <TableCell className="text-center"><BooleanBadge value={entry.crew_boss} /></TableCell>
                       <TableCell className="text-center"><BooleanBadge value={entry.engine_boss} /></TableCell>
@@ -285,7 +282,7 @@ export const DeploymentRosterPage = () => {
                   ))}
                   {filteredRoster.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={canEdit ? 17 : 16} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canEdit ? 15 : 14} className="text-center py-8 text-muted-foreground">
                         {roster.length === 0 ? 'No roster entries. Click "Import Data" to load the initial roster.' : 'No matching entries found.'}
                       </TableCell>
                     </TableRow>
