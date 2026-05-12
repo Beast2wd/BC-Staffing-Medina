@@ -197,8 +197,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ New submenu under Personnel > Deployment Tracker
 - ✅ **Roster Page** - Full personnel deployment eligibility with certifications (FF1, Crew Boss, Engine Boss, MIST, WPU, ASTL, MedL, Tech-Spec)
 - ✅ **Deployment Log** - Record of all TIFMAS and EMTF deployments with dates, incident names, personnel, positions
-- ✅ **TIFMAS Rank** - Personnel ranked by TIFMAS score (orange theme, highest score = next to deploy)
-- ✅ **EMTF Rank** - Personnel ranked by EMTF score (blue theme, highest score = next to deploy)
+- ✅ **TIFMAS Rank** - Personnel list for TIFMAS deployments (orange theme)
+- ✅ **EMTF Rank** - Personnel list for EMTF deployments (blue theme)
 - ✅ Import Data functionality to load initial roster and log from Excel data
 - ✅ Edit/Delete permissions for Lieutenant rank and above
 - ✅ Pack Test levels (Arduous/Moderate/Light)
@@ -206,6 +206,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Sync with BC Deployments page** - Deployment Log data shows in Battalion Chief > Deployments
 - ✅ **Three view modes**: All, By Name, By Month
 - ✅ **Days calculation** per personnel and total
+- ✅ **Removed TIFMAS/EMTF Score columns** - Score columns hidden from Roster, TIFMAS Rank, and EMTF Rank pages (May 7, 2026)
+- ✅ **Original Excel order preserved** - Personnel list order matches uploaded spreadsheet
 
 ### Time Off Summary Report (May 7, 2026)
 - ✅ New report under Reports tab: "Time Off Summary"
