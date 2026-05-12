@@ -209,6 +209,27 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Removed TIFMAS/EMTF Score columns** - Score columns hidden from Roster, TIFMAS Rank, and EMTF Rank pages (May 7, 2026)
 - ✅ **Original Excel order preserved** - Personnel list order matches uploaded spreadsheet
 
+### TIFMAS Deploy Personnel Feature (May 12, 2026)
+- ✅ **Deploy checkbox column** - Added "Deploy" column with checkboxes next to Pack Test on TIFMAS Rank page
+- ✅ **Deploy Personnel button** - Shows selected count, located below "Eligible Personnel" badge
+- ✅ **Deploy confirmation dialog** includes:
+  - Selected personnel list with name and rank
+  - Start Date and End Date pickers
+  - Location/Incident Name text field
+  - Notes (optional) textarea
+  - Notification Reminder about text/email setup
+  - Yes/No confirmation buttons
+- ✅ **Automatic updates on deployment**:
+  - "Last Deploy" column updates to deployment start date
+  - "Deploys (12mo)" count increments by 1
+- ✅ **Sync with BC Deployments page** - Deployed personnel appear in Battalion Chief > Deployments with:
+  - Personnel name, Station, Shift
+  - Type: TIFMAS (orange badge)
+  - Location/Incident Name
+  - Start/End dates
+  - Active and All Deployments sections
+- ⚠️ **Text/Email Notifications** - PENDING USER SETUP (reminder shown in UI)
+
 ### Time Off Summary Report (May 7, 2026)
 - ✅ New report under Reports tab: "Time Off Summary"
 - ✅ Shows YTD totals for Sick (red), Vacation (blue), and Holiday (green) days

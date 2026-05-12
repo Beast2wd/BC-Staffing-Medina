@@ -2629,6 +2629,83 @@ async def get_emtf_rank(
     roster.sort(key=lambda x: x.get("emtf_score", 0), reverse=True)
     return roster
 
+class TIFMASDeployRequest(BaseModel):
+    personnel_ids: List[str]
+    start_date: str
+    end_date: str
+    location: str
+    notes: str = ""
+
+@api_router.post("/deployment-roster/deploy-tifmas")
+async def deploy_tifmas_personnel(
+    data: TIFMASDeployRequest,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Deploy selected personnel for TIFMAS deployment"""
+    deployed_personnel = []
+    
+    # Get personnel info from deployment_roster
+    for person_id in data.personnel_ids:
+        person = await db.deployment_roster.find_one({"id": person_id}, {"_id": 0})
+        if person:
+            # Create deployment record (for BC Deployments page)
+            deployment_id = str(uuid.uuid4())
+            deployment_record = {
+                "id": deployment_id,
+                "personnel_id": person_id,
+                "personnel_name": person.get("name", ""),
+                "deployment_type": "TIFMAS",
+                "start_date": data.start_date,
+                "end_date": data.end_date,
+                "location": data.location,
+                "notes": data.notes,
+                "station": "",  # Will be empty for roster personnel
+                "shift": "",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.deployments.insert_one(deployment_record)
+            
+            # Create deployment log entry
+            log_entry = {
+                "id": str(uuid.uuid4()),
+                "date": data.start_date,
+                "incident_type": "TIFMAS",
+                "incident_name": data.location,
+                "personnel_name": person.get("name", ""),
+                "personnel_id": person_id,
+                "position": "AST",
+                "notes": data.notes,
+                "start_date": data.start_date,
+                "end_date": data.end_date,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.deployment_log.insert_one(log_entry)
+            
+            # Update deployment_roster with last deploy date and increment 12mo count
+            await db.deployment_roster.update_one(
+                {"id": person_id},
+                {
+                    "$set": {
+                        "last_tifmas_deploy": data.start_date,
+                        "last_deployment": data.start_date,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    },
+                    "$inc": {"deployments_last_12mo": 1}
+                }
+            )
+            
+            deployed_personnel.append({
+                "id": person_id,
+                "name": person.get("name", ""),
+                "deployment_id": deployment_id
+            })
+    
+    return {
+        "message": f"Successfully deployed {len(deployed_personnel)} personnel for TIFMAS",
+        "deployed": deployed_personnel,
+        "reminder": "TEXT AND EMAIL NOTIFICATIONS: Setup pending - please configure notification service"
+    }
+
 @api_router.get("/deployment-log")
 async def get_deployment_log(
     current_user: dict = Depends(get_current_user)
