@@ -222,12 +222,31 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Automatic updates on deployment**:
   - "Last Deploy" column updates to deployment start date
   - "Deploys (12mo)" count increments by 1
-- ✅ **Sync with BC Deployments page** - Deployed personnel appear in Battalion Chief > Deployments with:
+- ✅ **Syncs to BC Deployments page** - Deployed personnel appear in Battalion Chief > Deployments with:
   - Personnel name, Station, Shift
   - Type: TIFMAS (orange badge)
   - Location/Incident Name
   - Start/End dates
   - Active and All Deployments sections
+- ⚠️ **Text/Email Notifications** - PENDING USER SETUP (reminder shown in UI)
+
+### EMTF Deploy Personnel Feature (May 12, 2026)
+- ✅ **Deploy checkbox column** - Added "Deploy" column with checkboxes next to Pack Test on EMTF Rank page
+- ✅ **Deploy Personnel button** - Shows selected count with blue styling
+- ✅ **Deploy confirmation dialog** (blue theme) includes:
+  - Selected personnel list with name, rank, and EMS Level
+  - Start Date and End Date pickers
+  - Location/Incident Name text field
+  - Notes (optional) textarea
+  - Notification Reminder about text/email setup
+  - Yes/No confirmation buttons
+- ✅ **Automatic updates on deployment**:
+  - "Last Deploy" column updates to deployment start date
+  - "Deploys (12mo)" count increments by 1
+- ✅ **Syncs to BC Deployments page** - Deployed personnel appear in Battalion Chief > Deployments with:
+  - Type: EMTF (blue badge)
+  - Location/Incident Name
+  - Start/End dates
 - ⚠️ **Text/Email Notifications** - PENDING USER SETUP (reminder shown in UI)
 
 ### Time Off Summary Report (May 7, 2026)
