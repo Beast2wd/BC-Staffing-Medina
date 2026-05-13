@@ -2047,6 +2047,58 @@ async def create_deployment(
     await db.deployments.insert_one(data.model_dump())
     return data
 
+@api_router.put("/deployments/{deployment_id}")
+async def update_deployment(
+    deployment_id: str,
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Update a deployment and sync date changes to Roster and Deployment Log"""
+    
+    # Get the current entry
+    current_entry = await db.deployments.find_one({"id": deployment_id}, {"_id": 0})
+    if not current_entry:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    personnel_name = current_entry.get("personnel_name", "")
+    deployment_type = current_entry.get("deployment_type", "")
+    
+    # Check if start_date changed
+    if "start_date" in data and data["start_date"] != current_entry.get("start_date", ""):
+        new_date = data["start_date"]
+        
+        if new_date and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
+            # Update deployment roster
+            if deployment_type == "TIFMAS":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_tifmas_deploy": new_date}}
+                )
+            elif deployment_type == "EMTF":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_emtf_deploy": new_date}}
+                )
+            
+            # Update deployment log (most recent matching entry)
+            most_recent_log = await db.deployment_log.find_one(
+                {"personnel_name": personnel_name, "incident_type": deployment_type},
+                sort=[("date", -1)]
+            )
+            if most_recent_log:
+                await db.deployment_log.update_one(
+                    {"id": most_recent_log["id"]},
+                    {"$set": {"date": new_date, "start_date": new_date}}
+                )
+    
+    result = await db.deployments.find_one_and_update(
+        {"id": deployment_id},
+        {"$set": data},
+        return_document=True
+    )
+    result.pop("_id", None)
+    return result
+
 # ===================== REMARKS ROUTES =====================
 
 @api_router.get("/remarks", response_model=List[RemarkEntry])
@@ -2598,42 +2650,61 @@ async def update_deployment_roster_entry(
         raise HTTPException(status_code=404, detail="Roster entry not found")
     
     personnel_name = current_entry.get("name", "")
+    personnel_id = entry_id  # The roster entry ID is used as personnel_id in deployments
     
     # Check if last_tifmas_deploy changed
     if "last_tifmas_deploy" in data and data["last_tifmas_deploy"] != current_entry.get("last_tifmas_deploy", ""):
         new_date = data["last_tifmas_deploy"]
-        old_date = current_entry.get("last_tifmas_deploy", "")
         
         if new_date:
-            # Update most recent TIFMAS deployment log entry for this person
-            await db.deployment_log.update_many(
-                {"personnel_name": personnel_name, "incident_type": "TIFMAS", "date": old_date},
-                {"$set": {"date": new_date, "start_date": new_date}}
+            # Update the most recent TIFMAS deployment log entry for this person (by name)
+            most_recent_log = await db.deployment_log.find_one(
+                {"personnel_name": personnel_name, "incident_type": "TIFMAS"},
+                sort=[("date", -1)]
             )
+            if most_recent_log:
+                await db.deployment_log.update_one(
+                    {"id": most_recent_log["id"]},
+                    {"$set": {"date": new_date, "start_date": new_date}}
+                )
             
-            # Update most recent TIFMAS deployment record (BC Deployments)
-            await db.deployments.update_many(
-                {"personnel_name": personnel_name, "deployment_type": "TIFMAS", "start_date": old_date},
-                {"$set": {"start_date": new_date}}
+            # Update the most recent TIFMAS deployment record (BC Deployments) by name
+            most_recent_deployment = await db.deployments.find_one(
+                {"personnel_name": personnel_name, "deployment_type": "TIFMAS"},
+                sort=[("start_date", -1)]
             )
+            if most_recent_deployment:
+                await db.deployments.update_one(
+                    {"id": most_recent_deployment["id"]},
+                    {"$set": {"start_date": new_date}}
+                )
     
     # Check if last_emtf_deploy changed
     if "last_emtf_deploy" in data and data["last_emtf_deploy"] != current_entry.get("last_emtf_deploy", ""):
         new_date = data["last_emtf_deploy"]
-        old_date = current_entry.get("last_emtf_deploy", "")
         
         if new_date:
-            # Update most recent EMTF deployment log entry for this person
-            await db.deployment_log.update_many(
-                {"personnel_name": personnel_name, "incident_type": "EMTF", "date": old_date},
-                {"$set": {"date": new_date, "start_date": new_date}}
+            # Update the most recent EMTF deployment log entry for this person (by name)
+            most_recent_log = await db.deployment_log.find_one(
+                {"personnel_name": personnel_name, "incident_type": "EMTF"},
+                sort=[("date", -1)]
             )
+            if most_recent_log:
+                await db.deployment_log.update_one(
+                    {"id": most_recent_log["id"]},
+                    {"$set": {"date": new_date, "start_date": new_date}}
+                )
             
-            # Update most recent EMTF deployment record (BC Deployments)
-            await db.deployments.update_many(
-                {"personnel_name": personnel_name, "deployment_type": "EMTF", "start_date": old_date},
-                {"$set": {"start_date": new_date}}
+            # Update the most recent EMTF deployment record (BC Deployments) by name
+            most_recent_deployment = await db.deployments.find_one(
+                {"personnel_name": personnel_name, "deployment_type": "EMTF"},
+                sort=[("start_date", -1)]
             )
+            if most_recent_deployment:
+                await db.deployments.update_one(
+                    {"id": most_recent_deployment["id"]},
+                    {"$set": {"start_date": new_date}}
+                )
     
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.deployment_roster.find_one_and_update(
@@ -2884,14 +2955,50 @@ async def update_deployment_log_entry(
     data: dict,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
-    """Update a deployment log entry"""
+    """Update a deployment log entry and sync date changes to Roster and BC Deployments"""
+    
+    # Get the current entry
+    current_entry = await db.deployment_log.find_one({"id": entry_id}, {"_id": 0})
+    if not current_entry:
+        raise HTTPException(status_code=404, detail="Deployment log entry not found")
+    
+    personnel_name = current_entry.get("personnel_name", "")
+    incident_type = current_entry.get("incident_type", "")
+    
+    # Check if date changed
+    if "date" in data and data["date"] != current_entry.get("date", ""):
+        new_date = data["date"]
+        
+        if new_date and personnel_name:
+            # Update deployment roster
+            if incident_type == "TIFMAS":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_tifmas_deploy": new_date}}
+                )
+            elif incident_type == "EMTF":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_emtf_deploy": new_date}}
+                )
+            
+            # Update BC deployments (most recent matching entry)
+            deployment_type = incident_type  # TIFMAS or EMTF
+            most_recent = await db.deployments.find_one(
+                {"personnel_name": personnel_name, "deployment_type": deployment_type},
+                sort=[("start_date", -1)]
+            )
+            if most_recent:
+                await db.deployments.update_one(
+                    {"id": most_recent["id"]},
+                    {"$set": {"start_date": new_date}}
+                )
+    
     result = await db.deployment_log.find_one_and_update(
         {"id": entry_id},
         {"$set": data},
         return_document=True
     )
-    if not result:
-        raise HTTPException(status_code=404, detail="Deployment log entry not found")
     result.pop("_id", None)
     return result
 
