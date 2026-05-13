@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
@@ -35,6 +35,174 @@ import {
 } from '../../components/ui/table';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
+// Memoized Edit Dialog Component to prevent re-renders
+const EMTFEditDialog = memo(({ open, entry, onClose, onSave, api }) => {
+  const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (entry) {
+      setFormData({ ...entry });
+    }
+  }, [entry]);
+
+  const handleFieldChange = useCallback((field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/deployment-roster/${entry.id}`, formData);
+      toast.success('Entry updated successfully');
+      onSave();
+      onClose();
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast.error('Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!entry) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="edit-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-blue-500">
+            <Edit2 className="h-5 w-5" />
+            Edit EMTF Roster Entry
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-2 gap-4 py-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input 
+              defaultValue={formData.name || ''} 
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              data-testid="edit-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Rank</Label>
+            <Select value={formData.rank || ''} onValueChange={(v) => handleFieldChange('rank', v)}>
+              <SelectTrigger data-testid="edit-rank">
+                <SelectValue placeholder="Select rank" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Fire Chief">Fire Chief</SelectItem>
+                <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
+                <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
+                <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
+                <SelectItem value="Captain">Captain</SelectItem>
+                <SelectItem value="Lieutenant">Lieutenant</SelectItem>
+                <SelectItem value="Engineer">Engineer</SelectItem>
+                <SelectItem value="Firefighter">Firefighter</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>EMS Level</Label>
+            <Select value={formData.ems_level || ''} onValueChange={(v) => handleFieldChange('ems_level', v)}>
+              <SelectTrigger data-testid="edit-ems-level">
+                <SelectValue placeholder="Select EMS level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Paramedic">Paramedic</SelectItem>
+                <SelectItem value="EMT-A">EMT-A</SelectItem>
+                <SelectItem value="EMT-B">EMT-B</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Pack Test Level</Label>
+            <Select value={formData.pack_test_level || ''} onValueChange={(v) => handleFieldChange('pack_test_level', v)}>
+              <SelectTrigger data-testid="edit-pack-test">
+                <SelectValue placeholder="Select level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Arduous">Arduous</SelectItem>
+                <SelectItem value="Moderate">Moderate</SelectItem>
+                <SelectItem value="Light">Light</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Last EMTF Deploy</Label>
+            <Input 
+              type="date"
+              defaultValue={formData.last_emtf_deploy || ''} 
+              onChange={(e) => handleFieldChange('last_emtf_deploy', e.target.value)}
+              data-testid="edit-last-deploy"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Deploys (12mo)</Label>
+            <Input 
+              type="number"
+              defaultValue={formData.deployments_last_12mo || 0} 
+              onChange={(e) => handleFieldChange('deployments_last_12mo', parseInt(e.target.value) || 0)}
+              data-testid="edit-deploys-count"
+            />
+          </div>
+          
+          <div className="col-span-2 pt-4 border-t">
+            <Label className="text-sm font-medium mb-3 block">EMTF Certifications</Label>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.mist} 
+                  onCheckedChange={(c) => handleFieldChange('mist', c)}
+                  data-testid="edit-mist"
+                />
+                <Label>MIST</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.medl} 
+                  onCheckedChange={(c) => handleFieldChange('medl', c)}
+                  data-testid="edit-medl"
+                />
+                <Label>MedL</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.tech_spec} 
+                  onCheckedChange={(c) => handleFieldChange('tech_spec', c)}
+                  data-testid="edit-tech-spec"
+                />
+                <Label>Tech-Spec</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.eligible_emtf} 
+                  onCheckedChange={(c) => handleFieldChange('eligible_emtf', c)}
+                  data-testid="edit-eligible-emtf"
+                />
+                <Label>EMTF Eligible</Label>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-500 hover:bg-blue-600">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+EMTFEditDialog.displayName = 'EMTFEditDialog';
+
 export const EMTFRankPage = () => {
   const { api, canEdit } = useAuth();
   const [roster, setRoster] = useState([]);
@@ -51,7 +219,6 @@ export const EMTFRankPage = () => {
 
   // Edit state
   const [editDialog, setEditDialog] = useState({ open: false, entry: null });
-  const [formData, setFormData] = useState({});
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -141,23 +308,13 @@ export const EMTFRankPage = () => {
     return roster.filter(p => selectedPersonnel.includes(p.id));
   };
 
-  // Edit functionality
-  const openEditDialog = (entry) => {
-    setFormData({ ...entry });
+  const openEditDialog = useCallback((entry) => {
     setEditDialog({ open: true, entry });
-  };
+  }, []);
 
-  const handleSaveEdit = async () => {
-    try {
-      await api.put(`/deployment-roster/${editDialog.entry.id}`, formData);
-      toast.success('Entry updated successfully');
-      setEditDialog({ open: false, entry: null });
-      fetchRoster();
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast.error('Failed to save changes');
-    }
-  };
+  const closeEditDialog = useCallback(() => {
+    setEditDialog({ open: false, entry: null });
+  }, []);
 
   const BooleanBadge = ({ value }) => (
     value ? 
@@ -244,7 +401,7 @@ export const EMTFRankPage = () => {
                   {roster.map((entry, index) => (
                     <TableRow 
                       key={entry.id} 
-                      className={`${index < 3 ? 'bg-blue-500/5' : ''} ${selectedPersonnel.includes(entry.id) ? 'bg-blue-500/10' : ''}`}
+                      className={`${selectedPersonnel.includes(entry.id) ? 'bg-blue-500/10' : ''}`}
                     >
                       <TableCell className="text-center font-bold">
                         <span className="text-muted-foreground">{index + 1}</span>
@@ -423,137 +580,14 @@ export const EMTFRankPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Personnel Dialog */}
-      <Dialog open={editDialog.open} onOpenChange={(open) => !open && setEditDialog({ open: false, entry: null })}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="edit-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-blue-500">
-              <Edit2 className="h-5 w-5" />
-              Edit EMTF Roster Entry
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input 
-                value={formData.name || ''} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                data-testid="edit-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rank</Label>
-              <Select value={formData.rank || ''} onValueChange={(v) => setFormData({...formData, rank: v})}>
-                <SelectTrigger data-testid="edit-rank">
-                  <SelectValue placeholder="Select rank" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fire Chief">Fire Chief</SelectItem>
-                  <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
-                  <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
-                  <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
-                  <SelectItem value="Captain">Captain</SelectItem>
-                  <SelectItem value="Lieutenant">Lieutenant</SelectItem>
-                  <SelectItem value="Engineer">Engineer</SelectItem>
-                  <SelectItem value="Firefighter">Firefighter</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>EMS Level</Label>
-              <Select value={formData.ems_level || ''} onValueChange={(v) => setFormData({...formData, ems_level: v})}>
-                <SelectTrigger data-testid="edit-ems-level">
-                  <SelectValue placeholder="Select EMS level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paramedic">Paramedic</SelectItem>
-                  <SelectItem value="EMT-A">EMT-A</SelectItem>
-                  <SelectItem value="EMT-B">EMT-B</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Pack Test Level</Label>
-              <Select value={formData.pack_test_level || ''} onValueChange={(v) => setFormData({...formData, pack_test_level: v})}>
-                <SelectTrigger data-testid="edit-pack-test">
-                  <SelectValue placeholder="Select level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Arduous">Arduous</SelectItem>
-                  <SelectItem value="Moderate">Moderate</SelectItem>
-                  <SelectItem value="Light">Light</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Last EMTF Deploy</Label>
-              <Input 
-                type="date"
-                value={formData.last_emtf_deploy || ''} 
-                onChange={(e) => setFormData({...formData, last_emtf_deploy: e.target.value})}
-                data-testid="edit-last-deploy"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Deploys (12mo)</Label>
-              <Input 
-                type="number"
-                value={formData.deployments_last_12mo || 0} 
-                onChange={(e) => setFormData({...formData, deployments_last_12mo: parseInt(e.target.value) || 0})}
-                data-testid="edit-deploys-count"
-              />
-            </div>
-            
-            <div className="col-span-2 pt-4 border-t">
-              <Label className="text-sm font-medium mb-3 block">EMTF Certifications</Label>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.mist} 
-                    onCheckedChange={(c) => setFormData({...formData, mist: c})}
-                    data-testid="edit-mist"
-                  />
-                  <Label>MIST</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.medl} 
-                    onCheckedChange={(c) => setFormData({...formData, medl: c})}
-                    data-testid="edit-medl"
-                  />
-                  <Label>MedL</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.tech_spec} 
-                    onCheckedChange={(c) => setFormData({...formData, tech_spec: c})}
-                    data-testid="edit-tech-spec"
-                  />
-                  <Label>Tech-Spec</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.eligible_emtf} 
-                    onCheckedChange={(c) => setFormData({...formData, eligible_emtf: c})}
-                    data-testid="edit-eligible-emtf"
-                  />
-                  <Label>EMTF Eligible</Label>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog({ open: false, entry: null })}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveEdit} className="bg-blue-500 hover:bg-blue-600">
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Personnel Dialog - Memoized Component */}
+      <EMTFEditDialog 
+        open={editDialog.open}
+        entry={editDialog.entry}
+        onClose={closeEditDialog}
+        onSave={fetchRoster}
+        api={api}
+      />
     </div>
   );
 };

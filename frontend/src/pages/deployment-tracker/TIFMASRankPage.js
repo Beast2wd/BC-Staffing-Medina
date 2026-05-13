@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
@@ -35,6 +35,190 @@ import {
 } from '../../components/ui/table';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
+// Memoized Edit Dialog Component to prevent re-renders
+const TIFMASEditDialog = memo(({ open, entry, onClose, onSave, api }) => {
+  const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (entry) {
+      setFormData({ ...entry });
+    }
+  }, [entry]);
+
+  const handleFieldChange = useCallback((field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/deployment-roster/${entry.id}`, formData);
+      toast.success('Entry updated successfully');
+      onSave();
+      onClose();
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast.error('Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!entry) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="edit-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-orange-500">
+            <Edit2 className="h-5 w-5" />
+            Edit TIFMAS Roster Entry
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="grid grid-cols-2 gap-4 py-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input 
+              defaultValue={formData.name || ''} 
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              data-testid="edit-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Rank</Label>
+            <Select value={formData.rank || ''} onValueChange={(v) => handleFieldChange('rank', v)}>
+              <SelectTrigger data-testid="edit-rank">
+                <SelectValue placeholder="Select rank" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Fire Chief">Fire Chief</SelectItem>
+                <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
+                <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
+                <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
+                <SelectItem value="Captain">Captain</SelectItem>
+                <SelectItem value="Lieutenant">Lieutenant</SelectItem>
+                <SelectItem value="Engineer">Engineer</SelectItem>
+                <SelectItem value="Firefighter">Firefighter</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>EMS Level</Label>
+            <Select value={formData.ems_level || ''} onValueChange={(v) => handleFieldChange('ems_level', v)}>
+              <SelectTrigger data-testid="edit-ems-level">
+                <SelectValue placeholder="Select EMS level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Paramedic">Paramedic</SelectItem>
+                <SelectItem value="EMT-A">EMT-A</SelectItem>
+                <SelectItem value="EMT-B">EMT-B</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Pack Test Level</Label>
+            <Select value={formData.pack_test_level || ''} onValueChange={(v) => handleFieldChange('pack_test_level', v)}>
+              <SelectTrigger data-testid="edit-pack-test">
+                <SelectValue placeholder="Select level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Arduous">Arduous</SelectItem>
+                <SelectItem value="Moderate">Moderate</SelectItem>
+                <SelectItem value="Light">Light</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Last TIFMAS Deploy</Label>
+            <Input 
+              type="date"
+              defaultValue={formData.last_tifmas_deploy || ''} 
+              onChange={(e) => handleFieldChange('last_tifmas_deploy', e.target.value)}
+              data-testid="edit-last-deploy"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Deploys (12mo)</Label>
+            <Input 
+              type="number"
+              defaultValue={formData.deployments_last_12mo || 0} 
+              onChange={(e) => handleFieldChange('deployments_last_12mo', parseInt(e.target.value) || 0)}
+              data-testid="edit-deploys-count"
+            />
+          </div>
+          
+          <div className="col-span-2 pt-4 border-t">
+            <Label className="text-sm font-medium mb-3 block">TIFMAS Certifications</Label>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.ff1} 
+                  onCheckedChange={(c) => handleFieldChange('ff1', c)}
+                  data-testid="edit-ff1"
+                />
+                <Label>FF1</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.crew_boss} 
+                  onCheckedChange={(c) => handleFieldChange('crew_boss', c)}
+                  data-testid="edit-crew-boss"
+                />
+                <Label>Crew Boss</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.engine_boss} 
+                  onCheckedChange={(c) => handleFieldChange('engine_boss', c)}
+                  data-testid="edit-engine-boss"
+                />
+                <Label>Engine Boss</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.astl} 
+                  onCheckedChange={(c) => handleFieldChange('astl', c)}
+                  data-testid="edit-astl"
+                />
+                <Label>ASTL</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.wpu} 
+                  onCheckedChange={(c) => handleFieldChange('wpu', c)}
+                  data-testid="edit-wpu"
+                />
+                <Label>WPU</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox 
+                  checked={formData.eligible_tifmas} 
+                  onCheckedChange={(c) => handleFieldChange('eligible_tifmas', c)}
+                  data-testid="edit-eligible-tifmas"
+                />
+                <Label>TIFMAS Eligible</Label>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+TIFMASEditDialog.displayName = 'TIFMASEditDialog';
+
 export const TIFMASRankPage = () => {
   const { api, canEdit } = useAuth();
   const [roster, setRoster] = useState([]);
@@ -51,7 +235,6 @@ export const TIFMASRankPage = () => {
   
   // Edit state
   const [editDialog, setEditDialog] = useState({ open: false, entry: null });
-  const [formData, setFormData] = useState({});
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -141,23 +324,13 @@ export const TIFMASRankPage = () => {
     return roster.filter(p => selectedPersonnel.includes(p.id));
   };
 
-  // Edit functionality
-  const openEditDialog = (entry) => {
-    setFormData({ ...entry });
+  const openEditDialog = useCallback((entry) => {
     setEditDialog({ open: true, entry });
-  };
+  }, []);
 
-  const handleSaveEdit = async () => {
-    try {
-      await api.put(`/deployment-roster/${editDialog.entry.id}`, formData);
-      toast.success('Entry updated successfully');
-      setEditDialog({ open: false, entry: null });
-      fetchRoster();
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast.error('Failed to save changes');
-    }
-  };
+  const closeEditDialog = useCallback(() => {
+    setEditDialog({ open: false, entry: null });
+  }, []);
 
   const BooleanBadge = ({ value }) => (
     value ? 
@@ -245,7 +418,7 @@ export const TIFMASRankPage = () => {
                   {roster.map((entry, index) => (
                     <TableRow 
                       key={entry.id} 
-                      className={`${index < 3 ? 'bg-orange-500/5' : ''} ${selectedPersonnel.includes(entry.id) ? 'bg-orange-500/10' : ''}`}
+                      className={`${selectedPersonnel.includes(entry.id) ? 'bg-orange-500/10' : ''}`}
                     >
                       <TableCell className="text-center font-bold">
                         <span className="text-muted-foreground">{index + 1}</span>
@@ -418,153 +591,14 @@ export const TIFMASRankPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Personnel Dialog */}
-      <Dialog open={editDialog.open} onOpenChange={(open) => !open && setEditDialog({ open: false, entry: null })}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="edit-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-orange-500">
-              <Edit2 className="h-5 w-5" />
-              Edit TIFMAS Roster Entry
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input 
-                value={formData.name || ''} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                data-testid="edit-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rank</Label>
-              <Select value={formData.rank || ''} onValueChange={(v) => setFormData({...formData, rank: v})}>
-                <SelectTrigger data-testid="edit-rank">
-                  <SelectValue placeholder="Select rank" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fire Chief">Fire Chief</SelectItem>
-                  <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
-                  <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
-                  <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
-                  <SelectItem value="Captain">Captain</SelectItem>
-                  <SelectItem value="Lieutenant">Lieutenant</SelectItem>
-                  <SelectItem value="Engineer">Engineer</SelectItem>
-                  <SelectItem value="Firefighter">Firefighter</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>EMS Level</Label>
-              <Select value={formData.ems_level || ''} onValueChange={(v) => setFormData({...formData, ems_level: v})}>
-                <SelectTrigger data-testid="edit-ems-level">
-                  <SelectValue placeholder="Select EMS level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Paramedic">Paramedic</SelectItem>
-                  <SelectItem value="EMT-A">EMT-A</SelectItem>
-                  <SelectItem value="EMT-B">EMT-B</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Pack Test Level</Label>
-              <Select value={formData.pack_test_level || ''} onValueChange={(v) => setFormData({...formData, pack_test_level: v})}>
-                <SelectTrigger data-testid="edit-pack-test">
-                  <SelectValue placeholder="Select level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Arduous">Arduous</SelectItem>
-                  <SelectItem value="Moderate">Moderate</SelectItem>
-                  <SelectItem value="Light">Light</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Last TIFMAS Deploy</Label>
-              <Input 
-                type="date"
-                value={formData.last_tifmas_deploy || ''} 
-                onChange={(e) => setFormData({...formData, last_tifmas_deploy: e.target.value})}
-                data-testid="edit-last-deploy"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Deploys (12mo)</Label>
-              <Input 
-                type="number"
-                value={formData.deployments_last_12mo || 0} 
-                onChange={(e) => setFormData({...formData, deployments_last_12mo: parseInt(e.target.value) || 0})}
-                data-testid="edit-deploys-count"
-              />
-            </div>
-            
-            <div className="col-span-2 pt-4 border-t">
-              <Label className="text-sm font-medium mb-3 block">TIFMAS Certifications</Label>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.ff1} 
-                    onCheckedChange={(c) => setFormData({...formData, ff1: c})}
-                    data-testid="edit-ff1"
-                  />
-                  <Label>FF1</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.crew_boss} 
-                    onCheckedChange={(c) => setFormData({...formData, crew_boss: c})}
-                    data-testid="edit-crew-boss"
-                  />
-                  <Label>Crew Boss</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.engine_boss} 
-                    onCheckedChange={(c) => setFormData({...formData, engine_boss: c})}
-                    data-testid="edit-engine-boss"
-                  />
-                  <Label>Engine Boss</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.astl} 
-                    onCheckedChange={(c) => setFormData({...formData, astl: c})}
-                    data-testid="edit-astl"
-                  />
-                  <Label>ASTL</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.wpu} 
-                    onCheckedChange={(c) => setFormData({...formData, wpu: c})}
-                    data-testid="edit-wpu"
-                  />
-                  <Label>WPU</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    checked={formData.eligible_tifmas} 
-                    onCheckedChange={(c) => setFormData({...formData, eligible_tifmas: c})}
-                    data-testid="edit-eligible-tifmas"
-                  />
-                  <Label>TIFMAS Eligible</Label>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog({ open: false, entry: null })}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveEdit} className="bg-orange-500 hover:bg-orange-600">
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Personnel Dialog - Memoized Component */}
+      <TIFMASEditDialog 
+        open={editDialog.open}
+        entry={editDialog.entry}
+        onClose={closeEditDialog}
+        onSave={fetchRoster}
+        api={api}
+      />
     </div>
   );
 };

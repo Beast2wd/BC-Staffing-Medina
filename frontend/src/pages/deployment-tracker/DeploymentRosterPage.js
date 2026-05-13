@@ -305,13 +305,14 @@ export const DeploymentRosterPage = () => {
             <div className="space-y-2">
               <Label>Name</Label>
               <Input 
-                value={formData.name || ''} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                key={editDialog.entry?.id || 'new'}
+                defaultValue={formData.name || ''} 
+                onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
               />
             </div>
             <div className="space-y-2">
               <Label>Rank</Label>
-              <Select value={formData.rank || ''} onValueChange={(v) => setFormData({...formData, rank: v})}>
+              <Select value={formData.rank || ''} onValueChange={(v) => setFormData(prev => ({...prev, rank: v}))}>
                 <SelectTrigger><SelectValue placeholder="Select rank" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Fire Chief">Fire Chief</SelectItem>
@@ -327,7 +328,7 @@ export const DeploymentRosterPage = () => {
             </div>
             <div className="space-y-2">
               <Label>EMS Level</Label>
-              <Select value={formData.ems_level || ''} onValueChange={(v) => setFormData({...formData, ems_level: v})}>
+              <Select value={formData.ems_level || ''} onValueChange={(v) => setFormData(prev => ({...prev, ems_level: v}))}>
                 <SelectTrigger><SelectValue placeholder="Select EMS level" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Paramedic">Paramedic</SelectItem>
@@ -338,7 +339,7 @@ export const DeploymentRosterPage = () => {
             </div>
             <div className="space-y-2">
               <Label>Pack Test Level</Label>
-              <Select value={formData.pack_test_level || ''} onValueChange={(v) => setFormData({...formData, pack_test_level: v})}>
+              <Select value={formData.pack_test_level || ''} onValueChange={(v) => setFormData(prev => ({...prev, pack_test_level: v}))}>
                 <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Arduous">Arduous</SelectItem>
@@ -351,16 +352,18 @@ export const DeploymentRosterPage = () => {
               <Label>TIFMAS Score</Label>
               <Input 
                 type="number"
-                value={formData.tifmas_score || ''} 
-                onChange={(e) => setFormData({...formData, tifmas_score: parseFloat(e.target.value) || 0})}
+                key={`tifmas-${editDialog.entry?.id || 'new'}`}
+                defaultValue={formData.tifmas_score || ''} 
+                onChange={(e) => setFormData(prev => ({...prev, tifmas_score: parseFloat(e.target.value) || 0}))}
               />
             </div>
             <div className="space-y-2">
               <Label>EMTF Score</Label>
               <Input 
                 type="number"
-                value={formData.emtf_score || ''} 
-                onChange={(e) => setFormData({...formData, emtf_score: parseFloat(e.target.value) || 0})}
+                key={`emtf-${editDialog.entry?.id || 'new'}`}
+                defaultValue={formData.emtf_score || ''} 
+                onChange={(e) => setFormData(prev => ({...prev, emtf_score: parseFloat(e.target.value) || 0}))}
               />
             </div>
             
@@ -368,70 +371,70 @@ export const DeploymentRosterPage = () => {
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.eligible_tifmas} 
-                  onCheckedChange={(c) => setFormData({...formData, eligible_tifmas: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, eligible_tifmas: c}))}
                 />
                 <Label>TIFMAS Eligible</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.eligible_emtf} 
-                  onCheckedChange={(c) => setFormData({...formData, eligible_emtf: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, eligible_emtf: c}))}
                 />
                 <Label>EMTF Eligible</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.ff1} 
-                  onCheckedChange={(c) => setFormData({...formData, ff1: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, ff1: c}))}
                 />
                 <Label>FF1</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.crew_boss} 
-                  onCheckedChange={(c) => setFormData({...formData, crew_boss: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, crew_boss: c}))}
                 />
                 <Label>Crew Boss</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.engine_boss} 
-                  onCheckedChange={(c) => setFormData({...formData, engine_boss: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, engine_boss: c}))}
                 />
                 <Label>Engine Boss</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.mist} 
-                  onCheckedChange={(c) => setFormData({...formData, mist: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, mist: c}))}
                 />
                 <Label>MIST</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.wpu} 
-                  onCheckedChange={(c) => setFormData({...formData, wpu: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, wpu: c}))}
                 />
                 <Label>WPU</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.astl} 
-                  onCheckedChange={(c) => setFormData({...formData, astl: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, astl: c}))}
                 />
                 <Label>ASTL</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.medl} 
-                  onCheckedChange={(c) => setFormData({...formData, medl: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, medl: c}))}
                 />
                 <Label>MedL</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
                   checked={formData.tech_spec} 
-                  onCheckedChange={(c) => setFormData({...formData, tech_spec: c})}
+                  onCheckedChange={(c) => setFormData(prev => ({...prev, tech_spec: c}))}
                 />
                 <Label>Tech-Spec</Label>
               </div>
