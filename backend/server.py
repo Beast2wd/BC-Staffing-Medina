@@ -2590,15 +2590,57 @@ async def update_deployment_roster_entry(
     data: dict,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
-    """Update a deployment roster entry"""
+    """Update a deployment roster entry and sync Last Deploy changes to Deployment Log and BC Deployments"""
+    
+    # Get the current entry to check for changes
+    current_entry = await db.deployment_roster.find_one({"id": entry_id}, {"_id": 0})
+    if not current_entry:
+        raise HTTPException(status_code=404, detail="Roster entry not found")
+    
+    personnel_name = current_entry.get("name", "")
+    
+    # Check if last_tifmas_deploy changed
+    if "last_tifmas_deploy" in data and data["last_tifmas_deploy"] != current_entry.get("last_tifmas_deploy", ""):
+        new_date = data["last_tifmas_deploy"]
+        old_date = current_entry.get("last_tifmas_deploy", "")
+        
+        if new_date:
+            # Update most recent TIFMAS deployment log entry for this person
+            await db.deployment_log.update_many(
+                {"personnel_name": personnel_name, "incident_type": "TIFMAS", "date": old_date},
+                {"$set": {"date": new_date, "start_date": new_date}}
+            )
+            
+            # Update most recent TIFMAS deployment record (BC Deployments)
+            await db.deployments.update_many(
+                {"personnel_name": personnel_name, "deployment_type": "TIFMAS", "start_date": old_date},
+                {"$set": {"start_date": new_date}}
+            )
+    
+    # Check if last_emtf_deploy changed
+    if "last_emtf_deploy" in data and data["last_emtf_deploy"] != current_entry.get("last_emtf_deploy", ""):
+        new_date = data["last_emtf_deploy"]
+        old_date = current_entry.get("last_emtf_deploy", "")
+        
+        if new_date:
+            # Update most recent EMTF deployment log entry for this person
+            await db.deployment_log.update_many(
+                {"personnel_name": personnel_name, "incident_type": "EMTF", "date": old_date},
+                {"$set": {"date": new_date, "start_date": new_date}}
+            )
+            
+            # Update most recent EMTF deployment record (BC Deployments)
+            await db.deployments.update_many(
+                {"personnel_name": personnel_name, "deployment_type": "EMTF", "start_date": old_date},
+                {"$set": {"start_date": new_date}}
+            )
+    
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.deployment_roster.find_one_and_update(
         {"id": entry_id},
         {"$set": data},
         return_document=True
     )
-    if not result:
-        raise HTTPException(status_code=404, detail="Roster entry not found")
     result.pop("_id", None)
     return result
 
