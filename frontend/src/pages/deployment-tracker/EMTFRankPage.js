@@ -247,15 +247,7 @@ export const EMTFRankPage = () => {
                       className={`${index < 3 ? 'bg-blue-500/5' : ''} ${selectedPersonnel.includes(entry.id) ? 'bg-blue-500/10' : ''}`}
                     >
                       <TableCell className="text-center font-bold">
-                        {index === 0 ? (
-                          <span className="text-blue-500 text-lg">1st</span>
-                        ) : index === 1 ? (
-                          <span className="text-blue-400">2nd</span>
-                        ) : index === 2 ? (
-                          <span className="text-blue-300">3rd</span>
-                        ) : (
-                          <span className="text-muted-foreground">{index + 1}</span>
-                        )}
+                        <span className="text-muted-foreground">{index + 1}</span>
                       </TableCell>
                       <TableCell className="font-medium">{entry.name}</TableCell>
                       <TableCell>

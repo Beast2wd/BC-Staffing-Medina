@@ -248,15 +248,7 @@ export const TIFMASRankPage = () => {
                       className={`${index < 3 ? 'bg-orange-500/5' : ''} ${selectedPersonnel.includes(entry.id) ? 'bg-orange-500/10' : ''}`}
                     >
                       <TableCell className="text-center font-bold">
-                        {index === 0 ? (
-                          <span className="text-orange-500 text-lg">1st</span>
-                        ) : index === 1 ? (
-                          <span className="text-orange-400">2nd</span>
-                        ) : index === 2 ? (
-                          <span className="text-orange-300">3rd</span>
-                        ) : (
-                          <span className="text-muted-foreground">{index + 1}</span>
-                        )}
+                        <span className="text-muted-foreground">{index + 1}</span>
                       </TableCell>
                       <TableCell className="font-medium">{entry.name}</TableCell>
                       <TableCell>
