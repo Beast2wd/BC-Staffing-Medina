@@ -475,6 +475,34 @@ class RemarkEntry(BaseModel):
 
 # ===================== AUTH HELPERS =====================
 
+# Rank hierarchy for sorting (lower number = higher rank)
+RANK_ORDER = {
+    "Fire Chief": 1,
+    "Asst. Chief": 2,
+    "Deputy Chief": 3,
+    "Battalion Chief": 4,
+    "Captain": 5,
+    "Lieutenant": 6,
+    "Engineer": 7,
+    "Firefighter": 8
+}
+
+def get_last_name(name: str) -> str:
+    """Extract last name from 'Last, First' or 'First Last' format"""
+    if not name:
+        return ""
+    if "," in name:
+        return name.split(",")[0].strip().lower()
+    parts = name.strip().split()
+    return parts[-1].lower() if parts else ""
+
+def sort_by_rank_and_name(roster: list) -> list:
+    """Sort roster by rank hierarchy first, then alphabetically by last name"""
+    return sorted(roster, key=lambda x: (
+        RANK_ORDER.get(x.get("rank", ""), 99),
+        get_last_name(x.get("name", ""))
+    ))
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -2542,10 +2570,9 @@ async def get_time_off_summary(
 async def get_deployment_roster(
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all deployment roster entries"""
+    """Get all deployment roster entries sorted by rank then last name"""
     roster = await db.deployment_roster.find({}, {"_id": 0}).to_list(1000)
-    # Keep original order (order of insertion)
-    return roster
+    return sort_by_rank_and_name(roster)
 
 @api_router.post("/deployment-roster")
 async def create_deployment_roster_entry(
@@ -2609,25 +2636,23 @@ async def import_deployment_roster(
 async def get_tifmas_rank(
     current_user: dict = Depends(get_current_user)
 ):
-    """Get roster sorted by TIFMAS score"""
+    """Get TIFMAS eligible roster sorted by rank then last name"""
     roster = await db.deployment_roster.find(
         {"eligible_tifmas": True}, 
         {"_id": 0}
     ).to_list(1000)
-    roster.sort(key=lambda x: x.get("tifmas_score", 0), reverse=True)
-    return roster
+    return sort_by_rank_and_name(roster)
 
 @api_router.get("/deployment-roster/emtf-rank")
 async def get_emtf_rank(
     current_user: dict = Depends(get_current_user)
 ):
-    """Get roster sorted by EMTF score"""
+    """Get EMTF eligible roster sorted by rank then last name"""
     roster = await db.deployment_roster.find(
         {"eligible_emtf": True}, 
         {"_id": 0}
     ).to_list(1000)
-    roster.sort(key=lambda x: x.get("emtf_score", 0), reverse=True)
-    return roster
+    return sort_by_rank_and_name(roster)
 
 class TIFMASDeployRequest(BaseModel):
     personnel_ids: List[str]
@@ -2787,9 +2812,18 @@ async def deploy_emtf_personnel(
 async def get_deployment_log(
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all deployment log entries"""
+    """Get all deployment log entries sorted by rank then last name"""
     logs = await db.deployment_log.find({}, {"_id": 0}).to_list(1000)
-    logs.sort(key=lambda x: x.get("date", ""), reverse=True)
+    
+    # Get roster to lookup ranks
+    roster = await db.deployment_roster.find({}, {"_id": 0, "name": 1, "rank": 1}).to_list(1000)
+    name_to_rank = {r.get("name", ""): r.get("rank", "") for r in roster}
+    
+    # Sort by rank hierarchy then last name
+    logs.sort(key=lambda x: (
+        RANK_ORDER.get(name_to_rank.get(x.get("personnel_name", ""), ""), 99),
+        get_last_name(x.get("personnel_name", ""))
+    ))
     return logs
 
 @api_router.post("/deployment-log")
