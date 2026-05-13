@@ -2066,33 +2066,43 @@ async def update_deployment(
     personnel_name = current_entry.get("personnel_name", "")
     deployment_type = current_entry.get("deployment_type", "")
     
+    # Build update for deployment_log
+    log_update = {}
+    
     # Check if start_date changed
-    if "start_date" in data and data["start_date"] != current_entry.get("start_date", ""):
-        new_date = data["start_date"]
+    if "start_date" in data:
+        new_start_date = data["start_date"]
+        log_update["date"] = new_start_date
+        log_update["start_date"] = new_start_date
         
-        if new_date and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
-            # Update deployment roster
+        # Update deployment roster with new start date
+        if new_start_date and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
             if deployment_type == "TIFMAS":
                 await db.deployment_roster.update_one(
                     {"name": personnel_name},
-                    {"$set": {"last_tifmas_deploy": new_date}}
+                    {"$set": {"last_tifmas_deploy": new_start_date}}
                 )
             elif deployment_type == "EMTF":
                 await db.deployment_roster.update_one(
                     {"name": personnel_name},
-                    {"$set": {"last_emtf_deploy": new_date}}
+                    {"$set": {"last_emtf_deploy": new_start_date}}
                 )
-            
-            # Update deployment log (most recent matching entry)
-            most_recent_log = await db.deployment_log.find_one(
-                {"personnel_name": personnel_name, "incident_type": deployment_type},
-                sort=[("date", -1)]
+    
+    # Check if end_date changed
+    if "end_date" in data:
+        log_update["end_date"] = data["end_date"]
+    
+    # Update deployment log if there are changes
+    if log_update and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
+        most_recent_log = await db.deployment_log.find_one(
+            {"personnel_name": personnel_name, "incident_type": deployment_type},
+            sort=[("date", -1)]
+        )
+        if most_recent_log:
+            await db.deployment_log.update_one(
+                {"id": most_recent_log["id"]},
+                {"$set": log_update}
             )
-            if most_recent_log:
-                await db.deployment_log.update_one(
-                    {"id": most_recent_log["id"]},
-                    {"$set": {"date": new_date, "start_date": new_date}}
-                )
     
     result = await db.deployments.find_one_and_update(
         {"id": deployment_id},
@@ -2968,34 +2978,42 @@ async def update_deployment_log_entry(
     personnel_name = current_entry.get("personnel_name", "")
     incident_type = current_entry.get("incident_type", "")
     
-    # Check if date changed
-    if "date" in data and data["date"] != current_entry.get("date", ""):
-        new_date = data["date"]
-        
-        if new_date and personnel_name:
-            # Update deployment roster
-            if incident_type == "TIFMAS":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_tifmas_deploy": new_date}}
-                )
-            elif incident_type == "EMTF":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_emtf_deploy": new_date}}
-                )
+    # Build update for BC deployments
+    deployments_update = {}
+    
+    # Check if start_date (date) changed
+    if "date" in data or "start_date" in data:
+        new_start_date = data.get("start_date") or data.get("date")
+        if new_start_date:
+            deployments_update["start_date"] = new_start_date
             
-            # Update BC deployments (most recent matching entry)
-            deployment_type = incident_type  # TIFMAS or EMTF
-            most_recent = await db.deployments.find_one(
-                {"personnel_name": personnel_name, "deployment_type": deployment_type},
-                sort=[("start_date", -1)]
-            )
-            if most_recent:
-                await db.deployments.update_one(
-                    {"id": most_recent["id"]},
-                    {"$set": {"start_date": new_date}}
+            # Update deployment roster
+            if personnel_name and incident_type == "TIFMAS":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_tifmas_deploy": new_start_date}}
                 )
+            elif personnel_name and incident_type == "EMTF":
+                await db.deployment_roster.update_one(
+                    {"name": personnel_name},
+                    {"$set": {"last_emtf_deploy": new_start_date}}
+                )
+    
+    # Check if end_date changed
+    if "end_date" in data:
+        deployments_update["end_date"] = data["end_date"]
+    
+    # Update BC deployments (most recent matching entry)
+    if deployments_update and personnel_name and incident_type in ["TIFMAS", "EMTF"]:
+        most_recent = await db.deployments.find_one(
+            {"personnel_name": personnel_name, "deployment_type": incident_type},
+            sort=[("start_date", -1)]
+        )
+        if most_recent:
+            await db.deployments.update_one(
+                {"id": most_recent["id"]},
+                {"$set": deployments_update}
+            )
     
     result = await db.deployment_log.find_one_and_update(
         {"id": entry_id},
