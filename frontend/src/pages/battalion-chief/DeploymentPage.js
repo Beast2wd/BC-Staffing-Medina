@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -9,8 +9,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2, Users, Calendar, Clock, Flame, Ambulance, ChevronDown, ChevronRight } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Plus, Save, Trash2, Users, Calendar, Clock, Flame, Ambulance, ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
@@ -44,6 +44,11 @@ export const DeploymentPage = () => {
     location: '',
     notes: ''
   });
+  
+  // Edit dialog state
+  const [editDialog, setEditDialog] = useState({ open: false, deployment: null });
+  const [editFormData, setEditFormData] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const deploymentTypes = [
     'TIFMAS',
@@ -130,6 +135,70 @@ export const DeploymentPage = () => {
 
   const getPersonnelInfo = (personnelId) => {
     return personnel.find(p => p.id === personnelId);
+  };
+
+  // Edit deployment handlers
+  const openEditDialog = useCallback((deployment) => {
+    setEditFormData({
+      id: deployment.id,
+      personnel_name: deployment.personnel_name,
+      personnel_id: deployment.personnel_id,
+      deployment_type: deployment.deployment_type || deployment.incident_type,
+      start_date: deployment.start_date || deployment.date,
+      end_date: deployment.end_date || deployment.date,
+      location: deployment.location || deployment.incident_name,
+      notes: deployment.notes || '',
+      position: deployment.position || '',
+      source: deployment.source
+    });
+    setEditDialog({ open: true, deployment });
+  }, []);
+
+  const closeEditDialog = useCallback(() => {
+    setEditDialog({ open: false, deployment: null });
+    setEditFormData({});
+  }, []);
+
+  const handleSaveEdit = async () => {
+    if (!editFormData.start_date || !editFormData.end_date) {
+      toast.error('Please fill in start and end dates');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const deployment = editDialog.deployment;
+      
+      // Update based on source
+      if (deployment.source === 'deployment') {
+        // Update deployments collection
+        await api.put(`/deployments/${deployment.id}`, {
+          start_date: editFormData.start_date,
+          end_date: editFormData.end_date,
+          location: editFormData.location,
+          notes: editFormData.notes
+        });
+      } else {
+        // Update deployment_log collection
+        await api.put(`/deployment-log/${deployment.id}`, {
+          date: editFormData.start_date,
+          start_date: editFormData.start_date,
+          end_date: editFormData.end_date,
+          incident_name: editFormData.location,
+          notes: editFormData.notes
+        });
+      }
+
+      toast.success('Deployment updated successfully');
+      closeEditDialog();
+      fetchDeployments();
+      fetchDeploymentLog();
+    } catch (error) {
+      console.error('Error updating deployment:', error);
+      toast.error('Failed to update deployment');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isActive = (deployment) => {
@@ -550,43 +619,66 @@ export const DeploymentPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Position</TableHead>
                     <TableHead>Status</TableHead>
+                    {canEdit && <TableHead className="w-16">Edit</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {allDeployments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={canEdit ? 7 : 6} className="text-center text-muted-foreground py-8">
                         No deployments recorded
                       </TableCell>
                     </TableRow>
                   ) : (
-                    allDeployments.map((deployment, idx) => (
-                      <TableRow key={deployment.id || idx}>
-                        <TableCell className="font-medium">{deployment.personnel_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getTypeBadgeColor(deployment.deployment_type)}>
-                            {getTypeIcon(deployment.deployment_type)}
-                            <span className="ml-1">{deployment.deployment_type}</span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{deployment.location}</TableCell>
-                        <TableCell>{formatDisplayDate(deployment.date || deployment.start_date)}</TableCell>
-                        <TableCell>
-                          {deployment.position && (
-                            <Badge variant="secondary">{deployment.position}</Badge>
+                    allDeployments.map((deployment, idx) => {
+                      const deploymentIsActive = isActive(deployment);
+                      return (
+                        <TableRow 
+                          key={deployment.id || idx}
+                          className={deploymentIsActive ? 'bg-green-500/5' : ''}
+                        >
+                          <TableCell 
+                            className={`font-medium ${canEdit ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                            onClick={() => canEdit && openEditDialog(deployment)}
+                          >
+                            {deployment.personnel_name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={getTypeBadgeColor(deployment.deployment_type)}>
+                              {getTypeIcon(deployment.deployment_type)}
+                              <span className="ml-1">{deployment.deployment_type}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{deployment.location}</TableCell>
+                          <TableCell>{formatDisplayDate(deployment.date || deployment.start_date)}</TableCell>
+                          <TableCell>
+                            {deployment.position && (
+                              <Badge variant="secondary">{deployment.position}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              deploymentIsActive 
+                                ? 'bg-green-500/20 text-green-500' 
+                                : 'bg-gray-500/20 text-gray-500'
+                            }`}>
+                              {deploymentIsActive ? 'Active' : 'Completed'}
+                            </span>
+                          </TableCell>
+                          {canEdit && (
+                            <TableCell>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openEditDialog(deployment)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            deployment.source === 'deployment' && isActive(deployment) 
-                              ? 'bg-green-500/20 text-green-500' 
-                              : 'bg-gray-500/20 text-gray-500'
-                          }`}>
-                            {deployment.source === 'deployment' && isActive(deployment) ? 'Active' : 'Completed'}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -698,6 +790,107 @@ export const DeploymentPage = () => {
           </CardContent>
         </Card>
       </main>
+
+      {/* Edit Deployment Dialog */}
+      <Dialog open={editDialog.open} onOpenChange={(open) => !open && closeEditDialog()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="h-5 w-5" />
+              Edit Deployment
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Personnel</Label>
+              <Input 
+                value={editFormData.personnel_name || ''} 
+                disabled
+                className="bg-muted"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Deployment Type</Label>
+              <Input 
+                value={editFormData.deployment_type || ''} 
+                disabled
+                className="bg-muted"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date *</Label>
+                <Input 
+                  type="date"
+                  value={editFormData.start_date || ''} 
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date *</Label>
+                <Input 
+                  type="date"
+                  value={editFormData.end_date || ''} 
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Location / Incident Name</Label>
+              <Input 
+                value={editFormData.location || ''} 
+                onChange={(e) => setEditFormData(prev => ({ ...prev, location: e.target.value }))}
+                placeholder="Enter location or incident name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea 
+                value={editFormData.notes || ''} 
+                onChange={(e) => setEditFormData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Optional notes..."
+                rows={2}
+              />
+            </div>
+
+            {/* Status Preview */}
+            {editFormData.start_date && editFormData.end_date && (
+              <div className="p-3 rounded-md bg-muted">
+                <Label className="text-sm">Status Preview:</Label>
+                <div className="mt-1">
+                  {(() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const isActiveNow = editFormData.start_date <= today && editFormData.end_date >= today;
+                    return (
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        isActiveNow 
+                          ? 'bg-green-500/20 text-green-500' 
+                          : 'bg-gray-500/20 text-gray-500'
+                      }`}>
+                        {isActiveNow ? 'Will be Active' : 'Will be Completed'}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
