@@ -249,6 +249,22 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - Start/End dates
 - ⚠️ **Text/Email Notifications** - PENDING USER SETUP (reminder shown in UI)
 
+### TIFMAS/EMTF Edit Capability (May 13, 2026)
+- ✅ **Edit button column** - Added pencil icon button for each personnel row
+- ✅ **TIFMAS Edit Dialog** (orange theme) includes:
+  - Name, Rank, EMS Level, Pack Test Level dropdowns
+  - Last TIFMAS Deploy date picker
+  - Deploys (12mo) counter
+  - TIFMAS Certifications: FF1, Crew Boss, Engine Boss, ASTL, WPU, TIFMAS Eligible
+  - Cancel/Save Changes buttons
+- ✅ **EMTF Edit Dialog** (blue theme) includes:
+  - Name, Rank, EMS Level, Pack Test Level dropdowns
+  - Last EMTF Deploy date picker
+  - Deploys (12mo) counter
+  - EMTF Certifications: MIST, MedL, Tech-Spec, EMTF Eligible
+  - Cancel/Save Changes buttons
+- ✅ Changes sync to deployment_roster collection and update all views
+
 ### Time Off Summary Report (May 7, 2026)
 - ✅ New report under Reports tab: "Time Off Summary"
 - ✅ Shows YTD totals for Sick (red), Vacation (blue), and Holiday (green) days

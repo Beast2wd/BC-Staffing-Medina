@@ -3,7 +3,7 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -18,6 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import {
   Table,
   TableBody,
@@ -41,6 +48,10 @@ export const TIFMASRankPage = () => {
     location: '',
     notes: ''
   });
+  
+  // Edit state
+  const [editDialog, setEditDialog] = useState({ open: false, entry: null });
+  const [formData, setFormData] = useState({});
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -111,12 +122,10 @@ export const TIFMASRankPage = () => {
 
       toast.success(response.data.message);
       
-      // Show reminder about text/email setup
       if (response.data.reminder) {
         toast.info(response.data.reminder, { duration: 8000 });
       }
 
-      // Reset state and refresh
       setSelectedPersonnel([]);
       closeDeployDialog();
       fetchRoster();
@@ -130,6 +139,24 @@ export const TIFMASRankPage = () => {
 
   const getSelectedPersonnelDetails = () => {
     return roster.filter(p => selectedPersonnel.includes(p.id));
+  };
+
+  // Edit functionality
+  const openEditDialog = (entry) => {
+    setFormData({ ...entry });
+    setEditDialog({ open: true, entry });
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      await api.put(`/deployment-roster/${editDialog.entry.id}`, formData);
+      toast.success('Entry updated successfully');
+      setEditDialog({ open: false, entry: null });
+      fetchRoster();
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast.error('Failed to save changes');
+    }
   };
 
   const BooleanBadge = ({ value }) => (
@@ -198,16 +225,19 @@ export const TIFMASRankPage = () => {
                     <TableHead className="text-center">ASTL</TableHead>
                     <TableHead>Pack Test</TableHead>
                     {canEdit && (
-                      <TableHead className="text-center w-20">
-                        <div className="flex flex-col items-center gap-1">
-                          <span>Deploy</span>
-                          <Checkbox 
-                            checked={selectedPersonnel.length === roster.length && roster.length > 0}
-                            onCheckedChange={handleSelectAll}
-                            data-testid="select-all-checkbox"
-                          />
-                        </div>
-                      </TableHead>
+                      <>
+                        <TableHead className="text-center w-16">Edit</TableHead>
+                        <TableHead className="text-center w-20">
+                          <div className="flex flex-col items-center gap-1">
+                            <span>Deploy</span>
+                            <Checkbox 
+                              checked={selectedPersonnel.length === roster.length && roster.length > 0}
+                              onCheckedChange={handleSelectAll}
+                              data-testid="select-all-checkbox"
+                            />
+                          </div>
+                        </TableHead>
+                      </>
                     )}
                   </TableRow>
                 </TableHeader>
@@ -247,19 +277,31 @@ export const TIFMASRankPage = () => {
                         </Badge>
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="text-center">
-                          <Checkbox 
-                            checked={selectedPersonnel.includes(entry.id)}
-                            onCheckedChange={(checked) => handleSelectPersonnel(entry.id, checked)}
-                            data-testid={`select-personnel-${entry.id}`}
-                          />
-                        </TableCell>
+                        <>
+                          <TableCell className="text-center">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => openEditDialog(entry)}
+                              data-testid={`edit-personnel-${entry.id}`}
+                            >
+                              <Edit2 className="h-4 w-4 text-orange-500" />
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox 
+                              checked={selectedPersonnel.includes(entry.id)}
+                              onCheckedChange={(checked) => handleSelectPersonnel(entry.id, checked)}
+                              data-testid={`select-personnel-${entry.id}`}
+                            />
+                          </TableCell>
+                        </>
                       )}
                     </TableRow>
                   ))}
                   {roster.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={canEdit ? 12 : 11} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canEdit ? 13 : 11} className="text-center py-8 text-muted-foreground">
                         No TIFMAS-eligible personnel found. Import roster data from the Roster page.
                       </TableCell>
                     </TableRow>
@@ -285,7 +327,6 @@ export const TIFMASRankPage = () => {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Selected Personnel List */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Selected Personnel ({selectedPersonnel.length})</Label>
               <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-muted/50">
@@ -299,7 +340,6 @@ export const TIFMASRankPage = () => {
               </div>
             </div>
 
-            {/* Date Selection */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start_date" className="flex items-center gap-1">
@@ -329,7 +369,6 @@ export const TIFMASRankPage = () => {
               </div>
             </div>
 
-            {/* Location/Incident Name */}
             <div className="space-y-2">
               <Label htmlFor="location" className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
@@ -344,7 +383,6 @@ export const TIFMASRankPage = () => {
               />
             </div>
 
-            {/* Notes */}
             <div className="space-y-2">
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
@@ -357,7 +395,6 @@ export const TIFMASRankPage = () => {
               />
             </div>
 
-            {/* Reminder Notice */}
             <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-sm">
               <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div>
@@ -384,6 +421,154 @@ export const TIFMASRankPage = () => {
               data-testid="deploy-confirm-btn"
             >
               {deploying ? 'Deploying...' : 'Yes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Personnel Dialog */}
+      <Dialog open={editDialog.open} onOpenChange={(open) => !open && setEditDialog({ open: false, entry: null })}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="edit-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-500">
+              <Edit2 className="h-5 w-5" />
+              Edit TIFMAS Roster Entry
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input 
+                value={formData.name || ''} 
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                data-testid="edit-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Rank</Label>
+              <Select value={formData.rank || ''} onValueChange={(v) => setFormData({...formData, rank: v})}>
+                <SelectTrigger data-testid="edit-rank">
+                  <SelectValue placeholder="Select rank" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Fire Chief">Fire Chief</SelectItem>
+                  <SelectItem value="Asst. Chief">Asst. Chief</SelectItem>
+                  <SelectItem value="Deputy Chief">Deputy Chief</SelectItem>
+                  <SelectItem value="Battalion Chief">Battalion Chief</SelectItem>
+                  <SelectItem value="Captain">Captain</SelectItem>
+                  <SelectItem value="Lieutenant">Lieutenant</SelectItem>
+                  <SelectItem value="Engineer">Engineer</SelectItem>
+                  <SelectItem value="Firefighter">Firefighter</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>EMS Level</Label>
+              <Select value={formData.ems_level || ''} onValueChange={(v) => setFormData({...formData, ems_level: v})}>
+                <SelectTrigger data-testid="edit-ems-level">
+                  <SelectValue placeholder="Select EMS level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Paramedic">Paramedic</SelectItem>
+                  <SelectItem value="EMT-A">EMT-A</SelectItem>
+                  <SelectItem value="EMT-B">EMT-B</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Pack Test Level</Label>
+              <Select value={formData.pack_test_level || ''} onValueChange={(v) => setFormData({...formData, pack_test_level: v})}>
+                <SelectTrigger data-testid="edit-pack-test">
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Arduous">Arduous</SelectItem>
+                  <SelectItem value="Moderate">Moderate</SelectItem>
+                  <SelectItem value="Light">Light</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Last TIFMAS Deploy</Label>
+              <Input 
+                type="date"
+                value={formData.last_tifmas_deploy || ''} 
+                onChange={(e) => setFormData({...formData, last_tifmas_deploy: e.target.value})}
+                data-testid="edit-last-deploy"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Deploys (12mo)</Label>
+              <Input 
+                type="number"
+                value={formData.deployments_last_12mo || 0} 
+                onChange={(e) => setFormData({...formData, deployments_last_12mo: parseInt(e.target.value) || 0})}
+                data-testid="edit-deploys-count"
+              />
+            </div>
+            
+            <div className="col-span-2 pt-4 border-t">
+              <Label className="text-sm font-medium mb-3 block">TIFMAS Certifications</Label>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.ff1} 
+                    onCheckedChange={(c) => setFormData({...formData, ff1: c})}
+                    data-testid="edit-ff1"
+                  />
+                  <Label>FF1</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.crew_boss} 
+                    onCheckedChange={(c) => setFormData({...formData, crew_boss: c})}
+                    data-testid="edit-crew-boss"
+                  />
+                  <Label>Crew Boss</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.engine_boss} 
+                    onCheckedChange={(c) => setFormData({...formData, engine_boss: c})}
+                    data-testid="edit-engine-boss"
+                  />
+                  <Label>Engine Boss</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.astl} 
+                    onCheckedChange={(c) => setFormData({...formData, astl: c})}
+                    data-testid="edit-astl"
+                  />
+                  <Label>ASTL</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.wpu} 
+                    onCheckedChange={(c) => setFormData({...formData, wpu: c})}
+                    data-testid="edit-wpu"
+                  />
+                  <Label>WPU</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={formData.eligible_tifmas} 
+                    onCheckedChange={(c) => setFormData({...formData, eligible_tifmas: c})}
+                    data-testid="edit-eligible-tifmas"
+                  />
+                  <Label>TIFMAS Eligible</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog({ open: false, entry: null })}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} className="bg-orange-500 hover:bg-orange-600">
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
