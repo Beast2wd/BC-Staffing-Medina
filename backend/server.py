@@ -326,11 +326,14 @@ class DeploymentRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     personnel_id: str
+    personnel_name: str = ""
     deployment_type: str
     start_date: str
     end_date: str
     location: str
     notes: str = ""
+    station: str = ""
+    shift: str = ""
 
 # ===================== VOLUNTEER MODELS =====================
 

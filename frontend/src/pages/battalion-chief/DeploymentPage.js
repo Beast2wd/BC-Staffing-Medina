@@ -134,8 +134,56 @@ export const DeploymentPage = () => {
 
   const isActive = (deployment) => {
     const today = new Date().toISOString().split('T')[0];
-    return deployment.start_date <= today && deployment.end_date >= today;
+    const startDate = deployment.start_date || deployment.date;
+    const endDate = deployment.end_date || deployment.date;
+    return startDate <= today && endDate >= today;
   };
+
+  // Get active deployments from all sources
+  const activeDeployments = useMemo(() => {
+    const active = [];
+    const seen = new Set();
+    
+    // Check deployments collection first
+    deployments.forEach(d => {
+      if (isActive(d)) {
+        const key = `${d.personnel_name || d.personnel_id}-${d.deployment_type}-${d.start_date}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          active.push({
+            ...d,
+            source: 'deployment',
+            personnel_name: d.personnel_name || getPersonnelName(d.personnel_id)
+          });
+        }
+      }
+    });
+    
+    // Also check deployment log for entries with current date
+    deploymentLog.forEach(log => {
+      const logAsDeployment = {
+        id: log.id,
+        personnel_id: log.personnel_id,
+        personnel_name: log.personnel_name,
+        deployment_type: log.incident_type,
+        location: log.incident_name,
+        start_date: log.start_date || log.date,
+        end_date: log.end_date || log.date,
+        position: log.position,
+        notes: log.notes,
+        source: 'log'
+      };
+      
+      // Check if not already added (by name + type + date) and is active
+      const key = `${log.personnel_name}-${log.incident_type}-${log.start_date || log.date}`;
+      if (!seen.has(key) && isActive(logAsDeployment)) {
+        seen.add(key);
+        active.push(logAsDeployment);
+      }
+    });
+    
+    return active;
+  }, [deployments, deploymentLog, personnel]);
 
   // Combine all deployments (from both sources)
   const allDeployments = useMemo(() => {
@@ -366,7 +414,7 @@ export const DeploymentPage = () => {
                   <Users className="h-5 w-5 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{deployments.filter(isActive).length}</p>
+                  <p className="text-2xl font-bold">{activeDeployments.length}</p>
                   <p className="text-xs text-muted-foreground">Active Deployments</p>
                 </div>
               </div>
@@ -433,27 +481,31 @@ export const DeploymentPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deployments.filter(isActive).length === 0 ? (
+                {activeDeployments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No active deployments
                     </TableCell>
                   </TableRow>
                 ) : (
-                  deployments.filter(isActive).map(deployment => {
-                    const person = getPersonnelInfo(deployment.personnel_id);
+                  activeDeployments.map(deployment => {
+                    const person = deployment.personnel_id ? getPersonnelInfo(deployment.personnel_id) : null;
                     return (
                       <TableRow key={deployment.id} data-testid={`deployment-row-${deployment.id}`}>
-                        <TableCell className="font-medium">{getPersonnelName(deployment.personnel_id)}</TableCell>
-                        <TableCell>{person?.station_id?.replace('sta-', 'Station ') || '-'}</TableCell>
+                        <TableCell className="font-medium">
+                          {deployment.personnel_name || getPersonnelName(deployment.personnel_id)}
+                        </TableCell>
+                        <TableCell>{person?.station_id?.replace('sta-', 'Station ') || deployment.station || '-'}</TableCell>
                         <TableCell>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            person?.shift === 'A' ? 'bg-red-500/20 text-red-500' :
-                            person?.shift === 'B' ? 'bg-green-500/20 text-green-500' :
-                            'bg-blue-500/20 text-blue-500'
-                          }`}>
-                            {person?.shift || '-'}
-                          </span>
+                          {(person?.shift || deployment.shift) ? (
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              (person?.shift || deployment.shift) === 'A' ? 'bg-red-500/20 text-red-500' :
+                              (person?.shift || deployment.shift) === 'B' ? 'bg-green-500/20 text-green-500' :
+                              'bg-blue-500/20 text-blue-500'
+                            }`}>
+                              {person?.shift || deployment.shift}
+                            </span>
+                          ) : '-'}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={getTypeBadgeColor(deployment.deployment_type)}>
