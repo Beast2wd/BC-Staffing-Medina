@@ -257,36 +257,36 @@ export const DeploymentPage = () => {
   // Combine all deployments (from both sources)
   const allDeployments = useMemo(() => {
     const combined = [];
+    const seen = new Set();
     
-    // Add regular deployments
+    // Add regular deployments first (they have the most complete data)
     deployments.forEach(d => {
+      const key = `${d.personnel_name}-${d.deployment_type}-${d.start_date}`;
+      seen.add(key);
       combined.push({
         ...d,
         source: 'deployment',
-        personnel_name: getPersonnelName(d.personnel_id),
+        personnel_name: d.personnel_name || getPersonnelName(d.personnel_id),
         date: d.start_date
       });
     });
     
-    // Add deployment log entries
+    // Add deployment log entries that don't exist in deployments
     deploymentLog.forEach(log => {
-      // Check if not already added from deployments
-      const exists = combined.some(c => 
-        c.date === log.date && 
-        c.personnel_name?.includes(log.personnel_name?.split(',')[0])
-      );
-      if (!exists) {
+      const key = `${log.personnel_name}-${log.incident_type}-${log.start_date || log.date}`;
+      if (!seen.has(key)) {
+        seen.add(key);
         combined.push({
           id: log.id,
           personnel_name: log.personnel_name,
           deployment_type: log.incident_type,
           location: log.incident_name,
-          start_date: log.date,
-          end_date: log.date,
+          start_date: log.start_date || log.date,
+          end_date: log.end_date || log.date,
           position: log.position,
           notes: log.notes,
           source: 'log',
-          date: log.date
+          date: log.start_date || log.date
         });
       }
     });
