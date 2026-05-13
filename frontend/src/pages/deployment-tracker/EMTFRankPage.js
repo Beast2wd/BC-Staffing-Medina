@@ -334,7 +334,7 @@ export const EMTFRankPage = () => {
               EMTF Rank
             </h1>
             <p className="text-muted-foreground mt-1">
-              Emergency Medical Task Force - Personnel ranked by deployment score
+              Emergency Medical Task Force
             </p>
           </div>
           

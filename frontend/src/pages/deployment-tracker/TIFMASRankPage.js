@@ -350,7 +350,7 @@ export const TIFMASRankPage = () => {
               TIFMAS Rank
             </h1>
             <p className="text-muted-foreground mt-1">
-              Texas Intrastate Fire Mutual Aid System - Personnel ranked by deployment score
+              Texas Intrastate Fire Mutual Aid System
             </p>
           </div>
           
