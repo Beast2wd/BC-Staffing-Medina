@@ -82,6 +82,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Role assignment
 - ✅ **Edit User** - Update name, rank, role, station, shift, status (March 27, 2026)
 - ✅ **Reset Password** - Admin can reset any user's password (March 27, 2026)
+- ✅ **Contact Info Fields** - Email and phone_number fields in Add/Edit dialogs, Contact column in table (May 15, 2026)
+- ✅ **Force Password Change** - Reset Password dialog has checkbox to force password change on first login (May 15, 2026)
 
 ### Part-Time Management (April 20, 2026)
 - ✅ Add/Edit/Delete part-time employees
@@ -89,6 +91,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Alphabetically sorted by name
 - ✅ Search and filter by rank
 - ✅ Located under Tools dropdown below User Management
+- ✅ **Contact Info Fields** - Phone and Email fields in Add/Edit dialogs, Contact column in table
+- ✅ **Auto User Account Creation** - When email is provided, user account is auto-created with `parttime123` password and forced password change on first login (May 15, 2026)
+- ✅ **Login Info Notice** - Add dialog shows login instructions with initial password `parttime123` (May 15, 2026)
 
 ### Part-Time Availability (April 20, 2026)
 - ✅ Part-Time Availability page under Personnel dropdown (between Overtime and Volunteer)
