@@ -289,6 +289,15 @@ export const PartTimeManagementPage = () => {
         />
       </div>
 
+      <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+        <p className="text-sm text-purple-400">
+          <strong>Login Info:</strong> If email is provided, part-time employee can login with their employee number or email using initial password: <code className="bg-purple-500/20 px-1 rounded">parttime123</code>
+        </p>
+        <p className="text-xs text-purple-300/70 mt-1">
+          They will be prompted to change it on first login.
+        </p>
+      </div>
+
       <Button onClick={onSave} className="w-full" data-testid="save-pt-employee-btn">
         {buttonText}
       </Button>

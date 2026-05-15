@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, Key } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, Key, Phone, Mail } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
+import { Checkbox } from '../../components/ui/checkbox';
 
 export const UserManagementPage = () => {
   const { api } = useAuth();
@@ -24,6 +25,7 @@ export const UserManagementPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [formData, setFormData] = useState({
@@ -33,7 +35,9 @@ export const UserManagementPage = () => {
     rank: 'Firefighter',
     role: 'firefighter',
     station_id: '',
-    shift: 'A'
+    shift: 'A',
+    email: '',
+    phone_number: ''
   });
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -41,7 +45,9 @@ export const UserManagementPage = () => {
     role: '',
     station_id: '',
     shift: '',
-    is_active: true
+    is_active: true,
+    email: '',
+    phone_number: ''
   });
 
   const roles = [
@@ -80,7 +86,7 @@ export const UserManagementPage = () => {
       toast.success('User created');
       setShowAddDialog(false);
       fetchUsers();
-      setFormData({ payroll_number: '', password: '', name: '', rank: 'Firefighter', role: 'firefighter', station_id: '', shift: 'A' });
+      setFormData({ payroll_number: '', password: '', name: '', rank: 'Firefighter', role: 'firefighter', station_id: '', shift: 'A', email: '', phone_number: '' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
     } finally {
@@ -108,7 +114,9 @@ export const UserManagementPage = () => {
       role: user.role,
       station_id: user.station_id || '',
       shift: user.shift || 'A',
-      is_active: user.is_active
+      is_active: user.is_active,
+      email: user.email || '',
+      phone_number: user.phone_number || ''
     });
     setShowEditDialog(true);
   };
@@ -133,6 +141,7 @@ export const UserManagementPage = () => {
   const handleOpenResetPassword = (user) => {
     setResetPasswordUser(user);
     setNewPassword('');
+    setForcePasswordChange(false);
     setShowResetPasswordDialog(true);
   };
 
@@ -150,12 +159,14 @@ export const UserManagementPage = () => {
     setLoading(true);
     try {
       await api.post(`/users/${resetPasswordUser.id}/reset-password`, {
-        new_password: newPassword
+        new_password: newPassword,
+        force_change: forcePasswordChange
       });
       toast.success('Password reset successfully');
       setShowResetPasswordDialog(false);
       setResetPasswordUser(null);
       setNewPassword('');
+      setForcePasswordChange(false);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to reset password');
     } finally {
@@ -242,6 +253,28 @@ export const UserManagementPage = () => {
                     placeholder="Enter full name"
                     data-testid="name-input"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      placeholder="email@example.com"
+                      data-testid="email-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      value={formData.phone_number}
+                      onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                      placeholder="(555) 123-4567"
+                      data-testid="phone-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -371,6 +404,7 @@ export const UserManagementPage = () => {
                 <TableRow>
                   <TableHead>Emp #</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead>Rank</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Station</TableHead>
@@ -382,7 +416,7 @@ export const UserManagementPage = () => {
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -391,6 +425,23 @@ export const UserManagementPage = () => {
                     <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                       <TableCell className="font-mono">{user.payroll_number}</TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-sm">
+                          {user.phone_number && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Phone className="h-3 w-3" /> {user.phone_number}
+                            </span>
+                          )}
+                          {user.email && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Mail className="h-3 w-3" /> {user.email}
+                            </span>
+                          )}
+                          {!user.phone_number && !user.email && (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{user.rank}</TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
                       <TableCell>{getStationName(user.station_id)}</TableCell>
@@ -471,6 +522,28 @@ export const UserManagementPage = () => {
                     placeholder="Enter full name"
                     data-testid="edit-name-input"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                      placeholder="email@example.com"
+                      data-testid="edit-email-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      value={editFormData.phone_number}
+                      onChange={(e) => setEditFormData({...editFormData, phone_number: e.target.value})}
+                      placeholder="(555) 123-4567"
+                      data-testid="edit-phone-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -600,6 +673,18 @@ export const UserManagementPage = () => {
                     placeholder="Enter new password (min 6 characters)"
                     data-testid="new-password-input"
                   />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="force-change"
+                    checked={forcePasswordChange}
+                    onCheckedChange={setForcePasswordChange}
+                    data-testid="force-change-checkbox"
+                  />
+                  <Label htmlFor="force-change" className="text-sm cursor-pointer">
+                    Force password change on first login
+                  </Label>
                 </div>
 
                 <Button onClick={handleResetPassword} disabled={loading} className="w-full" data-testid="reset-password-btn">

@@ -61,6 +61,8 @@ class UserCreate(BaseModel):
     station_id: Optional[str] = None
     shift: Optional[str] = None
     must_change_password: bool = False
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     payroll_number: str
@@ -77,6 +79,8 @@ class UserResponse(BaseModel):
     shift: Optional[str] = None
     is_active: bool
     must_change_password: bool = False
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -100,6 +104,8 @@ class UserUpdate(BaseModel):
     shift: Optional[str] = None
     is_active: Optional[bool] = None
     payroll_number: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
 
 class PersonnelBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -596,7 +602,10 @@ async def register(user_data: UserCreate, current_user: dict = Depends(require_r
         "station_id": user_data.station_id,
         "shift": user_data.shift,
         "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "email": user_data.email,
+        "phone_number": user_data.phone_number,
+        "must_change_password": user_data.must_change_password
     }
     
     await db.users.insert_one(user_doc)
@@ -609,7 +618,10 @@ async def register(user_data: UserCreate, current_user: dict = Depends(require_r
         role=user_data.role,
         station_id=user_data.station_id,
         shift=user_data.shift,
-        is_active=True
+        is_active=True,
+        email=user_data.email,
+        phone_number=user_data.phone_number,
+        must_change_password=user_data.must_change_password
     )
 
 @api_router.get("/auth/me", response_model=UserResponse)
@@ -1516,11 +1528,37 @@ async def create_part_time_employee(
     data: PartTimeEmployeeCreate,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Create a new part-time employee"""
+    """Create a new part-time employee and optionally their user account"""
     # Check if employee number already exists
     existing = await db.part_time_employees.find_one({"employee_number": data.employee_number})
     if existing:
         raise HTTPException(status_code=400, detail="Employee number already exists")
+    
+    # If email is provided, create a user account for login
+    if data.contact_email:
+        existing_user = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user account for part-time employee with generic password
+        generic_password = "parttime123"
+        user_id = str(uuid.uuid4())
+        user_doc = {
+            "id": user_id,
+            "payroll_number": data.employee_number,
+            "email": data.contact_email,
+            "phone_number": data.contact_phone,
+            "password_hash": hash_password(generic_password),
+            "name": data.name,
+            "rank": data.rank or "Part-Time Firefighter",
+            "role": UserRole.FIREFIGHTER,  # Part-time employees get firefighter role (view access)
+            "station_id": None,
+            "shift": None,
+            "is_active": True,
+            "must_change_password": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(user_doc)
     
     employee = PartTimeEmployee(
         id=str(uuid.uuid4()),
@@ -3099,6 +3137,10 @@ async def update_user(
         personnel_update_fields["is_active"] = update_data["is_active"]
     if "payroll_number" in update_data:
         personnel_update_fields["payroll_number"] = update_data["payroll_number"]
+    if "email" in update_data:
+        personnel_update_fields["contact_email"] = update_data["email"]
+    if "phone_number" in update_data:
+        personnel_update_fields["contact_phone"] = update_data["phone_number"]
     
     if personnel_update_fields:
         # Update personnel by the old payroll_number (in case it changed)
@@ -3130,6 +3172,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_role([U
 
 class ResetPasswordRequest(BaseModel):
     new_password: str
+    force_change: bool = False  # If true, user must change password on first login
 
 @api_router.post("/users/{user_id}/reset-password")
 async def reset_user_password(
@@ -3147,7 +3190,7 @@ async def reset_user_password(
     # Update the user's password
     result = await db.users.update_one(
         {"id": user_id},
-        {"$set": {"password_hash": hashed_password, "must_change_password": False}}
+        {"$set": {"password_hash": hashed_password, "must_change_password": data.force_change}}
     )
     
     if result.modified_count == 0:
