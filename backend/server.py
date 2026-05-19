@@ -3261,6 +3261,90 @@ async def get_shift_calendar(year: int, month: int):
     
     return {"year": year, "month": month, "calendar": result}
 
+# ===================== NOTIFICATIONS =====================
+
+class NotificationRecipient(BaseModel):
+    id: str
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class BroadcastNotificationRequest(BaseModel):
+    recipients: List[NotificationRecipient]
+    subject: str
+    message: str
+    send_sms: bool = True
+    send_email: bool = True
+    date: Optional[str] = None
+
+@api_router.post("/notifications/broadcast")
+async def send_broadcast_notification(
+    data: BroadcastNotificationRequest,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """
+    Send broadcast notification to selected personnel.
+    This endpoint stores the notification record and will integrate with
+    Twilio/Email service for actual delivery in a future update.
+    """
+    if not data.recipients:
+        raise HTTPException(status_code=400, detail="No recipients specified")
+    
+    if not data.message:
+        raise HTTPException(status_code=400, detail="Message is required")
+    
+    if not data.send_sms and not data.send_email:
+        raise HTTPException(status_code=400, detail="At least one notification method must be selected")
+    
+    # Count recipients by contact type
+    sms_recipients = [r for r in data.recipients if r.phone]
+    email_recipients = [r for r in data.recipients if r.email]
+    
+    # Store notification record
+    notification_record = {
+        "id": str(uuid.uuid4()),
+        "type": "overtime_broadcast",
+        "subject": data.subject,
+        "message": data.message,
+        "send_sms": data.send_sms,
+        "send_email": data.send_email,
+        "recipients": [r.model_dump() for r in data.recipients],
+        "sms_count": len(sms_recipients) if data.send_sms else 0,
+        "email_count": len(email_recipients) if data.send_email else 0,
+        "date": data.date,
+        "sent_by": current_user.get("name", "Unknown"),
+        "sent_by_id": current_user.get("id"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": "pending"  # Will be updated to 'sent' when Twilio/Email integration is complete
+    }
+    
+    await db.notifications.insert_one(notification_record)
+    
+    # TODO: Integrate with Twilio for SMS and SendGrid/Resend for email
+    # For now, just log and return success
+    logger.info(f"Broadcast notification queued: {len(data.recipients)} recipients, SMS: {data.send_sms}, Email: {data.send_email}")
+    
+    return {
+        "message": "Notification queued successfully",
+        "notification_id": notification_record["id"],
+        "recipients_count": len(data.recipients),
+        "sms_queued": len(sms_recipients) if data.send_sms else 0,
+        "email_queued": len(email_recipients) if data.send_email else 0,
+        "status": "pending",
+        "note": "SMS/Email delivery integration pending. Notification has been recorded."
+    }
+
+@api_router.get("/notifications")
+async def get_notifications(
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Get recent notification records"""
+    notifications = await db.notifications.find(
+        {},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(50).to_list(50)
+    return notifications
+
 # ===================== SEED DATA =====================
 
 @api_router.post("/seed")

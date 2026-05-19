@@ -9,11 +9,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock, Send, Mail, MessageSquare, Users, User, Shield, Stethoscope, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
+import { Checkbox } from '../../components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { formatDisplayDate, formatDisplayDateWithDay } from '../../utils/dateUtils';
 
 export const OvertimePage = () => {
@@ -22,6 +24,17 @@ export const OvertimePage = () => {
   const [overtimeRecords, setOvertimeRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showBroadcastDialog, setShowBroadcastDialog] = useState(false);
+  const [broadcastData, setBroadcastData] = useState({
+    targetType: 'all', // 'all', 'rank', 'paramedic', 'individual'
+    selectedRanks: [],
+    selectedIndividuals: [],
+    sendSMS: true,
+    sendEmail: true,
+    subject: 'Overtime Opportunity Available',
+    message: ''
+  });
+  const [allUsers, setAllUsers] = useState([]);
   const [formData, setFormData] = useState({
     personnel_id: '',
     date: selectedDate,
@@ -35,12 +48,23 @@ export const OvertimePage = () => {
 
   useEffect(() => {
     fetchAllData();
+    fetchAllUsers();
   }, [selectedBattalion]);
 
   useEffect(() => {
     setFormData(prev => ({ ...prev, date: selectedDate }));
     fetchOvertimeRecords();
   }, [selectedDate]);
+
+  const fetchAllUsers = async () => {
+    try {
+      const response = await api.get('/users');
+      // Filter only active users with contact info
+      setAllUsers(response.data.filter(u => u.is_active));
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
 
   const fetchOvertimeRecords = async () => {
     try {
@@ -212,6 +236,136 @@ export const OvertimePage = () => {
     return <Badge className={colors[status] || 'bg-gray-500'}>{status}</Badge>;
   };
 
+  // Broadcast notification helpers
+  const RANK_HIERARCHY = ['Fire Chief', 'Asst. Chief', 'Deputy Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Part-Time Firefighter', 'Volunteer'];
+  
+  const getRecipients = () => {
+    let recipients = [];
+    
+    switch (broadcastData.targetType) {
+      case 'all':
+        recipients = allUsers.filter(u => u.email || u.phone_number);
+        break;
+      case 'rank':
+        recipients = allUsers.filter(u => 
+          broadcastData.selectedRanks.includes(u.rank) && (u.email || u.phone_number)
+        );
+        break;
+      case 'paramedic':
+        // Filter personnel who have paramedic certification
+        const paramedicIds = personnel.filter(p => 
+          p.certifications?.includes('Paramedic')
+        ).map(p => p.id);
+        recipients = allUsers.filter(u => 
+          paramedicIds.some(pId => u.payroll_number === personnel.find(p => p.id === pId)?.payroll_number) &&
+          (u.email || u.phone_number)
+        );
+        // Also include users with 'Paramedic' in their rank name
+        const additionalParamedics = allUsers.filter(u => 
+          u.rank?.toLowerCase().includes('paramedic') && (u.email || u.phone_number)
+        );
+        recipients = [...new Map([...recipients, ...additionalParamedics].map(r => [r.id, r])).values()];
+        break;
+      case 'individual':
+        recipients = allUsers.filter(u => 
+          broadcastData.selectedIndividuals.includes(u.id) && (u.email || u.phone_number)
+        );
+        break;
+      default:
+        recipients = [];
+    }
+    
+    return recipients;
+  };
+
+  const handleRankToggle = (rank) => {
+    setBroadcastData(prev => ({
+      ...prev,
+      selectedRanks: prev.selectedRanks.includes(rank)
+        ? prev.selectedRanks.filter(r => r !== rank)
+        : [...prev.selectedRanks, rank]
+    }));
+  };
+
+  const handleIndividualToggle = (userId) => {
+    setBroadcastData(prev => ({
+      ...prev,
+      selectedIndividuals: prev.selectedIndividuals.includes(userId)
+        ? prev.selectedIndividuals.filter(id => id !== userId)
+        : [...prev.selectedIndividuals, userId]
+    }));
+  };
+
+  const handleSendBroadcast = async () => {
+    const recipients = getRecipients();
+    
+    if (recipients.length === 0) {
+      toast.error('No recipients selected or no contact info available');
+      return;
+    }
+    
+    if (!broadcastData.message.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+    
+    if (!broadcastData.sendSMS && !broadcastData.sendEmail) {
+      toast.error('Please select at least one notification method (SMS or Email)');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await api.post('/notifications/broadcast', {
+        recipients: recipients.map(r => ({
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          phone: r.phone_number
+        })),
+        subject: broadcastData.subject,
+        message: broadcastData.message,
+        send_sms: broadcastData.sendSMS,
+        send_email: broadcastData.sendEmail,
+        date: selectedDate
+      });
+      
+      toast.success(`Notification sent to ${recipients.length} recipient(s)`);
+      setShowBroadcastDialog(false);
+      setBroadcastData({
+        targetType: 'all',
+        selectedRanks: [],
+        selectedIndividuals: [],
+        sendSMS: true,
+        sendEmail: true,
+        subject: 'Overtime Opportunity Available',
+        message: ''
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to send notification');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openBroadcastDialog = () => {
+    // Pre-fill the message with context
+    const stationNeeds = staffingRecords.filter(s => 
+      s.categories?.overtime > 0 || s.personnel_assigned?.length < 3
+    ).map(s => {
+      const station = stations.find(st => st.id === s.station_id);
+      return station ? `Station ${station.station_number}` : '';
+    }).filter(Boolean);
+    
+    const defaultMessage = `Overtime opportunity available for ${formatDisplayDateWithDay(selectedDate)}.\n\n${stationNeeds.length > 0 ? `Stations needing coverage: ${stationNeeds.join(', ')}\n\n` : ''}Please contact the on-duty Battalion Chief if interested.`;
+    
+    setBroadcastData(prev => ({
+      ...prev,
+      message: defaultMessage
+    }));
+    setShowBroadcastDialog(true);
+  };
+
   const availableCount = overtimeRecords.filter(r => r.status === 'available').length;
   const assignedCount = overtimeRecords.filter(r => r.status === 'assigned').length;
   const totalHoursAssigned = overtimeRecords.filter(r => r.status === 'assigned').reduce((sum, r) => sum + r.hours, 0);
@@ -234,12 +388,20 @@ export const OvertimePage = () => {
           <div className="flex items-center gap-4">
             <BattalionSelector />
             {canEdit && (
-              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogTrigger asChild>
-                  <Button data-testid="add-overtime-btn">
-                    <Plus className="h-4 w-4 mr-2" /> Add Available
-                  </Button>
-                </DialogTrigger>
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={openBroadcastDialog}
+                  data-testid="send-notification-btn"
+                >
+                  <Send className="h-4 w-4 mr-2" /> Send Notification
+                </Button>
+                <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                  <DialogTrigger asChild>
+                    <Button data-testid="add-overtime-btn">
+                      <Plus className="h-4 w-4 mr-2" /> Add Available
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle className="font-heading uppercase">Add Overtime Availability</DialogTitle>
@@ -356,6 +518,202 @@ export const OvertimePage = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+
+              {/* Broadcast Notification Dialog */}
+              <Dialog open={showBroadcastDialog} onOpenChange={setShowBroadcastDialog}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="font-heading uppercase flex items-center gap-2">
+                      <Send className="h-5 w-5" /> Overtime Notification Broadcast
+                    </DialogTitle>
+                  </DialogHeader>
+                  
+                  <div className="space-y-6 py-4">
+                    {/* Target Audience Selection */}
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">Target Audience</Label>
+                      <RadioGroup 
+                        value={broadcastData.targetType} 
+                        onValueChange={(v) => setBroadcastData(prev => ({ ...prev, targetType: v }))}
+                        className="grid grid-cols-2 gap-3"
+                      >
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent cursor-pointer">
+                          <RadioGroupItem value="all" id="all" />
+                          <Label htmlFor="all" className="flex items-center gap-2 cursor-pointer">
+                            <Users className="h-4 w-4" /> All Personnel
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent cursor-pointer">
+                          <RadioGroupItem value="rank" id="rank" />
+                          <Label htmlFor="rank" className="flex items-center gap-2 cursor-pointer">
+                            <Shield className="h-4 w-4" /> By Rank
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent cursor-pointer">
+                          <RadioGroupItem value="paramedic" id="paramedic" />
+                          <Label htmlFor="paramedic" className="flex items-center gap-2 cursor-pointer">
+                            <Stethoscope className="h-4 w-4" /> Paramedics Only
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent cursor-pointer">
+                          <RadioGroupItem value="individual" id="individual" />
+                          <Label htmlFor="individual" className="flex items-center gap-2 cursor-pointer">
+                            <User className="h-4 w-4" /> Specific Individuals
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {/* Rank Selection (shown when targetType is 'rank') */}
+                    {broadcastData.targetType === 'rank' && (
+                      <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                        <Label className="text-sm font-medium">Select Ranks</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {RANK_HIERARCHY.map(rank => (
+                            <div key={rank} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`rank-${rank}`}
+                                checked={broadcastData.selectedRanks.includes(rank)}
+                                onCheckedChange={() => handleRankToggle(rank)}
+                              />
+                              <Label htmlFor={`rank-${rank}`} className="text-sm cursor-pointer">
+                                {rank}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Individual Selection (shown when targetType is 'individual') */}
+                    {broadcastData.targetType === 'individual' && (
+                      <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                        <Label className="text-sm font-medium">Select Individuals</Label>
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {allUsers.filter(u => u.email || u.phone_number).map(user => (
+                            <div key={user.id} className="flex items-center space-x-2 p-2 hover:bg-accent rounded">
+                              <Checkbox 
+                                id={`user-${user.id}`}
+                                checked={broadcastData.selectedIndividuals.includes(user.id)}
+                                onCheckedChange={() => handleIndividualToggle(user.id)}
+                              />
+                              <Label htmlFor={`user-${user.id}`} className="text-sm cursor-pointer flex-1">
+                                <span className="font-medium">{user.rank} {user.name}</span>
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                  {user.phone_number && <Phone className="h-3 w-3 inline mr-1" />}
+                                  {user.email && <Mail className="h-3 w-3 inline" />}
+                                </span>
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notification Methods */}
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">Notification Method</Label>
+                      <div className="flex gap-6">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="send-sms"
+                            checked={broadcastData.sendSMS}
+                            onCheckedChange={(checked) => setBroadcastData(prev => ({ ...prev, sendSMS: checked }))}
+                          />
+                          <Label htmlFor="send-sms" className="flex items-center gap-2 cursor-pointer">
+                            <MessageSquare className="h-4 w-4" /> SMS Text
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="send-email"
+                            checked={broadcastData.sendEmail}
+                            onCheckedChange={(checked) => setBroadcastData(prev => ({ ...prev, sendEmail: checked }))}
+                          />
+                          <Label htmlFor="send-email" className="flex items-center gap-2 cursor-pointer">
+                            <Mail className="h-4 w-4" /> Email
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Message Composition */}
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">Message</Label>
+                      {broadcastData.sendEmail && (
+                        <div className="space-y-2">
+                          <Label className="text-sm">Email Subject</Label>
+                          <Input
+                            value={broadcastData.subject}
+                            onChange={(e) => setBroadcastData(prev => ({ ...prev, subject: e.target.value }))}
+                            placeholder="Overtime Opportunity Available"
+                            data-testid="broadcast-subject"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label className="text-sm">Message Body</Label>
+                        <Textarea
+                          value={broadcastData.message}
+                          onChange={(e) => setBroadcastData(prev => ({ ...prev, message: e.target.value }))}
+                          placeholder="Enter your message..."
+                          className="min-h-[120px]"
+                          data-testid="broadcast-message"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Recipients Preview */}
+                    <div className="space-y-3 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold text-blue-400">Recipients Preview</Label>
+                        <Badge variant="secondary">{getRecipients().length} recipient(s)</Badge>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto text-sm">
+                        {getRecipients().length === 0 ? (
+                          <p className="text-muted-foreground">No recipients selected or no contact info available</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {getRecipients().slice(0, 10).map(r => (
+                              <Badge key={r.id} variant="outline" className="text-xs">
+                                {r.name}
+                                {r.phone_number && <Phone className="h-3 w-3 ml-1 inline" />}
+                                {r.email && <Mail className="h-3 w-3 ml-1 inline" />}
+                              </Badge>
+                            ))}
+                            {getRecipients().length > 10 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{getRecipients().length - 10} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowBroadcastDialog(false)} 
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleSendBroadcast} 
+                        disabled={loading || getRecipients().length === 0}
+                        className="flex-1"
+                        data-testid="send-broadcast-btn"
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        {loading ? 'Sending...' : `Send to ${getRecipients().length} Recipient(s)`}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              </>
             )}
           </div>
         </div>

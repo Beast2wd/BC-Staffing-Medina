@@ -84,6 +84,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Reset Password** - Admin can reset any user's password (March 27, 2026)
 - ✅ **Contact Info Fields** - Email and phone_number fields in Add/Edit dialogs, Contact column in table (May 15, 2026)
 - ✅ **Force Password Change** - Reset Password dialog has checkbox to force password change on first login (May 15, 2026)
+- ✅ **Password Visibility Toggle** - Eye icon to show/hide password in Add User dialog (May 19, 2026)
 
 ### Part-Time Management (April 20, 2026)
 - ✅ Add/Edit/Delete part-time employees
@@ -181,6 +182,18 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ### UI/UX Improvements (April 19, 2026)
 - ✅ **Custom Increment/Decrement Buttons** - Daily worksheet cells now have custom chevron up/down buttons instead of native number spinners for reliable value changes
 - ✅ **Selective Personnel Removal** - When removing apparatus assignment with multiple personnel, dialog asks which riding position to remove
+
+### Overtime Notification Broadcast (May 19, 2026)
+- ✅ **Send Notification Button** - Added to Battalion Chief > Overtime Available page
+- ✅ **Broadcast Modal** - Comprehensive UI for drafting SMS/Email notifications
+- ✅ **Target Audience Filters** - All Personnel, By Rank, Paramedics Only, Specific Individuals
+- ✅ **Rank Selection** - Checkboxes for Fire Chief, Asst. Chief, Deputy Chief, Battalion Chief, Captain, Lieutenant, Firefighter, Part-Time Firefighter, Volunteer
+- ✅ **Individual Selection** - Scrollable list of users with contact info indicators
+- ✅ **Notification Methods** - SMS Text and Email checkboxes
+- ✅ **Message Composition** - Email subject and message body with auto-populated date context
+- ✅ **Recipients Preview** - Shows count and list of recipients with phone/email icons
+- ✅ **Backend API** - `/api/notifications/broadcast` endpoint stores notification records
+- ⏳ **SMS/Email Delivery** - Pending Twilio/SendGrid integration (Task 3)
 
 ### Date Formatting (April 3, 2026)
 - ✅ **Global MM/DD/YYYY format** - All dates across the site now display as MM/DD/YYYY (e.g., 04/03/2026)
