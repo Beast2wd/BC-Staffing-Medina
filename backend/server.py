@@ -1528,43 +1528,50 @@ async def create_part_time_employee(
     data: PartTimeEmployeeCreate,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Create a new part-time employee and optionally their user account"""
+    """Create a new part-time employee and their user account"""
     # Check if employee number already exists
     existing = await db.part_time_employees.find_one({"employee_number": data.employee_number})
     if existing:
         raise HTTPException(status_code=400, detail="Employee number already exists")
     
-    # If email is provided, create a user account for login
-    if data.contact_email:
-        existing_user = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-        
-        # Create user account for part-time employee with generic password
-        generic_password = "parttime123"
-        user_id = str(uuid.uuid4())
-        user_doc = {
-            "id": user_id,
-            "payroll_number": data.employee_number,
-            "email": data.contact_email,
-            "phone_number": data.contact_phone,
-            "password_hash": hash_password(generic_password),
-            "name": data.name,
-            "rank": data.rank or "Part-Time Firefighter",
-            "role": UserRole.FIREFIGHTER,  # Part-time employees get firefighter role (view access)
-            "station_id": None,
-            "shift": None,
-            "is_active": True,
-            "must_change_password": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.users.insert_one(user_doc)
+    # Check if employee number already exists as a user
+    existing_user = await db.users.find_one({"payroll_number": data.employee_number}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Employee number already registered as user")
     
+    # If email is provided, check if it's already in use
+    if data.contact_email:
+        existing_email = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create part-time employee record
     employee = PartTimeEmployee(
         id=str(uuid.uuid4()),
         **data.model_dump(),
         created_at=datetime.now(timezone.utc).isoformat()
     )
+    
+    # Always create user account for part-time employee so they appear in User Management
+    generic_password = "parttime123"
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "payroll_number": data.employee_number,
+        "email": data.contact_email,
+        "phone_number": data.contact_phone,
+        "password_hash": hash_password(generic_password),
+        "name": data.name,
+        "rank": data.rank or "Part-Time Firefighter",
+        "role": UserRole.FIREFIGHTER,  # Part-time employees get firefighter role (view access)
+        "station_id": None,
+        "shift": None,
+        "is_active": True,
+        "must_change_password": True,
+        "part_time_employee_id": employee.id,  # Link to part-time employee record
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(user_doc)
     
     await db.part_time_employees.insert_one(employee.model_dump())
     return employee
@@ -1601,13 +1608,26 @@ async def delete_part_time_employee(
     employee_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Delete (deactivate) a part-time employee"""
+    """Delete (deactivate) a part-time employee and their user account"""
     employee = await db.part_time_employees.find_one({"id": employee_id})
     if not employee:
         raise HTTPException(status_code=404, detail="Part-time employee not found")
     
+    # Deactivate part-time employee
     await db.part_time_employees.update_one(
         {"id": employee_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    # Also deactivate the associated user account
+    await db.users.update_one(
+        {"part_time_employee_id": employee_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    # Also try to match by employee_number (for records created before linking was added)
+    await db.users.update_one(
+        {"payroll_number": employee.get("employee_number")},
         {"$set": {"is_active": False}}
     )
     

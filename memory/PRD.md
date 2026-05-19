@@ -92,8 +92,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Search and filter by rank
 - ✅ Located under Tools dropdown below User Management
 - ✅ **Contact Info Fields** - Phone and Email fields in Add/Edit dialogs, Contact column in table
-- ✅ **Auto User Account Creation** - When email is provided, user account is auto-created with `parttime123` password and forced password change on first login (May 15, 2026)
+- ✅ **Auto User Account Creation** - User account is auto-created with `parttime123` password and forced password change on first login (May 15, 2026)
 - ✅ **Login Info Notice** - Add dialog shows login instructions with initial password `parttime123` (May 15, 2026)
+- ✅ **User Management Sync** - Part-time employees automatically appear in User Management for role assignment; deletion deactivates their user account (May 19, 2026)
 
 ### Part-Time Availability (April 20, 2026)
 - ✅ Part-Time Availability page under Personnel dropdown (between Overtime and Volunteer)
@@ -149,6 +150,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Volunteer** - Renamed from "Vol. FF Availability" (April 1, 2026)
 - ✅ **Important notice** - Decline responsibility includes "via department email and phone call"
 - ✅ **Volunteer Firefighter rank** - Added to Personnel Management
+- ✅ **User Management Sync** - Volunteers automatically appear in User Management for role assignment; deletion deactivates their user account (May 19, 2026)
 
 ### On Duty Page (March 31, 2026)
 - ✅ Shows all personnel on duty at each station
