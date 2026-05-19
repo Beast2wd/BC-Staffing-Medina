@@ -1433,10 +1433,15 @@ async def create_volunteer(
     if not data.contact_email:
         raise HTTPException(status_code=400, detail="Email is required for volunteer login")
     
-    # Check if email already exists
-    existing_user = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
+    # Check if email already exists for an ACTIVE user
+    existing_user = await db.users.find_one({"email": data.contact_email, "is_active": True}, {"_id": 0})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Clean up any inactive records with the same email (allow reuse)
+    await db.users.delete_many({"email": data.contact_email, "is_active": False})
+    # Also clean up inactive volunteers with the same email
+    await db.volunteers.delete_many({"contact_email": data.contact_email, "is_active": False})
     
     volunteer = Volunteer(
         name=data.name,
@@ -1529,21 +1534,29 @@ async def create_part_time_employee(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Create a new part-time employee and their user account"""
-    # Check if employee number already exists
-    existing = await db.part_time_employees.find_one({"employee_number": data.employee_number})
+    # Check if employee number already exists (only active ones block creation)
+    existing = await db.part_time_employees.find_one({"employee_number": data.employee_number, "is_active": True})
     if existing:
         raise HTTPException(status_code=400, detail="Employee number already exists")
     
-    # Check if employee number already exists as a user
-    existing_user = await db.users.find_one({"payroll_number": data.employee_number}, {"_id": 0})
+    # Check if employee number already exists as an ACTIVE user
+    existing_user = await db.users.find_one({"payroll_number": data.employee_number, "is_active": True}, {"_id": 0})
     if existing_user:
         raise HTTPException(status_code=400, detail="Employee number already registered as user")
     
-    # If email is provided, check if it's already in use
+    # If email is provided, check if it's already in use by an ACTIVE user
     if data.contact_email:
-        existing_email = await db.users.find_one({"email": data.contact_email}, {"_id": 0})
+        existing_email = await db.users.find_one({"email": data.contact_email, "is_active": True}, {"_id": 0})
         if existing_email:
             raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Clean up any inactive records with the same employee number (allow reuse)
+    await db.part_time_employees.delete_many({"employee_number": data.employee_number, "is_active": False})
+    await db.users.delete_many({"payroll_number": data.employee_number, "is_active": False})
+    
+    # If email provided, also clean up inactive users with that email
+    if data.contact_email:
+        await db.users.delete_many({"email": data.contact_email, "is_active": False})
     
     # Create part-time employee record
     employee = PartTimeEmployee(
