@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, Key, Phone, Mail } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, Key, Phone, Mail, Eye, EyeOff } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
@@ -26,6 +26,7 @@ export const UserManagementPage = () => {
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [formData, setFormData] = useState({
@@ -85,6 +86,7 @@ export const UserManagementPage = () => {
       await api.post('/auth/register', formData);
       toast.success('User created');
       setShowAddDialog(false);
+      setShowPassword(false);
       fetchUsers();
       setFormData({ payroll_number: '', password: '', name: '', rank: 'Firefighter', role: 'firefighter', station_id: '', shift: 'A', email: '', phone_number: '' });
     } catch (error) {
@@ -236,13 +238,30 @@ export const UserManagementPage = () => {
 
                 <div className="space-y-2">
                   <Label>Password *</Label>
-                  <Input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    placeholder="Enter password"
-                    data-testid="password-input"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      placeholder="Enter password"
+                      className="pr-10"
+                      data-testid="password-input"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      data-testid="toggle-password-visibility"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
