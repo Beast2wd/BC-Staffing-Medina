@@ -1416,7 +1416,7 @@ async def get_volunteers(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Get all volunteer firefighters"""
-    query = {"is_active": True}
+    query = {}
     if station_id:
         query["station_id"] = station_id
     
@@ -1499,20 +1499,17 @@ async def delete_volunteer(
     volunteer_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Delete (deactivate) a volunteer firefighter and their user account"""
-    # Deactivate volunteer
-    result = await db.volunteers.update_one(
-        {"id": volunteer_id},
-        {"$set": {"is_active": False}}
-    )
-    if result.matched_count == 0:
+    """Delete a volunteer firefighter and their user account"""
+    # Get volunteer info first
+    volunteer = await db.volunteers.find_one({"id": volunteer_id})
+    if not volunteer:
         raise HTTPException(status_code=404, detail="Volunteer not found")
     
-    # Also deactivate the associated user account
-    await db.users.update_one(
-        {"volunteer_id": volunteer_id},
-        {"$set": {"is_active": False}}
-    )
+    # Delete volunteer record
+    await db.volunteers.delete_one({"id": volunteer_id})
+    
+    # Delete the associated user account from User Management
+    await db.users.delete_one({"volunteer_id": volunteer_id})
     
     return {"message": "Volunteer removed"}
 
@@ -1523,7 +1520,7 @@ async def get_part_time_employees(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all part-time employees sorted alphabetically by name"""
-    employees = await db.part_time_employees.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    employees = await db.part_time_employees.find({}, {"_id": 0}).to_list(1000)
     # Sort alphabetically by name
     employees.sort(key=lambda x: x.get("name", "").lower())
     return employees
@@ -1621,28 +1618,19 @@ async def delete_part_time_employee(
     employee_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
-    """Delete (deactivate) a part-time employee and their user account"""
+    """Delete a part-time employee and their user account"""
     employee = await db.part_time_employees.find_one({"id": employee_id})
     if not employee:
         raise HTTPException(status_code=404, detail="Part-time employee not found")
     
-    # Deactivate part-time employee
-    await db.part_time_employees.update_one(
-        {"id": employee_id},
-        {"$set": {"is_active": False}}
-    )
+    # Delete part-time employee record
+    await db.part_time_employees.delete_one({"id": employee_id})
     
-    # Also deactivate the associated user account
-    await db.users.update_one(
-        {"part_time_employee_id": employee_id},
-        {"$set": {"is_active": False}}
-    )
+    # Delete the associated user account from User Management
+    await db.users.delete_one({"part_time_employee_id": employee_id})
     
     # Also try to match by employee_number (for records created before linking was added)
-    await db.users.update_one(
-        {"payroll_number": employee.get("employee_number")},
-        {"$set": {"is_active": False}}
-    )
+    await db.users.delete_one({"payroll_number": employee.get("employee_number")})
     
     return {"message": "Part-time employee removed"}
 
