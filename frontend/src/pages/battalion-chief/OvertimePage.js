@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock, Send, Mail, MessageSquare, Users, User, Shield, Stethoscope, X } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock, Send, Mail, MessageSquare, Users, User, Shield, Stethoscope, X, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -35,6 +35,9 @@ export const OvertimePage = () => {
     message: ''
   });
   const [allUsers, setAllUsers] = useState([]);
+  const [partTimeEmployees, setPartTimeEmployees] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
+  const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     personnel_id: '',
     date: selectedDate,
@@ -48,7 +51,7 @@ export const OvertimePage = () => {
 
   useEffect(() => {
     fetchAllData();
-    fetchAllUsers();
+    fetchAllPersonnelData();
   }, [selectedBattalion]);
 
   useEffect(() => {
@@ -56,13 +59,21 @@ export const OvertimePage = () => {
     fetchOvertimeRecords();
   }, [selectedDate]);
 
-  const fetchAllUsers = async () => {
+  const fetchAllPersonnelData = async () => {
     try {
-      const response = await api.get('/users');
-      // Filter only active users with contact info
-      setAllUsers(response.data.filter(u => u.is_active));
+      // Fetch from all three sources
+      const [usersRes, ptRes, volRes] = await Promise.all([
+        api.get('/users'),
+        api.get('/part-time-employees'),
+        api.get('/volunteers')
+      ]);
+      
+      // Filter active users
+      setAllUsers(usersRes.data.filter(u => u.is_active));
+      setPartTimeEmployees(ptRes.data.filter(pt => pt.is_active !== false));
+      setVolunteers(volRes.data.filter(v => v.is_active !== false));
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error fetching personnel data:', error);
     }
   };
 
@@ -239,43 +250,126 @@ export const OvertimePage = () => {
   // Broadcast notification helpers
   const RANK_HIERARCHY = ['Fire Chief', 'Asst. Chief', 'Deputy Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Part-Time Firefighter', 'Volunteer'];
   
+  // Combined list of all personnel from all three sources (for "All Personnel" and "Specific Individuals")
+  const getAllPersonnelCombined = () => {
+    const combined = [];
+    
+    // Add users from User Management
+    allUsers.forEach(u => {
+      if (u.email || u.phone_number) {
+        combined.push({
+          id: u.id,
+          name: u.name,
+          rank: u.rank,
+          email: u.email,
+          phone_number: u.phone_number,
+          source: 'user',
+          displayName: `${u.rank} ${u.name}`
+        });
+      }
+    });
+    
+    // Add part-time employees (avoid duplicates based on employee_number matching payroll_number)
+    partTimeEmployees.forEach(pt => {
+      const existsAsUser = allUsers.some(u => u.payroll_number === pt.employee_number);
+      if (!existsAsUser && (pt.contact_email || pt.contact_phone)) {
+        combined.push({
+          id: `pt-${pt.id}`,
+          name: pt.name,
+          rank: pt.rank || 'Part-Time',
+          email: pt.contact_email,
+          phone_number: pt.contact_phone,
+          source: 'part-time',
+          displayName: `${pt.rank || 'PT'} ${pt.name}`
+        });
+      }
+    });
+    
+    // Add volunteers (avoid duplicates based on email)
+    volunteers.forEach(v => {
+      const existsAsUser = allUsers.some(u => u.email === v.contact_email);
+      if (!existsAsUser && (v.contact_email || v.contact_phone)) {
+        combined.push({
+          id: `vol-${v.id}`,
+          name: v.name,
+          rank: 'Volunteer',
+          email: v.contact_email,
+          phone_number: v.contact_phone,
+          source: 'volunteer',
+          displayName: `Volunteer ${v.name}`
+        });
+      }
+    });
+    
+    // Sort alphabetically by name
+    return combined.sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   const getRecipients = () => {
     let recipients = [];
     
     switch (broadcastData.targetType) {
       case 'all':
-        recipients = allUsers.filter(u => u.email || u.phone_number);
+        // Pull from all three sources: User Management, Part-Time, and Volunteers
+        recipients = getAllPersonnelCombined();
         break;
       case 'rank':
-        recipients = allUsers.filter(u => 
-          broadcastData.selectedRanks.includes(u.rank) && (u.email || u.phone_number)
-        );
+        // Pull ONLY from User Management, filter by selected ranks
+        recipients = allUsers
+          .filter(u => broadcastData.selectedRanks.includes(u.rank) && (u.email || u.phone_number))
+          .map(u => ({
+            id: u.id,
+            name: u.name,
+            rank: u.rank,
+            email: u.email,
+            phone_number: u.phone_number,
+            source: 'user',
+            displayName: `${u.rank} ${u.name}`
+          }));
         break;
       case 'paramedic':
-        // Filter personnel who have paramedic certification
-        const paramedicIds = personnel.filter(p => 
-          p.certifications?.includes('Paramedic')
-        ).map(p => p.id);
-        recipients = allUsers.filter(u => 
-          paramedicIds.some(pId => u.payroll_number === personnel.find(p => p.id === pId)?.payroll_number) &&
-          (u.email || u.phone_number)
-        );
-        // Also include users with 'Paramedic' in their rank name
-        const additionalParamedics = allUsers.filter(u => 
-          u.rank?.toLowerCase().includes('paramedic') && (u.email || u.phone_number)
-        );
-        recipients = [...new Map([...recipients, ...additionalParamedics].map(r => [r.id, r])).values()];
+        // Pull ONLY from User Management, filter by paramedic certification or rank
+        const paramedicUsers = allUsers.filter(u => {
+          const hasParamedicRank = u.rank?.toLowerCase().includes('paramedic');
+          // Check if user exists in personnel with Paramedic certification
+          const personnelRecord = personnel.find(p => p.payroll_number === u.payroll_number);
+          const hasParamedicCert = personnelRecord?.certifications?.includes('Paramedic');
+          return (hasParamedicRank || hasParamedicCert) && (u.email || u.phone_number);
+        });
+        recipients = paramedicUsers.map(u => ({
+          id: u.id,
+          name: u.name,
+          rank: u.rank,
+          email: u.email,
+          phone_number: u.phone_number,
+          source: 'user',
+          displayName: `${u.rank} ${u.name}`
+        }));
         break;
       case 'individual':
-        recipients = allUsers.filter(u => 
-          broadcastData.selectedIndividuals.includes(u.id) && (u.email || u.phone_number)
-        );
+        // Pull from all three sources, filter by selected individuals
+        const allCombined = getAllPersonnelCombined();
+        recipients = allCombined.filter(p => broadcastData.selectedIndividuals.includes(p.id));
         break;
       default:
         recipients = [];
     }
     
     return recipients;
+  };
+
+  // Filtered personnel list for individual selection (with search)
+  const getFilteredPersonnelForSelection = () => {
+    const allCombined = getAllPersonnelCombined();
+    if (!personnelSearchTerm.trim()) {
+      return allCombined;
+    }
+    const searchLower = personnelSearchTerm.toLowerCase();
+    return allCombined.filter(p => 
+      p.name.toLowerCase().includes(searchLower) ||
+      p.rank?.toLowerCase().includes(searchLower) ||
+      p.displayName.toLowerCase().includes(searchLower)
+    );
   };
 
   const handleRankToggle = (rank) => {
@@ -287,12 +381,12 @@ export const OvertimePage = () => {
     }));
   };
 
-  const handleIndividualToggle = (userId) => {
+  const handleIndividualToggle = (personId) => {
     setBroadcastData(prev => ({
       ...prev,
-      selectedIndividuals: prev.selectedIndividuals.includes(userId)
-        ? prev.selectedIndividuals.filter(id => id !== userId)
-        : [...prev.selectedIndividuals, userId]
+      selectedIndividuals: prev.selectedIndividuals.includes(personId)
+        ? prev.selectedIndividuals.filter(id => id !== personId)
+        : [...prev.selectedIndividuals, personId]
     }));
   };
 
@@ -363,6 +457,7 @@ export const OvertimePage = () => {
       ...prev,
       message: defaultMessage
     }));
+    setPersonnelSearchTerm('');
     setShowBroadcastDialog(true);
   };
 
@@ -589,23 +684,85 @@ export const OvertimePage = () => {
                     {broadcastData.targetType === 'individual' && (
                       <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
                         <Label className="text-sm font-medium">Select Individuals</Label>
-                        <div className="max-h-48 overflow-y-auto space-y-2">
-                          {allUsers.filter(u => u.email || u.phone_number).map(user => (
-                            <div key={user.id} className="flex items-center space-x-2 p-2 hover:bg-accent rounded">
-                              <Checkbox 
-                                id={`user-${user.id}`}
-                                checked={broadcastData.selectedIndividuals.includes(user.id)}
-                                onCheckedChange={() => handleIndividualToggle(user.id)}
-                              />
-                              <Label htmlFor={`user-${user.id}`} className="text-sm cursor-pointer flex-1">
-                                <span className="font-medium">{user.rank} {user.name}</span>
-                                <span className="text-muted-foreground ml-2 text-xs">
-                                  {user.phone_number && <Phone className="h-3 w-3 inline mr-1" />}
-                                  {user.email && <Mail className="h-3 w-3 inline" />}
-                                </span>
-                              </Label>
-                            </div>
-                          ))}
+                        <p className="text-xs text-muted-foreground">
+                          Includes personnel from User Management, Part-Time, and Volunteers
+                        </p>
+                        
+                        {/* Search Input */}
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            value={personnelSearchTerm}
+                            onChange={(e) => setPersonnelSearchTerm(e.target.value)}
+                            placeholder="Search by name or rank..."
+                            className="pl-10"
+                            data-testid="personnel-search-input"
+                          />
+                        </div>
+                        
+                        {/* Selected count */}
+                        {broadcastData.selectedIndividuals.length > 0 && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              {broadcastData.selectedIndividuals.length} selected
+                            </span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setBroadcastData(prev => ({ ...prev, selectedIndividuals: [] }))}
+                              className="text-xs h-6"
+                            >
+                              Clear all
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {/* Personnel List */}
+                        <div className="max-h-64 overflow-y-auto space-y-1 border rounded-lg p-2">
+                          {getFilteredPersonnelForSelection().length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              {personnelSearchTerm ? 'No personnel found matching search' : 'No personnel with contact info available'}
+                            </p>
+                          ) : (
+                            getFilteredPersonnelForSelection().map(person => (
+                              <div 
+                                key={person.id} 
+                                className={`flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer ${
+                                  broadcastData.selectedIndividuals.includes(person.id) ? 'bg-accent/50' : ''
+                                }`}
+                                onClick={() => handleIndividualToggle(person.id)}
+                              >
+                                <Checkbox 
+                                  id={`person-${person.id}`}
+                                  checked={broadcastData.selectedIndividuals.includes(person.id)}
+                                  onCheckedChange={() => handleIndividualToggle(person.id)}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm truncate">{person.displayName}</span>
+                                    {person.source === 'part-time' && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-500/20 text-purple-400 border-purple-500/30">PT</Badge>
+                                    )}
+                                    {person.source === 'volunteer' && (
+                                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-500/20 text-green-400 border-green-500/30">VOL</Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                    {person.phone_number && (
+                                      <span className="flex items-center gap-1">
+                                        <Phone className="h-3 w-3" /> {person.phone_number}
+                                      </span>
+                                    )}
+                                    {person.email && (
+                                      <span className="flex items-center gap-1">
+                                        <Mail className="h-3 w-3" /> {person.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
                     )}
@@ -669,21 +826,33 @@ export const OvertimePage = () => {
                         <Label className="text-sm font-semibold text-blue-400">Recipients Preview</Label>
                         <Badge variant="secondary">{getRecipients().length} recipient(s)</Badge>
                       </div>
+                      {(broadcastData.targetType === 'all' || broadcastData.targetType === 'individual') && (
+                        <p className="text-xs text-muted-foreground">
+                          Includes: User Management, Part-Time Employees, Volunteers
+                        </p>
+                      )}
+                      {(broadcastData.targetType === 'rank' || broadcastData.targetType === 'paramedic') && (
+                        <p className="text-xs text-muted-foreground">
+                          Source: User Management only
+                        </p>
+                      )}
                       <div className="max-h-32 overflow-y-auto text-sm">
                         {getRecipients().length === 0 ? (
                           <p className="text-muted-foreground">No recipients selected or no contact info available</p>
                         ) : (
                           <div className="flex flex-wrap gap-2">
-                            {getRecipients().slice(0, 10).map(r => (
-                              <Badge key={r.id} variant="outline" className="text-xs">
+                            {getRecipients().slice(0, 15).map(r => (
+                              <Badge key={r.id} variant="outline" className="text-xs flex items-center gap-1">
+                                {r.source === 'part-time' && <span className="text-purple-400">[PT]</span>}
+                                {r.source === 'volunteer' && <span className="text-green-400">[VOL]</span>}
                                 {r.name}
-                                {r.phone_number && <Phone className="h-3 w-3 ml-1 inline" />}
-                                {r.email && <Mail className="h-3 w-3 ml-1 inline" />}
+                                {r.phone_number && <Phone className="h-3 w-3 ml-1" />}
+                                {r.email && <Mail className="h-3 w-3 ml-1" />}
                               </Badge>
                             ))}
-                            {getRecipients().length > 10 && (
+                            {getRecipients().length > 15 && (
                               <Badge variant="outline" className="text-xs">
-                                +{getRecipients().length - 10} more
+                                +{getRecipients().length - 15} more
                               </Badge>
                             )}
                           </div>
