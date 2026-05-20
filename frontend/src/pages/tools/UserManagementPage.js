@@ -59,7 +59,7 @@ export const UserManagementPage = () => {
     { value: 'firefighter', label: 'Firefighter' }
   ];
 
-  const ranks = ['Chief', 'Deputy Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Engineer', 'Paramedic'];
+  const ranks = ['Fire Chief', 'Asst. Chief', 'Deputy Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Engineer', 'Paramedic'];
 
   useEffect(() => {
     fetchAllData();
