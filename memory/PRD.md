@@ -188,12 +188,13 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Broadcast Modal** - Comprehensive UI for drafting SMS/Email notifications
 - ✅ **Target Audience Filters** - All Personnel, By Rank, Paramedics Only, Specific Individuals
 - ✅ **Rank Selection** - Checkboxes for Fire Chief, Asst. Chief, Deputy Chief, Battalion Chief, Captain, Lieutenant, Firefighter, Part-Time Firefighter, Volunteer
-- ✅ **Individual Selection** - Scrollable list of users with contact info indicators
+- ✅ **Individual Selection** - Scrollable list with search, shows PT/VOL badges
 - ✅ **Notification Methods** - SMS Text and Email checkboxes
 - ✅ **Message Composition** - Email subject and message body with auto-populated date context
 - ✅ **Recipients Preview** - Shows count and list of recipients with phone/email icons
 - ✅ **Backend API** - `/api/notifications/broadcast` endpoint stores notification records
-- ⏳ **SMS/Email Delivery** - Pending Twilio/SendGrid integration (Task 3)
+- ✅ **Twilio SMS Integration** - Live SMS delivery to recipients (May 23, 2026)
+- ✅ **SendGrid Email Integration** - Live email delivery with HTML formatting (May 23, 2026)
 
 ### Date Formatting (April 3, 2026)
 - ✅ **Global MM/DD/YYYY format** - All dates across the site now display as MM/DD/YYYY (e.g., 04/03/2026)
