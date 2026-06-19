@@ -1,0 +1,471 @@
+"""
+Volunteer routes - volunteer records and volunteer firefighter management
+"""
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List, Optional
+from datetime import datetime, timezone
+import uuid
+
+from database import db
+from models import (
+    UserRole, VolunteerRecord, VolunteerRecordCreate,
+    Volunteer, VolunteerCreate, VolunteerUpdate
+)
+from auth import get_current_user, require_role, hash_password
+
+router = APIRouter(tags=["Volunteers"])
+
+
+# ===================== VOLUNTEER RECORDS ROUTES =====================
+
+@router.get("/volunteer", response_model=List[VolunteerRecord])
+async def get_volunteer_records(
+    date: Optional[str] = None,
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {}
+    if date:
+        query["date"] = date
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
+    return [VolunteerRecord(**r) for r in records]
+
+
+@router.get("/volunteer/stats")
+async def get_volunteer_stats(
+    battalion_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get overall volunteer statistics - totals for all volunteers"""
+    current_year = datetime.now().year
+    current_month = datetime.now().strftime("%Y-%m")
+    current_month_name = datetime.now().strftime("%B %Y")
+    
+    # Build query for YTD records
+    query = {
+        "date": {"$gte": f"{current_year}-01-01"},
+        "status": "assigned"
+    }
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    # Get all volunteer records for YTD
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(2000)
+    
+    # Calculate totals
+    total_hours_scheduled = 0
+    total_hours_worked = 0
+    current_month_hours = 0
+    shifts_count = len(records)
+    unique_volunteers = set()
+    
+    for record in records:
+        scheduled = record.get("hours", 0)
+        worked = record.get("hours_worked", 0) or scheduled
+        total_hours_scheduled += scheduled
+        total_hours_worked += worked
+        unique_volunteers.add(record.get("personnel_id"))
+        
+        # Track current month hours
+        record_date = record.get("date", "")
+        if record_date and record_date[:7] == current_month:
+            current_month_hours += worked
+    
+    return {
+        "total_volunteers": len(unique_volunteers),
+        "shifts_count": shifts_count,
+        "total_hours_scheduled": total_hours_scheduled,
+        "total_hours_worked": total_hours_worked,
+        "current_month_hours": current_month_hours,
+        "current_month_name": current_month_name
+    }
+
+
+@router.get("/volunteer/my-hours")
+async def get_my_volunteer_hours(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the current volunteer's hours summary"""
+    # Determine the volunteer's personnel_id
+    is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
+    
+    if is_volunteer_ff:
+        volunteer_id = current_user.get("volunteer_id")
+        if not volunteer_id:
+            user = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+            volunteer_id = user.get("volunteer_id") if user else None
+    else:
+        # Regular personnel
+        personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        volunteer_id = personnel.get("id") if personnel else None
+    
+    if not volunteer_id:
+        return {"total_hours_scheduled": 0, "total_hours_worked": 0, "shifts": []}
+    
+    # Build query for this volunteer's records
+    query = {"personnel_id": volunteer_id, "status": "assigned"}
+    
+    # Default to current year if no dates provided
+    if not start_date:
+        start_date = f"{datetime.now().year}-01-01"
+    if not end_date:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+    
+    query["date"] = {"$gte": start_date, "$lte": end_date}
+    
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
+    
+    # Get stations for name lookups
+    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # Calculate totals and monthly breakdown
+    total_hours_scheduled = 0
+    total_hours_worked = 0
+    current_month_hours = 0
+    current_month = datetime.now().strftime("%Y-%m")
+    shifts = []
+    
+    for record in records:
+        scheduled = record.get("hours", 0)
+        worked = record.get("hours_worked", 0) or scheduled
+        total_hours_scheduled += scheduled
+        total_hours_worked += worked
+        
+        # Track current month hours
+        record_date = record.get("date", "")
+        if record_date and record_date[:7] == current_month:
+            current_month_hours += worked
+        
+        station = stations_dict.get(record.get("assigned_station_id") or record.get("station_id"), {})
+        shifts.append({
+            "id": record.get("id"),
+            "date": record.get("date"),
+            "shift": record.get("assigned_shift", ""),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "hours_scheduled": scheduled,
+            "hours_worked": worked,
+            "status": record.get("status"),
+            "check_in": record.get("check_in_time", ""),
+            "check_out": record.get("check_out_time", "")
+        })
+    
+    # Sort by date descending
+    shifts.sort(key=lambda x: x["date"], reverse=True)
+    
+    # Get current month name for display
+    current_month_name = datetime.now().strftime("%B %Y")
+    
+    return {
+        "volunteer_id": volunteer_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_hours_scheduled": total_hours_scheduled,
+        "total_hours_worked": total_hours_worked,
+        "current_month_hours": current_month_hours,
+        "current_month_name": current_month_name,
+        "shifts_count": len(shifts),
+        "shifts": shifts
+    }
+
+
+@router.post("/volunteer", response_model=VolunteerRecord)
+async def create_volunteer_record(
+    data: VolunteerRecordCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create volunteer record - any user can submit their own availability"""
+    # For volunteer firefighters, get their volunteer record ID
+    is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
+    
+    if is_volunteer_ff:
+        # Extract volunteer_id from payroll_number (format: VOL-{volunteer_id})
+        payroll = current_user.get("payroll_number", "")
+        if payroll.startswith("VOL-"):
+            volunteer_id_prefix = payroll[4:].lower()  # Remove "VOL-" prefix
+            # Find volunteer by matching ID prefix
+            volunteer = await db.volunteers.find_one(
+                {"id": {"$regex": f"^{volunteer_id_prefix}", "$options": "i"}}, 
+                {"_id": 0}
+            )
+            if volunteer:
+                data.personnel_id = volunteer.get("id")
+            else:
+                raise HTTPException(status_code=404, detail="Volunteer profile not found")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid volunteer account")
+    else:
+        # Regular personnel
+        personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+        if not personnel:
+            raise HTTPException(status_code=404, detail="Personnel not found")
+        
+        # Check if user is submitting for themselves or has elevated permissions
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
+        has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+        
+        if not is_own_record and not has_permissions:
+            raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
+    
+    record_id = str(uuid.uuid4())
+    # Auto-assign volunteer when they submit availability
+    data.status = "assigned"
+    record_doc = {
+        "id": record_id, 
+        **data.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.volunteer_records.insert_one(record_doc)
+    
+    # Auto-sync to daily worksheet when assigned
+    station_id = data.assigned_station_id or data.station_id
+    if station_id:
+        existing_staffing = await db.staffing_records.find_one({
+            "date": data.date,
+            "station_id": station_id
+        }, {"_id": 0})
+        
+        if existing_staffing:
+            current_categories = existing_staffing.get("categories", {})
+            current_vol = current_categories.get("volunteer", 0)
+            await db.staffing_records.update_one(
+                {"id": existing_staffing["id"]},
+                {"$set": {"categories.volunteer": current_vol + 1}}
+            )
+    
+    return VolunteerRecord(**record_doc)
+
+
+@router.put("/volunteer/{record_id}", response_model=VolunteerRecord)
+async def update_volunteer_record(
+    record_id: str,
+    data: VolunteerRecordCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a volunteer record. Users can update their own records, BC/Admin/Captain/Lt can update any."""
+    # Get the existing record to check previous status
+    existing = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Volunteer record not found")
+    
+    # Check permissions - admin/BC/Captain/Lt can edit any, others can only edit their own
+    is_privileged = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+    
+    # Check if user owns this record
+    is_own_record = False
+    if current_user.get("role") == UserRole.VOLUNTEER:
+        # For volunteers, check volunteer_id
+        user_doc = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+        if user_doc and user_doc.get("volunteer_id") == existing.get("personnel_id"):
+            is_own_record = True
+    else:
+        # For regular personnel
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        if user_personnel and user_personnel.get("id") == existing.get("personnel_id"):
+            is_own_record = True
+    
+    if not is_privileged and not is_own_record:
+        raise HTTPException(status_code=403, detail="Not authorized to update this record")
+    
+    result = await db.volunteer_records.find_one_and_update(
+        {"id": record_id},
+        {"$set": data.model_dump()},
+        return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Volunteer record not found")
+    del result["_id"]
+    return VolunteerRecord(**result)
+
+
+@router.delete("/volunteer/{record_id}")
+async def delete_volunteer_record(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a volunteer record. Users can delete/revoke their own records, BC/Admin/Captain/Lt can delete any."""
+    record = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Volunteer record not found")
+    
+    # Check permissions
+    is_privileged = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
+    
+    # Check if user owns this record
+    is_own_record = False
+    if current_user.get("role") == UserRole.VOLUNTEER:
+        # For volunteers, the payroll_number is VOL-{volunteer_id}
+        # Extract the volunteer_id from payroll_number
+        payroll = current_user.get("payroll_number", "")
+        if payroll.startswith("VOL-"):
+            volunteer_id_from_payroll = payroll[4:].lower()  # Remove "VOL-" prefix
+            record_personnel_id = record.get("personnel_id", "").lower()
+            # Check if the volunteer_id matches the personnel_id (case insensitive)
+            if volunteer_id_from_payroll and record_personnel_id.startswith(volunteer_id_from_payroll):
+                is_own_record = True
+    else:
+        # For regular personnel
+        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        if user_personnel and user_personnel.get("id") == record.get("personnel_id"):
+            is_own_record = True
+    
+    if not is_privileged and not is_own_record:
+        raise HTTPException(status_code=403, detail="You can only remove your own volunteer availability")
+    
+    result = await db.volunteer_records.delete_one({"id": record_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Volunteer record not found")
+    
+    return {"message": "Volunteer record deleted"}
+
+
+# Get volunteer assignments for staffing grid
+@router.get("/volunteer-assignments")
+async def get_volunteer_assignments(
+    date: str,
+    shift: Optional[str] = None,
+    station_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get volunteer assignments for a specific date and optionally shift/station"""
+    query = {"date": date, "assigned_shift": {"$ne": ""}, "assigned_station_id": {"$ne": ""}}
+    if shift:
+        query["assigned_shift"] = shift
+    if station_id:
+        query["assigned_station_id"] = station_id
+    
+    records = await db.volunteer_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Enrich with volunteer/personnel info
+    enriched = []
+    for record in records:
+        # First try to find in volunteers collection (for volunteer firefighters)
+        volunteer = await db.volunteers.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+        if volunteer:
+            record["volunteer_name"] = volunteer.get("name", "Unknown")
+            record["volunteer_phone"] = volunteer.get("contact_phone", "")
+            record["is_volunteer_ff"] = True
+        else:
+            # Try personnel collection (for regular firefighters volunteering)
+            person = await db.personnel.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+            if person:
+                record["volunteer_name"] = person.get("name", "Unknown")
+                record["volunteer_phone"] = person.get("contact_phone", "")
+                record["is_volunteer_ff"] = False
+        enriched.append(record)
+    
+    return enriched
+
+
+# ===================== VOLUNTEER FIREFIGHTER MANAGEMENT ROUTES =====================
+
+@router.get("/volunteers", response_model=List[Volunteer])
+async def get_volunteers(
+    station_id: Optional[str] = None,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Get all volunteer firefighters"""
+    query = {}
+    if station_id:
+        query["station_id"] = station_id
+    
+    volunteers = await db.volunteers.find(query, {"_id": 0}).to_list(1000)
+    return volunteers
+
+
+@router.post("/volunteers", response_model=Volunteer)
+async def create_volunteer(
+    data: VolunteerCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Create a new volunteer firefighter and their user account"""
+    # Check if email is provided for login
+    if not data.contact_email:
+        raise HTTPException(status_code=400, detail="Email is required for volunteer login")
+    
+    # Check if email already exists for an ACTIVE user
+    existing_user = await db.users.find_one({"email": data.contact_email, "is_active": True}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Clean up any inactive records with the same email (allow reuse)
+    await db.users.delete_many({"email": data.contact_email, "is_active": False})
+    # Also clean up inactive volunteers with the same email
+    await db.volunteers.delete_many({"contact_email": data.contact_email, "is_active": False})
+    
+    volunteer = Volunteer(
+        name=data.name,
+        contact_phone=data.contact_phone,
+        contact_email=data.contact_email,
+        station_id=data.station_id,
+        certifications=data.certifications,
+        notes=data.notes
+    )
+    
+    # Create user account for volunteer with generic password
+    generic_password = "volunteer123"
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "payroll_number": f"VOL-{volunteer.id[:8].upper()}",  # Generate a volunteer payroll number
+        "email": data.contact_email,
+        "password_hash": hash_password(generic_password),
+        "name": data.name,
+        "rank": "Volunteer",
+        "role": UserRole.VOLUNTEER,
+        "station_id": data.station_id,
+        "shift": None,
+        "is_active": True,
+        "must_change_password": True,
+        "volunteer_id": volunteer.id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_doc)
+    await db.volunteers.insert_one(volunteer.model_dump())
+    
+    return volunteer
+
+
+@router.put("/volunteers/{volunteer_id}", response_model=Volunteer)
+async def update_volunteer(
+    volunteer_id: str,
+    data: VolunteerUpdate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Update a volunteer firefighter"""
+    volunteer = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    if not volunteer:
+        raise HTTPException(status_code=404, detail="Volunteer not found")
+    
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    if update_data:
+        await db.volunteers.update_one({"id": volunteer_id}, {"$set": update_data})
+    
+    updated = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    return Volunteer(**updated)
+
+
+@router.delete("/volunteers/{volunteer_id}")
+async def delete_volunteer(
+    volunteer_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Delete a volunteer firefighter and their user account"""
+    # Get volunteer info first
+    volunteer = await db.volunteers.find_one({"id": volunteer_id})
+    if not volunteer:
+        raise HTTPException(status_code=404, detail="Volunteer not found")
+    
+    # Delete volunteer record
+    await db.volunteers.delete_one({"id": volunteer_id})
+    
+    # Delete the associated user account from User Management
+    await db.users.delete_one({"volunteer_id": volunteer_id})
+    
+    return {"message": "Volunteer removed"}
