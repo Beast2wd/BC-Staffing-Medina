@@ -1,7 +1,7 @@
 """
 Staffing and Apparatus Assignment routes
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -13,6 +13,7 @@ from models import (
     RemarkEntry
 )
 from auth import get_current_user, require_role
+from websocket_manager import manager
 
 router = APIRouter(tags=["Staffing"])
 
@@ -52,6 +53,7 @@ async def get_staffing_record(record_id: str, current_user: dict = Depends(get_c
 @router.post("/staffing", response_model=StaffingRecord)
 async def create_staffing_record(
     data: StaffingRecordCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     record_id = str(uuid.uuid4())
@@ -63,6 +65,16 @@ async def create_staffing_record(
         "updated_at": now
     }
     await db.staffing_records.insert_one(record_doc)
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_staffing_update,
+        "created",
+        {"id": record_id, "station_id": data.station_id},
+        data.date,
+        data.station_id
+    )
+    
     return StaffingRecord(**record_doc)
 
 
@@ -70,6 +82,7 @@ async def create_staffing_record(
 async def update_staffing_record(
     record_id: str,
     data: StaffingRecordUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     # Get existing record for audit log
@@ -114,6 +127,16 @@ async def update_staffing_record(
     if not result:
         raise HTTPException(status_code=404, detail="Staffing record not found")
     del result["_id"]
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_staffing_update,
+        "updated",
+        {"id": record_id, "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
+        existing.get("date"),
+        existing.get("station_id")
+    )
+    
     return StaffingRecord(**result)
 
 
@@ -172,11 +195,22 @@ async def get_apparatus_assignments(
 @router.post("/apparatus-assignments", response_model=ApparatusAssignment)
 async def create_apparatus_assignment(
     data: ApparatusAssignmentCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     assignment_id = str(uuid.uuid4())
     assignment_doc = {"id": assignment_id, **data.model_dump()}
     await db.apparatus_assignments.insert_one(assignment_doc)
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_apparatus_update,
+        "created",
+        {"id": assignment_id, "apparatus_name": data.apparatus_name, "station_id": data.station_id},
+        data.date,
+        data.station_id
+    )
+    
     return ApparatusAssignment(**assignment_doc)
 
 
@@ -184,6 +218,7 @@ async def create_apparatus_assignment(
 async def update_apparatus_assignment(
     assignment_id: str,
     data: ApparatusAssignmentUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     # Only update provided fields
@@ -191,6 +226,9 @@ async def update_apparatus_assignment(
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
+    
+    # Get existing for broadcast context
+    existing = await db.apparatus_assignments.find_one({"id": assignment_id}, {"_id": 0})
     
     result = await db.apparatus_assignments.find_one_and_update(
         {"id": assignment_id},
@@ -200,17 +238,43 @@ async def update_apparatus_assignment(
     if not result:
         raise HTTPException(status_code=404, detail="Assignment not found")
     del result["_id"]
+    
+    # Broadcast WebSocket update
+    if existing:
+        background_tasks.add_task(
+            manager.broadcast_apparatus_update,
+            "updated",
+            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id")},
+            existing.get("date"),
+            existing.get("station_id")
+        )
+    
     return ApparatusAssignment(**result)
 
 
 @router.delete("/apparatus-assignments/{assignment_id}")
 async def delete_apparatus_assignment(
     assignment_id: str,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
+    # Get existing for broadcast context
+    existing = await db.apparatus_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    
     result = await db.apparatus_assignments.delete_one({"id": assignment_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Broadcast WebSocket update
+    if existing:
+        background_tasks.add_task(
+            manager.broadcast_apparatus_update,
+            "deleted",
+            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id")},
+            existing.get("date"),
+            existing.get("station_id")
+        )
+    
     return {"message": "Assignment deleted"}
 
 

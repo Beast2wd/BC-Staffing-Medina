@@ -25,6 +25,7 @@ from routes.users_routes import router as users_router
 from routes.notifications_routes import router as notifications_router
 from routes.reports_routes import router as reports_router
 from routes.misc_routes import router as misc_router
+from routes.websocket_routes import router as websocket_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -46,6 +47,7 @@ app.include_router(users_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(misc_router, prefix="/api")
+app.include_router(websocket_router, prefix="/api")
 
 # CORS middleware
 app.add_middleware(

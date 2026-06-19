@@ -1,7 +1,7 @@
 """
 Overtime and Leave routes
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -12,6 +12,7 @@ from models import (
     LeaveRecord, LeaveRecordCreate
 )
 from auth import get_current_user, require_role
+from websocket_manager import manager
 
 router = APIRouter(tags=["Overtime & Leave"])
 
@@ -40,6 +41,7 @@ async def get_overtime_records(
 @router.post("/overtime", response_model=OvertimeRecord)
 async def create_overtime_record(
     data: OvertimeRecordCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
     """Create overtime record - any user can submit their own availability"""
@@ -59,6 +61,15 @@ async def create_overtime_record(
     record_id = str(uuid.uuid4())
     record_doc = {"id": record_id, **data.model_dump()}
     await db.overtime_records.insert_one(record_doc)
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_overtime_update,
+        "created",
+        {"id": record_id, "personnel_name": personnel.get("name"), "status": data.status},
+        data.date
+    )
+    
     return OvertimeRecord(**record_doc)
 
 
@@ -66,6 +77,7 @@ async def create_overtime_record(
 async def update_overtime_record(
     record_id: str,
     data: OvertimeRecordCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     # Get the existing record to check previous status
@@ -107,12 +119,22 @@ async def update_overtime_record(
     if not result:
         raise HTTPException(status_code=404, detail="Overtime record not found")
     del result["_id"]
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_overtime_update,
+        "updated",
+        {"id": record_id, "status": new_status, "prev_status": prev_status},
+        existing.get("date")
+    )
+    
     return OvertimeRecord(**result)
 
 
 @router.delete("/overtime/{record_id}")
 async def delete_overtime_record(
     record_id: str,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
     """Delete an overtime record from the list. Users can delete their own records, BC/Admin can delete any."""
@@ -148,6 +170,14 @@ async def delete_overtime_record(
     result = await db.overtime_records.delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Overtime record not found")
+    
+    # Broadcast WebSocket update
+    background_tasks.add_task(
+        manager.broadcast_overtime_update,
+        "deleted",
+        {"id": record_id},
+        record.get("date")
+    )
     
     return {"message": "Overtime record deleted"}
 

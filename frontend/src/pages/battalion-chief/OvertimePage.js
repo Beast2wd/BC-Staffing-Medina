@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -7,9 +7,10 @@ import { Input } from '../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
+import { useOvertimeUpdates } from '../../contexts/WebSocketContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock, Send, Mail, MessageSquare, Users, User, Shield, Stethoscope, X, Search } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, Trash2, Clock, Send, Mail, MessageSquare, Users, User, Shield, Stethoscope, X, Search, Wifi, WifiOff } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -58,6 +59,14 @@ export const OvertimePage = () => {
     setFormData(prev => ({ ...prev, date: selectedDate }));
     fetchOvertimeRecords();
   }, [selectedDate]);
+
+  // Handle real-time updates
+  const handleRealtimeUpdate = useCallback(() => {
+    fetchOvertimeRecords();
+  }, [selectedDate, selectedBattalion]);
+
+  // Subscribe to overtime updates for the current date
+  const { isConnected } = useOvertimeUpdates(selectedDate, handleRealtimeUpdate);
 
   const fetchAllPersonnelData = async () => {
     try {

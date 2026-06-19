@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StaffingProvider } from "./context/StaffingContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 
 // Pages
@@ -71,117 +72,119 @@ const AppContent = () => {
 
   return (
     <StaffingProvider>
-      {/* Force password change modal - blocks all navigation until password is changed */}
-      {user && mustChangePassword && (
-        <ChangePasswordModal 
-          isOpen={true} 
-          onClose={() => {}} 
-          isRequired={true} 
-        />
-      )}
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute><DashboardPage /></ProtectedRoute>
-        } />
-        
-        {/* On Duty - View only for all users */}
-        <Route path="/on-duty" element={
-          <ProtectedRoute><OnDutyPage /></ProtectedRoute>
-        } />
-        
-        {/* Battalion Chief Routes */}
-        <Route path="/battalion-chief/apparatus" element={
-          <ProtectedRoute><ApparatusPage /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/sick" element={
-          <ProtectedRoute><LeaveManagementPage leaveType="sick" /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/vacation" element={
-          <ProtectedRoute><LeaveManagementPage leaveType="vacation" /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/holiday" element={
-          <ProtectedRoute><LeaveManagementPage leaveType="holiday" /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/deployment" element={
-          <ProtectedRoute><DeploymentPage /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/overtime" element={
-          <ProtectedRoute><OvertimePage /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/part-time" element={
-          <ProtectedRoute><PartTimeBCPage /></ProtectedRoute>
-        } />
-        <Route path="/battalion-chief/volunteer" element={
-          <ProtectedRoute><VolunteerPage /></ProtectedRoute>
-        } />
-        
-        {/* Deputy Chief Routes */}
-        <Route path="/deputy-chief/day-of-staffing" element={
-          <ProtectedRoute><DayOfStaffingPage /></ProtectedRoute>
-        } />
-        <Route path="/deputy-chief/calendar-view" element={
-          <ProtectedRoute><CalendarViewPage /></ProtectedRoute>
-        } />
-        
-        {/* Tools Routes (Admin Only) */}
-        <Route path="/tools/personnel" element={
-          <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
-        } />
-        <Route path="/tools/stations" element={
-          <ProtectedRoute adminOnly><StationManagementPage /></ProtectedRoute>
-        } />
-        <Route path="/tools/users" element={
-          <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
-        } />
-        <Route path="/tools/part-time" element={
-          <ProtectedRoute adminOnly><PartTimeManagementPage /></ProtectedRoute>
-        } />
-        <Route path="/tools/volunteers" element={
-          <ProtectedRoute adminOnly><VolunteerManagementPage /></ProtectedRoute>
-        } />
-        
-        {/* Reports */}
-        <Route path="/reports" element={
-          <ProtectedRoute><ReportsPage /></ProtectedRoute>
-        } />
-        
-        {/* Deployment Tracker Routes */}
-        <Route path="/personnel/deployment-tracker/roster" element={
-          <ProtectedRoute><DeploymentRosterPage /></ProtectedRoute>
-        } />
-        <Route path="/personnel/deployment-tracker/log" element={
-          <ProtectedRoute><DeploymentLogPage /></ProtectedRoute>
-        } />
-        <Route path="/personnel/deployment-tracker/tifmas-rank" element={
-          <ProtectedRoute><TIFMASRankPage /></ProtectedRoute>
-        } />
-        <Route path="/personnel/deployment-tracker/emtf-rank" element={
-          <ProtectedRoute><EMTFRankPage /></ProtectedRoute>
-        } />
-        
-        {/* Overtime Availability - Available to ALL users including firefighters */}
-        <Route path="/overtime" element={
-          <ProtectedRoute><OvertimeAvailabilityPage /></ProtectedRoute>
-        } />
-        
-        {/* Part-Time Availability - Available to ALL users */}
-        <Route path="/part-time" element={
-          <ProtectedRoute><PartTimeAvailabilityPage /></ProtectedRoute>
-        } />
-        
-        {/* Volunteer Availability - Available to Volunteer Firefighters */}
-        <Route path="/volunteer" element={
-          <ProtectedRoute><VolunteerAvailabilityPage /></ProtectedRoute>
-        } />
-        
-        {/* Default Redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <WebSocketProvider>
+        {/* Force password change modal - blocks all navigation until password is changed */}
+        {user && mustChangePassword && (
+          <ChangePasswordModal 
+            isOpen={true} 
+            onClose={() => {}} 
+            isRequired={true} 
+          />
+        )}
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+          
+          {/* Protected Routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute><DashboardPage /></ProtectedRoute>
+          } />
+          
+          {/* On Duty - View only for all users */}
+          <Route path="/on-duty" element={
+            <ProtectedRoute><OnDutyPage /></ProtectedRoute>
+          } />
+          
+          {/* Battalion Chief Routes */}
+          <Route path="/battalion-chief/apparatus" element={
+            <ProtectedRoute><ApparatusPage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/sick" element={
+            <ProtectedRoute><LeaveManagementPage leaveType="sick" /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/vacation" element={
+            <ProtectedRoute><LeaveManagementPage leaveType="vacation" /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/holiday" element={
+            <ProtectedRoute><LeaveManagementPage leaveType="holiday" /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/deployment" element={
+            <ProtectedRoute><DeploymentPage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/overtime" element={
+            <ProtectedRoute><OvertimePage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/part-time" element={
+            <ProtectedRoute><PartTimeBCPage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/volunteer" element={
+            <ProtectedRoute><VolunteerPage /></ProtectedRoute>
+          } />
+          
+          {/* Deputy Chief Routes */}
+          <Route path="/deputy-chief/day-of-staffing" element={
+            <ProtectedRoute><DayOfStaffingPage /></ProtectedRoute>
+          } />
+          <Route path="/deputy-chief/calendar-view" element={
+            <ProtectedRoute><CalendarViewPage /></ProtectedRoute>
+          } />
+          
+          {/* Tools Routes (Admin Only) */}
+          <Route path="/tools/personnel" element={
+            <ProtectedRoute adminOnly><PersonnelManagementPage /></ProtectedRoute>
+          } />
+          <Route path="/tools/stations" element={
+            <ProtectedRoute adminOnly><StationManagementPage /></ProtectedRoute>
+          } />
+          <Route path="/tools/users" element={
+            <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
+          } />
+          <Route path="/tools/part-time" element={
+            <ProtectedRoute adminOnly><PartTimeManagementPage /></ProtectedRoute>
+          } />
+          <Route path="/tools/volunteers" element={
+            <ProtectedRoute adminOnly><VolunteerManagementPage /></ProtectedRoute>
+          } />
+          
+          {/* Reports */}
+          <Route path="/reports" element={
+            <ProtectedRoute><ReportsPage /></ProtectedRoute>
+          } />
+          
+          {/* Deployment Tracker Routes */}
+          <Route path="/personnel/deployment-tracker/roster" element={
+            <ProtectedRoute><DeploymentRosterPage /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/log" element={
+            <ProtectedRoute><DeploymentLogPage /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/tifmas-rank" element={
+            <ProtectedRoute><TIFMASRankPage /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/emtf-rank" element={
+            <ProtectedRoute><EMTFRankPage /></ProtectedRoute>
+          } />
+          
+          {/* Overtime Availability - Available to ALL users including firefighters */}
+          <Route path="/overtime" element={
+            <ProtectedRoute><OvertimeAvailabilityPage /></ProtectedRoute>
+          } />
+          
+          {/* Part-Time Availability - Available to ALL users */}
+          <Route path="/part-time" element={
+            <ProtectedRoute><PartTimeAvailabilityPage /></ProtectedRoute>
+          } />
+          
+          {/* Volunteer Availability - Available to Volunteer Firefighters */}
+          <Route path="/volunteer" element={
+            <ProtectedRoute><VolunteerAvailabilityPage /></ProtectedRoute>
+          } />
+          
+          {/* Default Redirect */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </WebSocketProvider>
     </StaffingProvider>
   );
 };
