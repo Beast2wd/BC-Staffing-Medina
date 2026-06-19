@@ -259,23 +259,31 @@ export const DayOfStaffingPage = () => {
                             <TableCell>
                               {app.assigned.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {app.assigned.map(person => (
-                                    <span 
-                                      key={person.id} 
-                                      className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
-                                        person.isVolunteer 
-                                          ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30' 
-                                          : 'bg-muted'
-                                      }`}
-                                    >
-                                      {person.position && person.position !== '-' && (
-                                        <span className={`font-bold ${person.isVolunteer ? 'text-green-500' : 'text-primary'}`}>
-                                          {person.position}
-                                        </span>
-                                      )}
-                                      {person.isVolunteer ? `Vol. ${person.name}` : `${person.rank} ${person.name}`}
-                                    </span>
-                                  ))}
+                                  {app.assigned.map(person => {
+                                    const isOfficer = ['Captain', 'Lieutenant', 'Battalion Chief'].includes(person.rank);
+                                    return (
+                                      <span 
+                                        key={person.id} 
+                                        className={`text-xs px-2 py-1 rounded flex items-center gap-1 border ${
+                                          person.isVolunteer 
+                                            ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
+                                            : isOfficer
+                                              ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500'
+                                              : 'bg-muted border-transparent'
+                                        }`}
+                                      >
+                                        {person.position && person.position !== '-' && (
+                                          <span className={`font-bold ${
+                                            person.isVolunteer ? 'text-green-500' : 
+                                            isOfficer ? 'text-yellow-600' : 'text-primary'
+                                          }`}>
+                                            {person.position}
+                                          </span>
+                                        )}
+                                        {person.isVolunteer ? `Vol. ${person.name}` : `${person.rank} ${person.name}`}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground italic text-sm">
