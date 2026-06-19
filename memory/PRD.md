@@ -294,10 +294,32 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Year-based reporting (uses selected date's year)
 - ✅ Print and Export functionality
 
+## Backend Architecture Refactor (June 19, 2026)
+- ✅ **Modular Route Structure** - `server.py` reduced from 4000+ lines to ~80 lines
+- ✅ **12 Route Modules** - Created under `/app/backend/routes/`:
+  - `auth_routes.py` - Authentication endpoints
+  - `personnel_routes.py` - Personnel CRUD
+  - `stations_routes.py` - Stations and battalions
+  - `staffing_routes.py` - Staffing and apparatus assignments
+  - `volunteer_routes.py` - Volunteer records and management
+  - `parttime_routes.py` - Part-time employees and availability
+  - `overtime_routes.py` - Overtime and leave records
+  - `deployments_routes.py` - Deployment tracker (TIFMAS/EMTF)
+  - `users_routes.py` - User management (admin)
+  - `notifications_routes.py` - SMS/Email broadcast
+  - `reports_routes.py` - All report endpoints
+  - `misc_routes.py` - Health, seed, shift calendar
+- ✅ **Shared Modules**:
+  - `database.py` - MongoDB connection, JWT config, Twilio/SendGrid config
+  - `models.py` - All Pydantic models
+  - `auth.py` - Authentication helpers and utilities
+- ✅ **All 25+ API endpoints validated** - No regressions from refactor
+
 ## Next Tasks (Backlog)
-1. **Deputy Chief drag-and-drop** - Drag personnel between stations with real-time worksheet sync (P1)
-2. **Real-time WebSocket updates** - Live updates across all connected users (P2)
-3. Shift notification alerts when below minimum staffing (P3)
+1. **Minimum Staffing Alerts** - Shift notification alerts when stations fall below minimum staffing (P2)
+2. **Decline Notifications** - Email and text notifications to on-duty BC when user declines assigned part-time shift (P2)
+3. **Real-time WebSocket updates** - Live updates across all connected users (P2) - Unblocked by refactor
+4. **Multi-tenant SaaS architecture** - Convert platform to host multiple independent fire departments (Future)
 
 ### Calendar View (April 20, 2026)
 - ✅ **New page under Deputy Chief** - Calendar View showing all scheduled overtime, part-time, and volunteer personnel
