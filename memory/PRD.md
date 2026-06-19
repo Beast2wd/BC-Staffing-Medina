@@ -318,8 +318,24 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ## Next Tasks (Backlog)
 1. **Minimum Staffing Alerts** - Shift notification alerts when stations fall below minimum staffing (P2)
 2. **Decline Notifications** - Email and text notifications to on-duty BC when user declines assigned part-time shift (P2)
-3. **Real-time WebSocket updates** - Live updates across all connected users (P2) - Unblocked by refactor
-4. **Multi-tenant SaaS architecture** - Convert platform to host multiple independent fire departments (Future)
+3. **Multi-tenant SaaS architecture** - Convert platform to host multiple independent fire departments (Future)
+
+## Real-time WebSocket Updates (June 19, 2026)
+- ✅ **WebSocket Endpoint** - `/api/ws` accepts authenticated and anonymous connections
+- ✅ **Channel-based Subscriptions** - Clients subscribe to specific channels (staffing, overtime, personnel, volunteer, parttime, deployments)
+- ✅ **Live Connection Indicator** - Green "Live" badge on Dashboard showing WebSocket status
+- ✅ **Auto-refresh on Updates** - Pages automatically refresh when relevant data changes
+- ✅ **Backend Broadcasts**:
+  - `staffing_update` - When staffing records or apparatus assignments change
+  - `overtime_update` - When overtime records are created/updated/deleted
+  - `apparatus_update` - When apparatus assignments change
+- ✅ **Reconnection Logic** - Auto-reconnects with 3-second backoff if connection drops
+- ✅ **Heartbeat** - Ping/pong every 30 seconds to keep connection alive
+- ✅ **JWT Authentication** - Token passed via query parameter for authenticated sessions
+- ✅ **Files Created**:
+  - `/app/backend/websocket_manager.py` - Connection manager for broadcasts
+  - `/app/backend/routes/websocket_routes.py` - WebSocket endpoint
+  - `/app/frontend/src/contexts/WebSocketContext.js` - React provider and hooks
 
 ### Calendar View (April 20, 2026)
 - ✅ **New page under Deputy Chief** - Calendar View showing all scheduled overtime, part-time, and volunteer personnel
