@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StaffingProvider } from "./context/StaffingContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 
 // Pages
@@ -28,6 +29,8 @@ import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
 import { PartTimeAvailabilityPage } from "./pages/PartTimeAvailabilityPage";
 import { OnDutyPage } from "./pages/OnDutyPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { ChangeLogPage } from "./pages/ChangeLogPage";
 
 // Deployment Tracker Pages
 import { DeploymentRosterPage } from "./pages/deployment-tracker/DeploymentRosterPage";
@@ -180,6 +183,16 @@ const AppContent = () => {
             <ProtectedRoute><VolunteerAvailabilityPage /></ProtectedRoute>
           } />
           
+          {/* Settings Page - Available to all users */}
+          <Route path="/settings" element={
+            <ProtectedRoute><SettingsPage /></ProtectedRoute>
+          } />
+          
+          {/* Change Log Page - Available to BC+ */}
+          <Route path="/change-log" element={
+            <ProtectedRoute><ChangeLogPage /></ProtectedRoute>
+          } />
+          
           {/* Default Redirect */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -192,12 +205,14 @@ const AppContent = () => {
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppContent />
-          <Toaster position="top-right" richColors />
-        </BrowserRouter>
-      </AuthProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <AppContent />
+            <Toaster position="top-right" richColors />
+          </BrowserRouter>
+        </AuthProvider>
+      </SettingsProvider>
     </ThemeProvider>
   );
 }

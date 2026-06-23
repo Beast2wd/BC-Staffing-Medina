@@ -33,7 +33,8 @@ import {
   UserPlus,
   Flame,
   Ambulance,
-  ChevronRight
+  ChevronRight,
+  History
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
@@ -334,9 +335,22 @@ export const Navbar = () => {
                 <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ')}</p>
               </div>
               <DropdownMenuSeparator />
+              {canAccessFullMenu && (
+                <DropdownMenuItem asChild>
+                  <Link to="/change-log" className="flex items-center gap-2" data-testid="change-log-menu">
+                    <History className="h-4 w-4" /> Change Log
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem asChild>
+                <Link to="/settings" className="flex items-center gap-2" data-testid="settings-menu">
+                  <Settings className="h-4 w-4" /> Settings
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setShowChangePassword(true)} data-testid="change-password-menu">
                 <Key className="h-4 w-4 mr-2" /> Change Password
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-red-500" data-testid="logout-button">
                 <LogOut className="h-4 w-4 mr-2" /> Logout
               </DropdownMenuItem>

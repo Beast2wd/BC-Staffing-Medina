@@ -11,6 +11,21 @@ export const useWebSocket = () => {
   return context;
 };
 
+// Get settings from localStorage (avoid circular dependency with SettingsContext)
+const getToastSettings = () => {
+  try {
+    const saved = localStorage.getItem('userSettings');
+    if (saved) {
+      const settings = JSON.parse(saved);
+      return {
+        showToasts: settings.showRealtimeToasts !== false,
+        duration: settings.toastDuration || 5000
+      };
+    }
+  } catch {}
+  return { showToasts: true, duration: 5000 };
+};
+
 export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
@@ -261,12 +276,35 @@ export const useStaffingUpdates = (date, onUpdate) => {
           onUpdate(data);
         }
         
-        // Show toast notification for updates from other users
-        if (data.event === 'updated' && data.data?.modified_by) {
-          toast.info(`Staffing updated by ${data.data.modified_by}`, {
-            description: 'The page will refresh with latest data.',
-            duration: 3000,
-          });
+        // Show toast notification for updates from other users (if enabled)
+        const { showToasts, duration } = getToastSettings();
+        if (showToasts && data.data?.modified_by) {
+          const stationInfo = data.data?.station_id ? ` (Station ${data.data.station_id.replace('sta-', '')})` : '';
+          
+          if (data.event === 'updated') {
+            toast.info(`Staffing updated by ${data.data.modified_by}${stationInfo}`, {
+              description: 'Data refreshed automatically.',
+              duration,
+            });
+          } else if (data.event === 'created') {
+            toast.info(`New staffing record created by ${data.data.modified_by}${stationInfo}`, {
+              duration,
+            });
+          }
+        }
+        
+        // Apparatus updates
+        if (showToasts && data.type === 'apparatus_update' && data.data?.apparatus_name) {
+          if (data.event === 'updated') {
+            toast.info(`${data.data.apparatus_name} assignments updated`, {
+              description: 'Apparatus assignments refreshed.',
+              duration,
+            });
+          } else if (data.event === 'created') {
+            toast.info(`New apparatus assignment: ${data.data.apparatus_name}`, {
+              duration,
+            });
+          }
         }
       }
     };
@@ -299,15 +337,26 @@ export const useOvertimeUpdates = (date, onUpdate) => {
           onUpdate(data);
         }
         
-        // Show toast notification
-        if (data.event === 'created') {
-          toast.info('New overtime availability submitted', {
-            duration: 3000,
-          });
-        } else if (data.event === 'updated') {
-          toast.info('Overtime status updated', {
-            duration: 3000,
-          });
+        // Show toast notification (if enabled)
+        const { showToasts, duration } = getToastSettings();
+        if (showToasts) {
+          if (data.event === 'created' && data.data?.personnel_name) {
+            toast.info(`New overtime: ${data.data.personnel_name}`, {
+              description: 'Overtime availability submitted.',
+              duration,
+            });
+          } else if (data.event === 'updated') {
+            const statusMsg = data.data?.status === 'assigned' ? 'assigned' : 
+                             data.data?.status === 'declined' ? 'declined' : 'updated';
+            toast.info(`Overtime ${statusMsg}`, {
+              description: data.data?.prev_status ? `Changed from ${data.data.prev_status}` : undefined,
+              duration,
+            });
+          } else if (data.event === 'deleted') {
+            toast.info('Overtime record removed', {
+              duration,
+            });
+          }
         }
       }
     };
