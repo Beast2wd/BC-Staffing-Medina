@@ -269,14 +269,26 @@ export const ChangeLogPage = () => {
 
   const handleExport = () => {
     const data = viewMode === 'live' ? liveChanges : changes;
+    
+    // Helper to escape CSV fields properly
+    const escapeCSV = (field) => {
+      if (field === null || field === undefined) return '';
+      const str = String(field);
+      // If field contains comma, newline, or quote, wrap in quotes and escape internal quotes
+      if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    
     const csvContent = [
       ['Date/Time', 'Type', 'Modified By', 'Station', 'Details'].join(','),
       ...data.map(change => [
-        new Date(change.timestamp).toLocaleString(),
-        change.type?.replace('_update', '') || 'change',
-        change.modified_by,
-        change.station_id ? `Station ${change.station_id.replace('sta-', '')}` : '-',
-        `"${change.details.replace(/"/g, '""')}"`
+        escapeCSV(new Date(change.timestamp).toLocaleString()),
+        escapeCSV(change.type?.replace('_update', '') || 'change'),
+        escapeCSV(change.modified_by),
+        escapeCSV(change.station_id ? `Station ${change.station_id.replace('sta-', '')}` : '-'),
+        escapeCSV(change.details)
       ].join(','))
     ].join('\n');
 

@@ -337,6 +337,29 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/backend/routes/websocket_routes.py` - WebSocket endpoint
   - `/app/frontend/src/contexts/WebSocketContext.js` - React provider and hooks
 
+## Toast Notifications & Settings (June 23, 2026)
+- ✅ **Settings Page** (`/settings`) - User preferences for notifications
+  - Toggle to enable/disable real-time toast notifications
+  - Duration selector (3/5/8/10 seconds)
+  - Connection status indicator (reflects actual WebSocket state)
+  - Reset to Defaults button
+- ✅ **Settings Persistence** - Settings stored in localStorage (`userSettings` key)
+- ✅ **Toast Notifications** - Shows who made changes (e.g., "Staffing updated by BC Smith")
+- ✅ **Files Created**:
+  - `/app/frontend/src/contexts/SettingsContext.js` - Settings provider
+  - `/app/frontend/src/pages/SettingsPage.js` - Settings page
+
+## Change Log (June 23, 2026)
+- ✅ **Change Log Page** (`/change-log`) - Track all staffing changes
+- ✅ **View Modes**: Live (real-time), Daily, Weekly, Monthly
+- ✅ **Date Navigation** - Navigate between periods with arrows
+- ✅ **Print Functionality** - Opens formatted print window
+- ✅ **Export to CSV** - Downloads change log as CSV file (properly escaped)
+- ✅ **Summary Stats** - Total changes, staffing changes, overtime changes, unique users
+- ✅ **Table Columns**: Date/Time, Type, Modified By, Station, Details
+- ✅ **Files Created**:
+  - `/app/frontend/src/pages/ChangeLogPage.js` - Change Log page
+
 ### Calendar View (April 20, 2026)
 - ✅ **New page under Deputy Chief** - Calendar View showing all scheduled overtime, part-time, and volunteer personnel
 - ✅ **Color-coded personnel types**:

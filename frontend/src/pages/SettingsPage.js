@@ -6,11 +6,13 @@ import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useSettings } from '../contexts/SettingsContext';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import { toast } from 'sonner';
-import { Settings, Bell, RotateCcw, Wifi } from 'lucide-react';
+import { Settings, Bell, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 
 export const SettingsPage = () => {
   const { settings, updateSetting, resetSettings } = useSettings();
+  const { isConnected } = useWebSocket();
 
   const handleToggleToasts = (checked) => {
     updateSetting('showRealtimeToasts', checked);
@@ -99,7 +101,7 @@ export const SettingsPage = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Wifi className="h-5 w-5" />
+                {isConnected ? <Wifi className="h-5 w-5 text-green-500" /> : <WifiOff className="h-5 w-5 text-yellow-500" />}
                 Connection Status
               </CardTitle>
               <CardDescription>
@@ -108,12 +110,15 @@ export const SettingsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-sm">Connected - Live updates active</span>
+                <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
+                <span className="text-sm">
+                  {isConnected ? 'Connected - Live updates active' : 'Connecting... Attempting to establish connection'}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Your browser maintains a persistent connection to receive instant updates. 
-                If disconnected, it will automatically reconnect.
+                {isConnected 
+                  ? 'Your browser maintains a persistent connection to receive instant updates. If disconnected, it will automatically reconnect.'
+                  : 'The system will automatically attempt to reconnect. Real-time updates may be delayed until connected.'}
               </p>
             </CardContent>
           </Card>
