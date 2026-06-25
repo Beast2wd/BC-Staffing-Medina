@@ -295,13 +295,14 @@ export const useStaffingUpdates = (date, onUpdate) => {
         
         // Apparatus updates
         if (showToasts && data.type === 'apparatus_update' && data.data?.apparatus_name) {
+          const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
           if (data.event === 'updated') {
-            toast.info(`${data.data.apparatus_name} assignments updated`, {
+            toast.info(`${data.data.apparatus_name} assignments updated${modifierInfo}`, {
               description: 'Apparatus assignments refreshed.',
               duration,
             });
           } else if (data.event === 'created') {
-            toast.info(`New apparatus assignment: ${data.data.apparatus_name}`, {
+            toast.info(`New apparatus assignment: ${data.data.apparatus_name}${modifierInfo}`, {
               duration,
             });
           }
@@ -340,20 +341,21 @@ export const useOvertimeUpdates = (date, onUpdate) => {
         // Show toast notification (if enabled)
         const { showToasts, duration } = getToastSettings();
         if (showToasts) {
+          const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
           if (data.event === 'created' && data.data?.personnel_name) {
-            toast.info(`New overtime: ${data.data.personnel_name}`, {
+            toast.info(`New overtime: ${data.data.personnel_name}${modifierInfo}`, {
               description: 'Overtime availability submitted.',
               duration,
             });
           } else if (data.event === 'updated') {
             const statusMsg = data.data?.status === 'assigned' ? 'assigned' : 
                              data.data?.status === 'declined' ? 'declined' : 'updated';
-            toast.info(`Overtime ${statusMsg}`, {
+            toast.info(`Overtime ${statusMsg}${modifierInfo}`, {
               description: data.data?.prev_status ? `Changed from ${data.data.prev_status}` : undefined,
               duration,
             });
           } else if (data.event === 'deleted') {
-            toast.info('Overtime record removed', {
+            toast.info(`Overtime record removed${modifierInfo}`, {
               duration,
             });
           }
@@ -373,3 +375,102 @@ export const useOvertimeUpdates = (date, onUpdate) => {
 };
 
 export default WebSocketContext;
+
+// Hook specifically for volunteer page updates
+export const useVolunteerUpdates = (date, onUpdate) => {
+  const { isConnected, addEventListener, subscribe, unsubscribe } = useWebSocket();
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    subscribe('volunteer');
+
+    const handleVolunteerUpdate = (data) => {
+      if (data.date === date || !data.date) {
+        if (onUpdate) {
+          onUpdate(data);
+        }
+        
+        // Show toast notification (if enabled)
+        const { showToasts, duration } = getToastSettings();
+        if (showToasts) {
+          const modifierInfo = data.data?.rescinded_by ? ` by ${data.data.rescinded_by}` : 
+                              data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
+          if (data.event === 'created') {
+            toast.info(`Volunteer shift added${modifierInfo}`, {
+              description: 'New volunteer availability.',
+              duration,
+            });
+          } else if (data.event === 'updated') {
+            toast.info(`Volunteer shift updated${modifierInfo}`, {
+              description: 'Volunteer assignment changed.',
+              duration,
+            });
+          } else if (data.event === 'deleted') {
+            toast.info(`Volunteer shift rescinded${modifierInfo}`, {
+              description: 'Volunteer removed from schedule.',
+              duration,
+            });
+          }
+        }
+      }
+    };
+
+    const cleanup = addEventListener('volunteer_update', handleVolunteerUpdate);
+
+    return () => {
+      unsubscribe('volunteer');
+      cleanup();
+    };
+  }, [date, onUpdate, isConnected, addEventListener, subscribe, unsubscribe]);
+
+  return { isConnected };
+};
+
+// Hook specifically for deployment page updates
+export const useDeploymentUpdates = (onUpdate) => {
+  const { isConnected, addEventListener, subscribe, unsubscribe } = useWebSocket();
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    subscribe('deployments');
+
+    const handleDeploymentUpdate = (data) => {
+      if (onUpdate) {
+        onUpdate(data);
+      }
+      
+      // Show toast notification (if enabled)
+      const { showToasts, duration } = getToastSettings();
+      if (showToasts) {
+        const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
+        const deploymentName = data.data?.name || 'Deployment';
+        if (data.event === 'created') {
+          toast.info(`${deploymentName} created${modifierInfo}`, {
+            description: 'New deployment added.',
+            duration,
+          });
+        } else if (data.event === 'updated') {
+          toast.info(`${deploymentName} updated${modifierInfo}`, {
+            description: 'Deployment details changed.',
+            duration,
+          });
+        } else if (data.event === 'deleted') {
+          toast.info(`${deploymentName} removed${modifierInfo}`, {
+            duration,
+          });
+        }
+      }
+    };
+
+    const cleanup = addEventListener('deployment_update', handleDeploymentUpdate);
+
+    return () => {
+      unsubscribe('deployments');
+      cleanup();
+    };
+  }, [onUpdate, isConnected, addEventListener, subscribe, unsubscribe]);
+
+  return { isConnected };
+};

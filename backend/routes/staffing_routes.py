@@ -70,7 +70,7 @@ async def create_staffing_record(
     background_tasks.add_task(
         manager.broadcast_staffing_update,
         "created",
-        {"id": record_id, "station_id": data.station_id},
+        {"id": record_id, "station_id": data.station_id, "modified_by": current_user.get("name")},
         data.date,
         data.station_id
     )
@@ -206,7 +206,7 @@ async def create_apparatus_assignment(
     background_tasks.add_task(
         manager.broadcast_apparatus_update,
         "created",
-        {"id": assignment_id, "apparatus_name": data.apparatus_name, "station_id": data.station_id},
+        {"id": assignment_id, "apparatus_name": data.apparatus_name, "station_id": data.station_id, "modified_by": current_user.get("name")},
         data.date,
         data.station_id
     )
@@ -244,7 +244,7 @@ async def update_apparatus_assignment(
         background_tasks.add_task(
             manager.broadcast_apparatus_update,
             "updated",
-            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id")},
+            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
             existing.get("date"),
             existing.get("station_id")
         )
@@ -270,7 +270,7 @@ async def delete_apparatus_assignment(
         background_tasks.add_task(
             manager.broadcast_apparatus_update,
             "deleted",
-            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id")},
+            {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
             existing.get("date"),
             existing.get("station_id")
         )

@@ -346,6 +346,10 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - Reset to Defaults button
 - ✅ **Settings Persistence** - Settings stored in localStorage (`userSettings` key)
 - ✅ **Toast Notifications** - Shows who made changes (e.g., "Staffing updated by BC Smith")
+- ✅ **Toasts for All Users on Page** (June 25, 2026) - Toast notifications now show for ALL users viewing the affected page, including the user who made the change
+- ✅ **`modified_by` Field** - All backend broadcasts include the modifier's name for better audit trail
+- ✅ **Volunteer Updates Hook** - Added `useVolunteerUpdates` hook for volunteer page real-time notifications
+- ✅ **Deployment Updates Hook** - Added `useDeploymentUpdates` hook for deployment page real-time notifications
 - ✅ **Files Created**:
   - `/app/frontend/src/contexts/SettingsContext.js` - Settings provider
   - `/app/frontend/src/pages/SettingsPage.js` - Settings page

@@ -66,7 +66,7 @@ async def create_overtime_record(
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "created",
-        {"id": record_id, "personnel_name": personnel.get("name"), "status": data.status},
+        {"id": record_id, "personnel_name": personnel.get("name"), "status": data.status, "modified_by": current_user.get("name")},
         data.date
     )
     
@@ -124,7 +124,7 @@ async def update_overtime_record(
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "updated",
-        {"id": record_id, "status": new_status, "prev_status": prev_status},
+        {"id": record_id, "status": new_status, "prev_status": prev_status, "modified_by": current_user.get("name")},
         existing.get("date")
     )
     
@@ -175,7 +175,7 @@ async def delete_overtime_record(
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "deleted",
-        {"id": record_id},
+        {"id": record_id, "modified_by": current_user.get("name")},
         record.get("date")
     )
     

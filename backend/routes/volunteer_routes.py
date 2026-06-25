@@ -388,7 +388,7 @@ async def delete_volunteer_record(
         background_tasks.add_task(
             manager.broadcast_apparatus_update,
             "updated",
-            {"volunteer_removed": volunteer_personnel_id, "station_id": station_id},
+            {"volunteer_removed": volunteer_personnel_id, "station_id": station_id, "modified_by": current_user.get("name")},
             record_date,
             station_id
         )

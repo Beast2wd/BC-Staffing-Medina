@@ -209,17 +209,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <AppContent />
-            <Toaster 
-              position="top-center" 
-              richColors 
-              expand={false}
-              toastOptions={{
-                className: 'toast-mobile-friendly',
-                style: {
-                  maxWidth: '90vw',
-                },
-              }}
-            />
+            <Toaster position="top-center" richColors expand={true} />
           </BrowserRouter>
         </AuthProvider>
       </SettingsProvider>
