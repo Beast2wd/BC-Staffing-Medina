@@ -53,6 +53,7 @@ export const SettingsProvider = ({ children }) => {
     resetSettings,
     showRealtimeToasts: settings.showRealtimeToasts,
     toastDuration: settings.toastDuration,
+    soundEnabled: settings.soundEnabled,
   };
 
   return (

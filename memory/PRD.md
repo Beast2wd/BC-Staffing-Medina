@@ -342,6 +342,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Settings Page** (`/settings`) - User preferences for notifications
   - Toggle to enable/disable real-time toast notifications
   - Duration selector (3/5/8/10 seconds)
+  - **Sound Notifications toggle** (June 25, 2026) - Play audio alert when notifications arrive
   - Connection status indicator (reflects actual WebSocket state)
   - Reset to Defaults button
 - ✅ **Settings Persistence** - Settings stored in localStorage (`userSettings` key)

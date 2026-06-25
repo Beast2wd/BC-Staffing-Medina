@@ -19,11 +19,37 @@ const getToastSettings = () => {
       const settings = JSON.parse(saved);
       return {
         showToasts: settings.showRealtimeToasts !== false,
-        duration: settings.toastDuration || 5000
+        duration: settings.toastDuration || 5000,
+        soundEnabled: settings.soundEnabled || false
       };
     }
   } catch {}
-  return { showToasts: true, duration: 5000 };
+  return { showToasts: true, duration: 5000, soundEnabled: false };
+};
+
+// Play notification sound
+const playNotificationSound = () => {
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Two-tone alert sound
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.25);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
 };
 
 export const WebSocketProvider = ({ children }) => {
@@ -277,9 +303,13 @@ export const useStaffingUpdates = (date, onUpdate) => {
         }
         
         // Show toast notification for updates from other users (if enabled)
-        const { showToasts, duration } = getToastSettings();
+        const { showToasts, duration, soundEnabled } = getToastSettings();
         if (showToasts && data.data?.modified_by) {
           const stationInfo = data.data?.station_id ? ` (Station ${data.data.station_id.replace('sta-', '')})` : '';
+          
+          if (soundEnabled) {
+            playNotificationSound();
+          }
           
           if (data.event === 'updated') {
             toast.info(`Staffing updated by ${data.data.modified_by}${stationInfo}`, {
@@ -295,6 +325,11 @@ export const useStaffingUpdates = (date, onUpdate) => {
         
         // Apparatus updates
         if (showToasts && data.type === 'apparatus_update' && data.data?.apparatus_name) {
+          const { soundEnabled: soundOn } = getToastSettings();
+          if (soundOn) {
+            playNotificationSound();
+          }
+          
           const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
           if (data.event === 'updated') {
             toast.info(`${data.data.apparatus_name} assignments updated${modifierInfo}`, {
@@ -339,8 +374,12 @@ export const useOvertimeUpdates = (date, onUpdate) => {
         }
         
         // Show toast notification (if enabled)
-        const { showToasts, duration } = getToastSettings();
+        const { showToasts, duration, soundEnabled } = getToastSettings();
         if (showToasts) {
+          if (soundEnabled) {
+            playNotificationSound();
+          }
+          
           const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
           if (data.event === 'created' && data.data?.personnel_name) {
             toast.info(`New overtime: ${data.data.personnel_name}${modifierInfo}`, {
@@ -392,8 +431,12 @@ export const useVolunteerUpdates = (date, onUpdate) => {
         }
         
         // Show toast notification (if enabled)
-        const { showToasts, duration } = getToastSettings();
+        const { showToasts, duration, soundEnabled } = getToastSettings();
         if (showToasts) {
+          if (soundEnabled) {
+            playNotificationSound();
+          }
+          
           const modifierInfo = data.data?.rescinded_by ? ` by ${data.data.rescinded_by}` : 
                               data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
           if (data.event === 'created') {
@@ -442,8 +485,12 @@ export const useDeploymentUpdates = (onUpdate) => {
       }
       
       // Show toast notification (if enabled)
-      const { showToasts, duration } = getToastSettings();
+      const { showToasts, duration, soundEnabled } = getToastSettings();
       if (showToasts) {
+        if (soundEnabled) {
+          playNotificationSound();
+        }
+        
         const modifierInfo = data.data?.modified_by ? ` by ${data.data.modified_by}` : '';
         const deploymentName = data.data?.name || 'Deployment';
         if (data.event === 'created') {

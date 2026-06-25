@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useSettings } from '../contexts/SettingsContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { toast } from 'sonner';
-import { Settings, Bell, RotateCcw, Wifi, WifiOff } from 'lucide-react';
+import { Settings, Bell, RotateCcw, Wifi, WifiOff, Volume2, VolumeX } from 'lucide-react';
 
 export const SettingsPage = () => {
   const { settings, updateSetting, resetSettings } = useSettings();
@@ -22,6 +22,40 @@ export const SettingsPage = () => {
   const handleDurationChange = (value) => {
     updateSetting('toastDuration', parseInt(value));
     toast.success('Notification duration updated');
+  };
+
+  const handleToggleSound = (checked) => {
+    updateSetting('soundEnabled', checked);
+    if (checked) {
+      // Play a test sound when enabling
+      playNotificationSound();
+      toast.success('Sound notifications enabled');
+    } else {
+      toast.success('Sound notifications disabled');
+    }
+  };
+
+  // Function to play notification sound
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+      console.log('Audio not supported');
+    }
   };
 
   const handleReset = () => {
@@ -93,6 +127,25 @@ export const SettingsPage = () => {
                     <SelectItem value="10000">10 seconds</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Sound toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="sound-toggle" className="text-base flex items-center gap-2">
+                    {settings.soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                    Sound Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Play an audio alert when notifications arrive
+                  </p>
+                </div>
+                <Switch
+                  id="sound-toggle"
+                  checked={settings.soundEnabled}
+                  onCheckedChange={handleToggleSound}
+                  disabled={!settings.showRealtimeToasts}
+                />
               </div>
             </CardContent>
           </Card>
