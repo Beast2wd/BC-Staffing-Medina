@@ -1,7 +1,7 @@
 """
 Volunteer routes - volunteer records and volunteer firefighter management
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -12,6 +12,7 @@ from models import (
     Volunteer, VolunteerCreate, VolunteerUpdate
 )
 from auth import get_current_user, require_role, hash_password
+from websocket_manager import manager
 
 router = APIRouter(tags=["Volunteers"])
 
@@ -286,9 +287,11 @@ async def update_volunteer_record(
 @router.delete("/volunteer/{record_id}")
 async def delete_volunteer_record(
     record_id: str,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete a volunteer record. Users can delete/revoke their own records, BC/Admin/Captain/Lt can delete any."""
+    """Delete a volunteer record. Users can delete/revoke their own records, BC/Admin/Captain/Lt can delete any.
+    Also removes the volunteer from apparatus assignments and updates staffing records."""
     record = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
@@ -317,11 +320,96 @@ async def delete_volunteer_record(
     if not is_privileged and not is_own_record:
         raise HTTPException(status_code=403, detail="You can only remove your own volunteer availability")
     
+    # Get the volunteer's personnel_id and date for cleanup
+    volunteer_personnel_id = record.get("personnel_id")
+    record_date = record.get("date")
+    station_id = record.get("assigned_station_id") or record.get("station_id")
+    
+    # 1. Remove volunteer from ALL apparatus assignments for this date
+    if volunteer_personnel_id and record_date:
+        # Find all apparatus assignments for this date that include this volunteer
+        apparatus_assignments = await db.apparatus_assignments.find(
+            {"date": record_date, "personnel_ids": volunteer_personnel_id},
+            {"_id": 0}
+        ).to_list(100)
+        
+        for assignment in apparatus_assignments:
+            # Remove volunteer from personnel_ids array
+            updated_personnel_ids = [pid for pid in assignment.get("personnel_ids", []) if pid != volunteer_personnel_id]
+            
+            # Remove from position_assignments if present
+            position_assignments = assignment.get("position_assignments", {})
+            if volunteer_personnel_id in position_assignments:
+                del position_assignments[volunteer_personnel_id]
+            
+            # Update the apparatus assignment
+            await db.apparatus_assignments.update_one(
+                {"id": assignment["id"]},
+                {"$set": {
+                    "personnel_ids": updated_personnel_ids,
+                    "position_assignments": position_assignments
+                }}
+            )
+    
+    # 2. Update staffing record to decrement volunteer count
+    if station_id and record_date:
+        staffing_record = await db.staffing_records.find_one({
+            "date": record_date,
+            "station_id": station_id
+        }, {"_id": 0})
+        
+        if staffing_record:
+            current_categories = staffing_record.get("categories", {})
+            current_vol_count = current_categories.get("volunteer", 0)
+            if current_vol_count > 0:
+                await db.staffing_records.update_one(
+                    {"id": staffing_record["id"]},
+                    {"$set": {"categories.volunteer": current_vol_count - 1}}
+                )
+    
+    # 3. Delete the volunteer record itself
     result = await db.volunteer_records.delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
-    return {"message": "Volunteer record deleted"}
+    # 4. Broadcast WebSocket updates for real-time sync
+    apparatus_count = len(apparatus_assignments) if volunteer_personnel_id and record_date else 0
+    
+    # Notify about volunteer record deletion
+    background_tasks.add_task(
+        manager.broadcast_volunteer_update,
+        "deleted",
+        {"id": record_id, "personnel_id": volunteer_personnel_id, "rescinded_by": current_user.get("name")},
+        record_date
+    )
+    
+    # If apparatus assignments were updated, notify about those too
+    if apparatus_count > 0:
+        background_tasks.add_task(
+            manager.broadcast_apparatus_update,
+            "updated",
+            {"volunteer_removed": volunteer_personnel_id, "station_id": station_id},
+            record_date,
+            station_id
+        )
+    
+    # If staffing was updated, notify about that
+    if station_id and record_date:
+        background_tasks.add_task(
+            manager.broadcast_staffing_update,
+            "updated",
+            {"volunteer_count_decreased": True, "station_id": station_id, "modified_by": current_user.get("name")},
+            record_date,
+            station_id
+        )
+    
+    return {
+        "message": "Volunteer shift rescinded successfully",
+        "cleanup": {
+            "apparatus_assignments_updated": apparatus_count,
+            "staffing_record_updated": station_id is not None and record_date is not None
+        }
+    }
 
 
 # Get volunteer assignments for staffing grid

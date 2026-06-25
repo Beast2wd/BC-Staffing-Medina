@@ -152,6 +152,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Important notice** - Decline responsibility includes "via department email and phone call"
 - ✅ **Volunteer Firefighter rank** - Added to Personnel Management
 - ✅ **User Management Sync** - Volunteers automatically appear in User Management for role assignment; deletion deactivates their user account (May 19, 2026)
+- ✅ **Rescind Shift Cleanup** - When a volunteer rescinds their shift, they are automatically removed from apparatus assignments, the On Duty section, and the staffing record volunteer count is decremented (June 25, 2026)
 
 ### On Duty Page (March 31, 2026)
 - ✅ Shows all personnel on duty at each station
