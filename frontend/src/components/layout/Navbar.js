@@ -381,51 +381,131 @@ export const Navbar = () => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-card p-4 animate-slide-in">
-          <nav className="flex flex-col gap-2">
+        <div className="lg:hidden border-t border-border bg-card p-4 animate-slide-in max-h-[80vh] overflow-y-auto">
+          <nav className="flex flex-col gap-1">
+            {/* Main Navigation */}
             {canAccessFullMenu && (
-              <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard">
-                Daily Worksheet
+              <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard" onClick={() => setMobileMenuOpen(false)}>
+                <ClipboardList className="h-4 w-4 inline mr-2" /> Daily Worksheet
               </Link>
             )}
-            <Link to="/on-duty" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-onduty">
-              On Duty
+            <Link to="/on-duty" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-onduty" onClick={() => setMobileMenuOpen(false)}>
+              <Users className="h-4 w-4 inline mr-2" /> On Duty
             </Link>
+            
+            {/* Battalion Chief Section */}
             {canAccessFullMenu && (
-              <Link to="/battalion-chief/apparatus" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-apparatus">
-                Apparatus Assignments
-              </Link>
+              <>
+                <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Battalion Chief</div>
+                <Link to="/battalion-chief/apparatus" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Truck className="h-4 w-4 inline mr-2" /> Apparatus Assignments
+                </Link>
+                <Link to="/battalion-chief/sick" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <AlertCircle className="h-4 w-4 inline mr-2" /> Sick
+                </Link>
+                <Link to="/battalion-chief/vacation" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Calendar className="h-4 w-4 inline mr-2" /> Vacation
+                </Link>
+                <Link to="/battalion-chief/holiday" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Calendar className="h-4 w-4 inline mr-2" /> Holiday
+                </Link>
+                <Link to="/battalion-chief/deployment" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Plane className="h-4 w-4 inline mr-2" /> Deployments
+                </Link>
+                <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Clock className="h-4 w-4 inline mr-2" /> Overtime Available
+                </Link>
+                <Link to="/battalion-chief/part-time" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <UserPlus className="h-4 w-4 inline mr-2" /> Part-Time Available
+                </Link>
+                <Link to="/battalion-chief/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Hand className="h-4 w-4 inline mr-2" /> Volunteer Scheduled
+                </Link>
+              </>
             )}
+            
+            {/* Deputy Chief Section */}
             {canAccessFullMenu && (
-              <Link to="/deputy-chief/day-of-staffing" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-day-staffing">
-                Day of Staffing
-              </Link>
+              <>
+                <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deputy Chief</div>
+                <Link to="/deputy-chief/day-of-staffing" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <ClipboardList className="h-4 w-4 inline mr-2" /> Day of Staffing
+                </Link>
+                <Link to="/deputy-chief/calendar-view" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Calendar className="h-4 w-4 inline mr-2" /> Calendar View
+                </Link>
+              </>
             )}
             
             {/* Personnel Section */}
-            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground">Personnel</div>
+            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Personnel</div>
             {!isVolunteer && (
-              <Link to="/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-overtime">
+              <Link to="/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-6" data-testid="mobile-nav-overtime" onClick={() => setMobileMenuOpen(false)}>
                 <Clock className="h-4 w-4 inline mr-2" /> Overtime
               </Link>
             )}
-            <Link to="/part-time" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-part-time">
+            <Link to="/part-time" className="px-4 py-2 hover:bg-muted rounded-md pl-6" data-testid="mobile-nav-part-time" onClick={() => setMobileMenuOpen(false)}>
               <Clock className="h-4 w-4 inline mr-2" /> Part-Time
             </Link>
-            <Link to="/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-8" data-testid="mobile-nav-volunteer">
+            <Link to="/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-6" data-testid="mobile-nav-volunteer" onClick={() => setMobileMenuOpen(false)}>
               <Hand className="h-4 w-4 inline mr-2" /> Volunteer
             </Link>
             
+            {/* Deployment Tracker */}
+            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deployment Tracker</div>
+            <Link to="/personnel/deployment-tracker/roster" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Users className="h-4 w-4 inline mr-2" /> Roster
+            </Link>
+            <Link to="/personnel/deployment-tracker/log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <FileText className="h-4 w-4 inline mr-2" /> Log
+            </Link>
+            <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Flame className="h-4 w-4 inline mr-2" /> TIFMAS Rank
+            </Link>
+            <Link to="/personnel/deployment-tracker/emtf-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Ambulance className="h-4 w-4 inline mr-2" /> EMTF Rank
+            </Link>
+            
+            {/* Reports */}
             {canAccessFullMenu && (
-              <Link to="/reports" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-reports">
-                Reports
-              </Link>
+              <>
+                <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Reports & Logs</div>
+                <Link to="/reports" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <FileText className="h-4 w-4 inline mr-2" /> Reports
+                </Link>
+                <Link to="/change-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <History className="h-4 w-4 inline mr-2" /> Change Log
+                </Link>
+              </>
             )}
+            
+            {/* Tools (Admin Only) */}
             {isAdmin && (
-              <Link to="/tools/personnel" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-tools">
-                Tools
-              </Link>
+              <>
+                <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Tools (Admin)</div>
+                <Link to="/tools/personnel" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Users className="h-4 w-4 inline mr-2" /> Personnel Management
+                </Link>
+                <Link to="/tools/stations" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Truck className="h-4 w-4 inline mr-2" /> Station Management
+                </Link>
+                <Link to="/tools/users" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Users className="h-4 w-4 inline mr-2" /> User Management
+                </Link>
+                <Link to="/tools/part-time" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <UserPlus className="h-4 w-4 inline mr-2" /> Part-Time Management
+                </Link>
+                <Link to="/tools/volunteers" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Hand className="h-4 w-4 inline mr-2" /> Volunteer Management
+                </Link>
+              </>
             )}
+            
+            {/* Settings */}
+            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Account</div>
+            <Link to="/settings" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Settings className="h-4 w-4 inline mr-2" /> Settings
+            </Link>
           </nav>
         </div>
       )}
