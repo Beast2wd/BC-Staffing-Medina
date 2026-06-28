@@ -10,6 +10,12 @@
 - **Password**: bc123
 - **Role**: Battalion Chief
 
+## Firefighter Account (for testing notifications)
+- **Payroll Number**: 200003
+- **Password**: firefighter123
+- **Role**: Firefighter
+- **Note**: Created during notification bell testing
+
 ## Default Part-Time Employee Password
 - **Initial Password**: parttime123
 - **Note**: Must change password on first login

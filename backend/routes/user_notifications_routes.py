@@ -116,6 +116,8 @@ async def clear_all_notifications(current_user: dict = Depends(get_current_user)
 
 # ===================== HELPER FUNCTION TO CREATE NOTIFICATIONS =====================
 
+from websocket_manager import manager
+
 async def create_notification(
     user_id: str,
     title: str,
@@ -140,6 +142,13 @@ async def create_notification(
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.user_notifications.insert_one(notification_doc)
+    
+    # Broadcast via WebSocket for instant bell update
+    try:
+        await manager.send_user_notification(user_id, notification_doc)
+    except Exception:
+        pass  # Non-critical if WS fails
+    
     return notification_id
 
 
