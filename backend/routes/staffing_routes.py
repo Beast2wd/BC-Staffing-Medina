@@ -250,6 +250,33 @@ async def update_apparatus_assignment(
             existing.get("station_id")
         )
     
+    # Create notifications for personnel assigned to this apparatus
+    if "personnel_ids" in update_data:
+        apparatus_name = existing.get("apparatus_name") if existing else result.get("apparatus_name")
+        station_id = existing.get("station_id") if existing else result.get("station_id")
+        assignment_date = existing.get("date") if existing else result.get("date")
+        
+        # Get station name for notification
+        station = await db.stations.find_one({"id": station_id}, {"_id": 0})
+        station_name = f"Station {station.get('station_number')}" if station else "Station"
+        
+        # Notify all personnel in the updated list
+        for personnel_id in update_data["personnel_ids"]:
+            # Skip part-time prefixed IDs
+            if personnel_id.startswith("pt-"):
+                continue
+            
+            background_tasks.add_task(
+                create_notification_for_personnel,
+                personnel_id,
+                "Riding Assignment Updated",
+                f"You have been assigned to {apparatus_name} at {station_name} on {assignment_date}",
+                "assignment",
+                "/on-duty",
+                "View On Duty",
+                {"apparatus": apparatus_name, "station": station_name, "date": assignment_date, "modified_by": current_user.get("name")}
+            )
+    
     return ApparatusAssignment(**result)
 
 

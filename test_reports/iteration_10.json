@@ -1,0 +1,52 @@
+{
+  "summary": "Bug fix VERIFIED: When admin updates apparatus assignment personnel_ids, a notification is now created in the user_notifications collection and appears in the firefighter's notification bell dropdown with the correct title, message, link, and unread badge count. Backend (5/5 pytest passing) and frontend (Playwright UI flow) both confirm the fix end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/user-notifications (new notification creation)", "issue": "create_notification() helper in user_notifications_routes.py inserts into DB but does NOT broadcast a WebSocket 'user_notification' event. NotificationBell.js subscribes to that WS event for instant updates (otherwise it relies on 30s polling or manual dropdown open to refresh). Consider adding a manager.broadcast(...) call so the bell badge updates in real-time without polling."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: Firefighter (payroll 200003) login successful",
+    "Backend: GET /api/user-notifications returns list (200)",
+    "Backend: GET /api/user-notifications/unread-count returns numeric count (200)",
+    "Backend: PUT /api/apparatus-assignments/{id} with personnel_ids triggers create_notification_for_personnel; notification appears in user_notifications with title='Riding Assignment Updated', type='assignment', link='/on-duty', link_label='View On Duty', is_read=false",
+    "Backend: PUT /api/user-notifications/{id}/read marks notification as read and persists",
+    "Backend: 'pt-' prefixed personnel_ids are correctly skipped (no notification, no error)",
+    "Frontend: Firefighter login -> /dashboard renders, WebSocket connects+authenticates",
+    "Frontend: NotificationBell renders with data-testid='notification-bell'",
+    "Frontend: Bell badge updates from absent to '1' after admin updates apparatus assignment (verified via fetchUnreadCount call after dropdown click)",
+    "Frontend: Bell dropdown shows notification item with title 'Riding Assignment Updated', message containing apparatus name + 'Station 10' + date, 'Just now' timestamp, 'View On Duty' link label, blue unread indicator dot",
+    "Frontend: Toast notification also appears on screen (existing apparatus-update WS broadcast still works)"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_notification_bell.py",
+    "/app/test_reports/pytest/pytest_notification_bell.xml"
+  ],
+  "action_items": [
+    "(Optional / Minor) Broadcast a WebSocket 'user_notification' event in create_notification() so the bell badge updates in real-time instead of waiting for 30s poll or manual dropdown open. The frontend NotificationBell.js already listens for this event (handleNotificationUpdate) - backend just needs to emit it.",
+    "(Test-data caveat) The task spec referenced 'Firefighter 100003 / firefighter123' but the seed only creates payroll 100001 (admin) and 100002 (BC); firefighter user accounts are created on-demand via /api/auth/set-temporary-password. For this test I activated personnel 200003 (Firefighter 10, Station 10, A-Shift) with password 'firefighter123'. If a literal 100003 account is required for QA, please add it in the seed."
+  ],
+  "critical_code_review_comments": [
+    "staffing_routes.py update_apparatus_assignment correctly guards 'pt-' prefix and uses BackgroundTasks for non-blocking notification creation - clean implementation.",
+    "user_notifications_routes.create_notification_for_personnel correctly resolves personnel_id -> personnel.payroll_number -> users.id chain; gracefully returns None if either lookup fails (no exception thrown to caller).",
+    "NotificationBell.js useEffect deps include [isOpen] for the polling interval and a second useEffect on [isOpen] both invoke fetchNotifications when isOpen changes - functionally fine but duplicative; could be consolidated.",
+    "NotificationBell.js: useAuth import casing is '../../context/AuthContext' but WebSocket is '../../contexts/WebSocketContext' (plural) - confirmed both paths exist; consider standardising directory name.",
+    "create_notification() inserts but does not emit websocket event - real-time bell updates depend on the 30s poll. Consider broadcasting a 'user_notification' WS message scoped to the user channel for instant UX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_notification_bell.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest passing)", "frontend": "100% (UI flow + assertions all green)"},
+  "test_credentials": "Admin: 100001/admin123 (works). Firefighter: 200003/firefighter123 (activated by this test run via /api/auth/set-temporary-password + /api/auth/change-password to clear must_change_password flag).",
+  "seed_data_creation": "Activated user account for personnel 200003 (Firefighter 10) with password firefighter123. Test apparatus assignments and notifications were created and cleaned up within the tests; one transient TEST_Engine_* notification may remain marked read in user_notifications for user 200003.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Notification bell bug fix is verified working. Backend test file: /app/backend/tests/test_notification_bell.py (5 tests). Run with REACT_APP_BACKEND_URL=https://medina-fire-staffing.preview.emergentagent.com pytest. Firefighter test credentials: payroll 200003 / password firefighter123 (no must_change_password). Note: The frontend bell relies on 30s polling + dropdown-open fetch for new notifications because backend create_notification does not currently emit a WebSocket 'user_notification' event. Real-time badge update would require backend WS broadcast (frontend handler already exists in NotificationBell.js).",
+  "rca of the issue": "Original bug: notification bell dropdown was empty even though toast notifications fired. RCA: update_apparatus_assignment was broadcasting a WebSocket 'apparatus_update' event (which the toast handler picks up) but was NOT inserting any record into the user_notifications collection (which the bell reads). Fix applied by main agent: added background_tasks.add_task(create_notification_for_personnel, ...) inside update_apparatus_assignment for each non-'pt-' personnel_id, with proper title/message/link/metadata. Verified: notification now persists in user_notifications, GET /api/user-notifications returns it for the assigned firefighter, unread-count increments, and the dropdown displays it on open. Remaining minor gap: create_notification helper doesn't broadcast a WS event, so bell badge update relies on 30s polling unless dropdown is opened (not blocking, but could be improved for instant UX)."
+}
