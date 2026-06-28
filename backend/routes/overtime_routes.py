@@ -13,6 +13,7 @@ from models import (
 )
 from auth import get_current_user, require_role
 from websocket_manager import manager
+from routes.user_notifications_routes import create_notification_for_personnel
 
 router = APIRouter(tags=["Overtime & Leave"])
 
@@ -98,6 +99,19 @@ async def update_overtime_record(
                 {"id": personnel_id},
                 {"$inc": {"overtime_hours_worked": hours}}
             )
+            # Create notification for the personnel
+            personnel = await db.personnel.find_one({"id": personnel_id}, {"_id": 0})
+            if personnel:
+                background_tasks.add_task(
+                    create_notification_for_personnel,
+                    personnel_id,
+                    "Overtime Approved",
+                    f"You have been assigned {hours} hours of overtime on {existing.get('date')}",
+                    "overtime",
+                    "/overtime",
+                    "View Overtime",
+                    {"date": existing.get("date"), "hours": hours, "approved_by": current_user.get("name")}
+                )
         elif new_status == "declined" and prev_status == "assigned":
             # Deduct hours when declining from assigned
             await db.personnel.update_one(

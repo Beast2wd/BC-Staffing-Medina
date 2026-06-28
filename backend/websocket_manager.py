@@ -157,6 +157,15 @@ class ConnectionManager:
         }
         await self.broadcast(message, channel="deployments")
     
+    async def send_user_notification(self, user_id: str, notification_data: dict):
+        """Send a notification to a specific user"""
+        message = {
+            "type": "user_notification",
+            "event": "new",
+            "data": notification_data
+        }
+        await self.send_personal_message(message, user_id)
+    
     def get_connection_count(self) -> int:
         """Get the number of active connections"""
         return len(self.all_connections)

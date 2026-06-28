@@ -1,13 +1,14 @@
 """
 Personnel routes
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
 import uuid
 
 from database import db
 from models import UserRole, PersonnelBase, PersonnelCreate, PersonnelUpdate
 from auth import get_current_user, require_role
+from routes.user_notifications_routes import create_notification_for_personnel
 
 router = APIRouter(prefix="/personnel", tags=["Personnel"])
 
@@ -63,6 +64,7 @@ async def create_personnel(
 async def update_personnel(
     personnel_id: str,
     data: PersonnelUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
@@ -102,6 +104,29 @@ async def update_personnel(
         await db.users.update_one(
             {"payroll_number": current_personnel["payroll_number"]},
             {"$set": user_update_fields}
+        )
+    
+    # Create notification for the personnel about their profile update
+    changes = []
+    if "station_id" in update_data and update_data["station_id"] != current_personnel.get("station_id"):
+        station = await db.stations.find_one({"id": update_data["station_id"]}, {"_id": 0})
+        station_name = f"Station {station.get('station_number')}" if station else "New Station"
+        changes.append(f"Station: {station_name}")
+    if "shift" in update_data and update_data["shift"] != current_personnel.get("shift"):
+        changes.append(f"Shift: {update_data['shift']}")
+    if "rank" in update_data and update_data["rank"] != current_personnel.get("rank"):
+        changes.append(f"Rank: {update_data['rank']}")
+    
+    if changes:
+        background_tasks.add_task(
+            create_notification_for_personnel,
+            personnel_id,
+            "Profile Updated",
+            f"Your profile was updated by {current_user.get('name')}: {', '.join(changes)}",
+            "personnel_update",
+            "/on-duty",
+            "View On Duty",
+            {"updated_by": current_user.get("name"), "changes": changes}
         )
     
     del result["_id"]

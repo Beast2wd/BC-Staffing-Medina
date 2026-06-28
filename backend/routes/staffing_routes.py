@@ -14,6 +14,7 @@ from models import (
 )
 from auth import get_current_user, require_role
 from websocket_manager import manager
+from routes.user_notifications_routes import create_notification_for_personnel
 
 router = APIRouter(tags=["Staffing"])
 

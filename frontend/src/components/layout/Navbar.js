@@ -37,6 +37,7 @@ import {
   History
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
+import { NotificationBell } from './NotificationBell';
 
 const LOGO_URL = '/medina-logo.png';
 
@@ -316,6 +317,9 @@ export const Navbar = () => {
               <Moon className="h-5 w-5 text-blue-500" />
             )}
           </Button>
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>

@@ -1,12 +1,13 @@
 """
 User management routes (Admin)
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List
 
 from database import db
 from models import UserRole, UserResponse, UserUpdate, ResetPasswordRequest
 from auth import get_current_user, require_role, hash_password
+from routes.user_notifications_routes import create_notification
 
 router = APIRouter(prefix="/users", tags=["User Management"])
 
@@ -21,6 +22,7 @@ async def get_users(current_user: dict = Depends(require_role([UserRole.ADMIN]))
 async def update_user(
     user_id: str,
     data: UserUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     # Only include non-None values in update
@@ -67,6 +69,32 @@ async def update_user(
             {"payroll_number": current_user_record["payroll_number"]},
             {"$set": personnel_update_fields}
         )
+    
+    # Create notification for the user about their profile update (if not self-update)
+    if user_id != current_user.get("id"):
+        changes = []
+        if "station_id" in update_data:
+            station = await db.stations.find_one({"id": update_data["station_id"]}, {"_id": 0})
+            station_name = f"Station {station.get('station_number')}" if station else "New Station"
+            changes.append(f"Station: {station_name}")
+        if "shift" in update_data:
+            changes.append(f"Shift: {update_data['shift']}")
+        if "rank" in update_data:
+            changes.append(f"Rank: {update_data['rank']}")
+        if "role" in update_data:
+            changes.append(f"Role: {update_data['role']}")
+        
+        if changes:
+            background_tasks.add_task(
+                create_notification,
+                user_id,
+                "Profile Updated",
+                f"Your profile was updated by {current_user.get('name')}: {', '.join(changes)}",
+                "personnel_update",
+                "/on-duty",
+                "View On Duty",
+                {"updated_by": current_user.get("name"), "changes": changes}
+            )
     
     return UserResponse(**{k: v for k, v in result.items() if k != "_id" and k != "password_hash"})
 

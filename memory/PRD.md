@@ -355,6 +355,25 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/contexts/SettingsContext.js` - Settings provider
   - `/app/frontend/src/pages/SettingsPage.js` - Settings page
 
+## Notification Bell System (June 28, 2026)
+- ✅ **Notification Bell Icon** - Located in navbar between theme toggle and user menu
+- ✅ **Notification Dropdown** - Click bell to view notification history
+- ✅ **Unread Badge** - Shows count of unread notifications (9+ for more than 9)
+- ✅ **Notification Types**:
+  - Overtime Approved - When user's overtime is assigned
+  - Profile Updated - When admin updates user's station, shift, rank, or role
+  - Assignment Changes - When staffing assignments change
+- ✅ **Click to Navigate** - Clicking a notification takes user to relevant page
+  - Firefighters are redirected to On Duty page
+  - Other roles go to the specific page (e.g., /overtime)
+- ✅ **Mark as Read** - Individual or mark all as read
+- ✅ **Clear All** - Delete all notifications
+- ✅ **Real-time Updates** - WebSocket integration for instant notification delivery
+- ✅ **Sound Alert** - Plays notification sound when new notification arrives (if enabled in settings)
+- ✅ **Files Created**:
+  - `/app/frontend/src/components/layout/NotificationBell.js` - Notification bell component
+  - `/app/backend/routes/user_notifications_routes.py` - Notification API endpoints
+
 ## Change Log (June 23, 2026)
 - ✅ **Change Log Page** (`/change-log`) - Track all staffing changes
 - ✅ **View Modes**: Live (real-time), Daily, Weekly, Monthly
