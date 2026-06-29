@@ -317,6 +317,20 @@ export const NotificationBell = () => {
               ))
             )}
           </div>
+
+          {/* Show All Notifications Footer */}
+          <div 
+            className="px-4 py-3 border-t border-border bg-muted/30 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => {
+              navigate('/notifications');
+              setIsOpen(false);
+            }}
+            data-testid="show-all-notifications"
+          >
+            <span className="text-sm font-medium text-primary hover:underline">
+              Show all notifications
+            </span>
+          </div>
         </div>
       )}
     </div>

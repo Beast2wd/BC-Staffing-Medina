@@ -31,6 +31,7 @@ import { PartTimeAvailabilityPage } from "./pages/PartTimeAvailabilityPage";
 import { OnDutyPage } from "./pages/OnDutyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ChangeLogPage } from "./pages/ChangeLogPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 // Deployment Tracker Pages
 import { DeploymentRosterPage } from "./pages/deployment-tracker/DeploymentRosterPage";
@@ -191,6 +192,11 @@ const AppContent = () => {
           {/* Change Log Page - Available to BC+ */}
           <Route path="/change-log" element={
             <ProtectedRoute><ChangeLogPage /></ProtectedRoute>
+          } />
+          
+          {/* Notifications Page - Available to all users */}
+          <Route path="/notifications" element={
+            <ProtectedRoute><NotificationsPage /></ProtectedRoute>
           } />
           
           {/* Default Redirect */}

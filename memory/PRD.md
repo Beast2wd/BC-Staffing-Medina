@@ -359,10 +359,11 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Notification Bell Icon** - Located in navbar between theme toggle and user menu
 - ✅ **Notification Dropdown** - Click bell to view notification history
 - ✅ **Unread Badge** - Shows count of unread notifications (9+ for more than 9)
+- ✅ **Time Ago Display** - Shows "Just now", "5m ago", "2h ago", "3d ago" etc.
 - ✅ **Notification Types**:
   - Overtime Approved - When user's overtime is assigned
   - Profile Updated - When admin updates user's station, shift, rank, or role
-  - Assignment Changes - When staffing assignments change
+  - Riding Assignment Updated - When added to apparatus assignment
 - ✅ **Click to Navigate** - Clicking a notification takes user to relevant page
   - Firefighters are redirected to On Duty page
   - Other roles go to the specific page (e.g., /overtime)
@@ -370,8 +371,14 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Clear All** - Delete all notifications
 - ✅ **Real-time Updates** - WebSocket integration for instant notification delivery
 - ✅ **Sound Alert** - Plays notification sound when new notification arrives (if enabled in settings)
+- ✅ **Show All Notifications Link** - Footer bar in dropdown links to full notifications page
+- ✅ **Notifications Page** (`/notifications`) - Full page view of all notifications
+  - Filter tabs: All, Unread, Read
+  - Individual delete and mark as read buttons
+  - Hover to see full date/time
 - ✅ **Files Created**:
   - `/app/frontend/src/components/layout/NotificationBell.js` - Notification bell component
+  - `/app/frontend/src/pages/NotificationsPage.js` - Full notifications page
   - `/app/backend/routes/user_notifications_routes.py` - Notification API endpoints
 
 ## Change Log (June 23, 2026)
