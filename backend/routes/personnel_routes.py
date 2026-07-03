@@ -7,10 +7,13 @@ import uuid
 
 from database import db
 from models import UserRole, PersonnelBase, PersonnelCreate, PersonnelUpdate
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, hash_password
 from routes.user_notifications_routes import create_notification_for_personnel
 
 router = APIRouter(prefix="/personnel", tags=["Personnel"])
+
+# Default password for new personnel - they must change on first login
+DEFAULT_PASSWORD = "changeme123"
 
 
 @router.get("", response_model=List[PersonnelBase])
@@ -53,10 +56,48 @@ async def create_personnel(
     person_doc = {
         "id": person_id,
         **data.model_dump(),
-        "is_active": True
+        "is_active": True,
+        "overtime_hours_worked": 0.0
     }
     
     await db.personnel.insert_one(person_doc)
+    
+    # Automatically create a user account for this personnel
+    existing_user = await db.users.find_one({"payroll_number": data.payroll_number})
+    if not existing_user:
+        user_id = str(uuid.uuid4())
+        
+        # Determine role based on rank
+        rank_to_role = {
+            "Fire Chief": UserRole.ADMIN,
+            "Asst. Chief": UserRole.ADMIN,
+            "Deputy Chief": UserRole.BATTALION_CHIEF,
+            "Battalion Chief": UserRole.BATTALION_CHIEF,
+            "Captain": UserRole.CAPTAIN,
+            "Lieutenant": UserRole.LIEUTENANT,
+            "Volunteer Firefighter": UserRole.VOLUNTEER,
+        }
+        role = rank_to_role.get(data.rank, UserRole.FIREFIGHTER)
+        
+        from datetime import datetime, timezone
+        user_doc = {
+            "id": user_id,
+            "payroll_number": data.payroll_number,
+            "password_hash": hash_password(DEFAULT_PASSWORD),
+            "name": data.name,
+            "rank": data.rank,
+            "role": role,
+            "station_id": data.station_id,
+            "shift": data.shift,
+            "is_active": True,
+            "must_change_password": True,
+            "email": data.contact_email,
+            "phone_number": data.contact_phone,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.users.insert_one(user_doc)
+    
     return PersonnelBase(**person_doc)
 
 

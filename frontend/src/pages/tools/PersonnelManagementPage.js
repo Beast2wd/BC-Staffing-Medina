@@ -247,6 +247,16 @@ const PersonnelFormDialog = memo(({
             </div>
           </div>
 
+          {!isEdit && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
+              <p className="font-medium text-blue-600 dark:text-blue-400">Note:</p>
+              <p className="text-muted-foreground">
+                A user account will be automatically created with default password: <code className="bg-muted px-1 rounded">changeme123</code>
+              </p>
+              <p className="text-muted-foreground">User will be prompted to change password on first login.</p>
+            </div>
+          )}
+
           <Button 
             onClick={handleSave} 
             disabled={loading} 

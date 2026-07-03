@@ -3,9 +3,11 @@ User management routes (Admin)
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List
+from datetime import datetime, timezone
+import uuid
 
 from database import db
-from models import UserRole, UserResponse, UserUpdate, ResetPasswordRequest
+from models import UserRole, UserResponse, UserUpdate, ResetPasswordRequest, UserCreate
 from auth import get_current_user, require_role, hash_password
 from routes.user_notifications_routes import create_notification
 
@@ -16,6 +18,63 @@ router = APIRouter(prefix="/users", tags=["User Management"])
 async def get_users(current_user: dict = Depends(require_role([UserRole.ADMIN]))):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
+
+
+@router.post("", response_model=UserResponse)
+async def create_user(
+    data: UserCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Create a new user and automatically create a personnel record"""
+    # Check if user already exists
+    existing_user = await db.users.find_one({"payroll_number": data.payroll_number})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this payroll number already exists")
+    
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "payroll_number": data.payroll_number,
+        "password_hash": hash_password(data.password),
+        "name": data.name,
+        "rank": data.rank,
+        "role": data.role,
+        "station_id": data.station_id,
+        "shift": data.shift,
+        "is_active": True,
+        "must_change_password": data.must_change_password,
+        "email": data.email,
+        "phone_number": data.phone_number,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    # Automatically create a personnel record if one doesn't exist
+    existing_personnel = await db.personnel.find_one({"payroll_number": data.payroll_number})
+    if not existing_personnel and data.station_id:
+        # Get battalion_id from station
+        station = await db.stations.find_one({"id": data.station_id}, {"_id": 0})
+        battalion_id = station.get("battalion_id") if station else "bat-8110"
+        
+        person_id = str(uuid.uuid4())
+        person_doc = {
+            "id": person_id,
+            "payroll_number": data.payroll_number,
+            "name": data.name,
+            "rank": data.rank,
+            "station_id": data.station_id,
+            "shift": data.shift or "A",
+            "battalion_id": battalion_id,
+            "is_active": True,
+            "certifications": [],
+            "contact_phone": data.phone_number,
+            "contact_email": data.email,
+            "overtime_hours_worked": 0.0
+        }
+        await db.personnel.insert_one(person_doc)
+    
+    return UserResponse(**{k: v for k, v in user_doc.items() if k != "password_hash"})
 
 
 @router.put("/{user_id}", response_model=UserResponse)

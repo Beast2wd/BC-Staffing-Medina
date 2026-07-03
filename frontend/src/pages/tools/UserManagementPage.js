@@ -83,8 +83,12 @@ export const UserManagementPage = () => {
     
     setLoading(true);
     try {
-      await api.post('/auth/register', formData);
-      toast.success('User created');
+      // Use the new /users endpoint which also creates a personnel record
+      await api.post('/users', {
+        ...formData,
+        must_change_password: true  // Force password change on first login
+      });
+      toast.success('User created successfully. They will be prompted to change password on first login.');
       setShowAddDialog(false);
       setShowPassword(false);
       fetchUsers();
@@ -369,6 +373,14 @@ export const UserManagementPage = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm">
+                  <p className="font-medium text-green-600 dark:text-green-400">Note:</p>
+                  <p className="text-muted-foreground">
+                    A personnel record will be automatically created if station is assigned.
+                  </p>
+                  <p className="text-muted-foreground">User will be prompted to change password on first login.</p>
                 </div>
 
                 <Button onClick={handleAddUser} disabled={loading} className="w-full" data-testid="save-user-btn">

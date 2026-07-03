@@ -16,6 +16,10 @@
 - **Role**: Firefighter
 - **Note**: Created during notification bell testing
 
+## Default Password for New Personnel/Users
+- **Default Password**: changeme123
+- **Note**: All newly created personnel/users will have this password and must change it on first login
+
 ## Default Part-Time Employee Password
 - **Initial Password**: parttime123
 - **Note**: Must change password on first login
