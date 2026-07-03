@@ -50,6 +50,7 @@ const PersonnelFormDialog = memo(({
   const [stationId, setStationId] = useState('');
   const [shift, setShift] = useState('A');
   const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [certifications, setCertifications] = useState([]);
   const [certInput, setCertInput] = useState('');
 
@@ -62,6 +63,7 @@ const PersonnelFormDialog = memo(({
       setStationId(initialData.station_id || '');
       setShift(initialData.shift || 'A');
       setContactPhone(initialData.contact_phone || '');
+      setContactEmail(initialData.contact_email || '');
       setCertifications(initialData.certifications || []);
     } else if (isOpen && !initialData) {
       // Reset for add mode
@@ -71,6 +73,7 @@ const PersonnelFormDialog = memo(({
       setStationId('');
       setShift('A');
       setContactPhone('');
+      setContactEmail('');
       setCertifications([]);
     }
     setCertInput('');
@@ -95,6 +98,7 @@ const PersonnelFormDialog = memo(({
       station_id: stationId,
       shift,
       contact_phone: contactPhone,
+      contact_email: contactEmail,
       certifications
     });
   };
@@ -184,6 +188,17 @@ const PersonnelFormDialog = memo(({
               onChange={(e) => setContactPhone(e.target.value)}
               placeholder="(555) 555-5555"
               data-testid="phone-input"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Email Address</Label>
+            <Input
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="email@example.com"
+              data-testid="email-input"
             />
           </div>
 

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, ChevronLeft, ChevronRight, Phone, AlertCircle } from 'lucide-react';
+import { Plus, Save, ChevronLeft, ChevronRight, Phone, Mail, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
@@ -29,6 +29,7 @@ export const OvertimeAvailabilityPage = () => {
     status: 'available',
     notes: '',
     phone_number: '',
+    email: '',
     shift_type: '24'
   });
 
@@ -115,12 +116,13 @@ export const OvertimeAvailabilityPage = () => {
         status: 'available',
         notes: formData.notes,
         phone_number: formData.phone_number || myPersonnel.contact_phone,
+        email: formData.email || myPersonnel.contact_email,
         shift_type: formData.shift_type
       });
       toast.success('Availability submitted');
       setShowAddDialog(false);
       fetchOvertimeRecords();
-      setFormData({ date: selectedDate, hours: 24, status: 'available', notes: '', phone_number: '', shift_type: '24' });
+      setFormData({ date: selectedDate, hours: 24, status: 'available', notes: '', phone_number: '', email: '', shift_type: '24' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to submit availability');
     } finally {
@@ -218,6 +220,21 @@ export const OvertimeAvailabilityPage = () => {
                       placeholder="(555) 555-5555"
                       className="pl-10"
                       data-testid="phone-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={formData.email || myPersonnel?.contact_email || ''}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      placeholder="email@example.com"
+                      className="pl-10"
+                      data-testid="email-input"
                     />
                   </div>
                 </div>

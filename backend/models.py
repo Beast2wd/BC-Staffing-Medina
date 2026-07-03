@@ -318,6 +318,7 @@ class OvertimeRecord(BaseModel):
     status: str = "available"  # available, assigned, declined
     notes: str = ""
     phone_number: str = ""
+    email: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
 
 
@@ -330,6 +331,7 @@ class OvertimeRecordCreate(BaseModel):
     status: str = "available"
     notes: str = ""
     phone_number: str = ""
+    email: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
 
 
