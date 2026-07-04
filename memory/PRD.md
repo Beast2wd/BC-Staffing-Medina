@@ -457,6 +457,17 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Backfilled missing tenant_id in: deployment_roster, deployment_log, volunteer_records, part_time_availability, remarks
 - ⏳ WebSocket connections scoped to tenant (pending)
 
+### Phase 4: Platform Branding & Super Admin Enhancements ✅ (Completed July 4, 2026)
+- ✅ Platform name: "BC Staffing" (main business name)
+- ✅ Tenant naming convention: "[Fire Dept Name] BC Staffing"
+- ✅ Updated existing tenant to "Medina County BC Staffing"
+- ✅ Super Admin Tenant Viewer with:
+  - View-Only Mode (read-only access to tenant data)
+  - Full Impersonation Mode (full admin access for testing)
+  - Data Preview dialog with tabs for Users, Personnel, Stations, Staffing, Overtime
+  - Impersonation Banner shows when viewing/impersonating a tenant
+  - Exit button to return to Super Admin
+
 ### Phase 4: Super Admin Dashboard ✅
 - ✅ Super Admin Dashboard page (`/super-admin`)
 - ✅ List all tenants with stats (users, stations)

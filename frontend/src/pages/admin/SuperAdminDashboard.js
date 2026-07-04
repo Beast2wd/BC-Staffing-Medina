@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
+import { Switch } from '../../components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from '../../components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { 
   Building2, 
   Plus, 
@@ -31,19 +41,32 @@ import {
   BarChart3,
   Power,
   PowerOff,
-  Eye
+  Eye,
+  UserCog,
+  LogIn,
+  ArrowLeft,
+  AlertTriangle,
+  Database,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 
 const SuperAdminDashboard = () => {
-  const { api } = useAuth();
+  const { api, login } = useAuth();
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [showDataPreview, setShowDataPreview] = useState(false);
+  const [showImpersonateDialog, setShowImpersonateDialog] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [tenantStats, setTenantStats] = useState(null);
+  const [tenantPreviewData, setTenantPreviewData] = useState(null);
+  const [impersonationMode, setImpersonationMode] = useState('view');
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     subdomain: '',
@@ -102,6 +125,43 @@ const SuperAdminDashboard = () => {
       fetchTenants();
     } catch (error) {
       toast.error('Failed to update tenant status');
+    }
+  };
+
+  const fetchTenantDataPreview = async (tenantId) => {
+    setLoadingPreview(true);
+    try {
+      const response = await api.get(`/tenants/${tenantId}/data-preview`);
+      setTenantPreviewData(response.data);
+      setShowDataPreview(true);
+    } catch (error) {
+      toast.error('Failed to load tenant data preview');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleImpersonate = async () => {
+    if (!selectedTenant) return;
+    
+    try {
+      const response = await api.post(`/tenants/${selectedTenant.id}/impersonate?mode=${impersonationMode}`);
+      
+      // Store the original token to restore later
+      const originalToken = localStorage.getItem('token');
+      localStorage.setItem('original_super_admin_token', originalToken);
+      localStorage.setItem('impersonation_info', JSON.stringify(response.data.impersonation));
+      
+      // Set the new impersonation token
+      localStorage.setItem('token', response.data.access_token);
+      
+      toast.success(`Now ${impersonationMode === 'view' ? 'viewing' : 'impersonating'} ${selectedTenant.name}`);
+      setShowImpersonateDialog(false);
+      
+      // Redirect to dashboard
+      window.location.href = '/';
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to impersonate tenant');
     }
   };
 
@@ -252,14 +312,41 @@ const SuperAdminDashboard = () => {
                               setSelectedTenant(tenant);
                               fetchTenantStats(tenant.id);
                             }}
+                            title="View Statistics"
                           >
-                            <Eye className="h-4 w-4" />
+                            <BarChart3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              fetchTenantDataPreview(tenant.id);
+                            }}
+                            title="View Data Preview"
+                            disabled={!tenant.is_active}
+                          >
+                            <Database className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setShowImpersonateDialog(true);
+                            }}
+                            title="Access Tenant"
+                            disabled={!tenant.is_active}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <LogIn className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleTenant(tenant)}
                             className={tenant.is_active ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-600'}
+                            title={tenant.is_active ? 'Deactivate' : 'Activate'}
                           >
                             {tenant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                           </Button>
@@ -279,18 +366,21 @@ const SuperAdminDashboard = () => {
             <DialogHeader>
               <DialogTitle>Create New Tenant</DialogTitle>
               <DialogDescription>
-                Set up a new fire department on the platform
+                Set up a new fire department on BC Staffing
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Organization Name *</Label>
+                <Label>Fire Department Name *</Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="e.g., Lakewood Fire Department"
+                  placeholder="e.g., Lakewood County"
                   data-testid="tenant-name-input"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Will appear as: <span className="font-medium">{formData.name || '[Name]'} BC Staffing</span>
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Subdomain *</Label>
@@ -389,6 +479,273 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Tenant Data Preview Dialog */}
+        <Dialog open={showDataPreview} onOpenChange={setShowDataPreview}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                {selectedTenant?.name} - Data Preview
+                <Badge variant="secondary" className="ml-2">View Only</Badge>
+              </DialogTitle>
+              <DialogDescription>
+                Read-only preview of tenant data for support and testing
+              </DialogDescription>
+            </DialogHeader>
+            {loadingPreview ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : tenantPreviewData && (
+              <Tabs defaultValue="users" className="mt-4">
+                <TabsList className="grid grid-cols-5 w-full">
+                  <TabsTrigger value="users">Users ({tenantPreviewData.users?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="personnel">Personnel ({tenantPreviewData.personnel?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="stations">Stations ({tenantPreviewData.stations?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="staffing">Staffing</TabsTrigger>
+                  <TabsTrigger value="overtime">Overtime</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="users" className="mt-4">
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Payroll #</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenantPreviewData.users?.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell className="font-medium">{user.name}</TableCell>
+                            <TableCell>{user.payroll_number}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{user.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {user.is_active ? (
+                                <Badge className="bg-green-500">Active</Badge>
+                              ) : (
+                                <Badge variant="destructive">Inactive</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="personnel" className="mt-4">
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Rank</TableHead>
+                          <TableHead>Station</TableHead>
+                          <TableHead>Shift</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenantPreviewData.personnel?.map((person) => (
+                          <TableRow key={person.id}>
+                            <TableCell className="font-medium">{person.name}</TableCell>
+                            <TableCell>{person.rank}</TableCell>
+                            <TableCell>{person.station_id}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{person.shift}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="stations" className="mt-4">
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Station #</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Battalion</TableHead>
+                          <TableHead>Min Staffing</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenantPreviewData.stations?.map((station) => (
+                          <TableRow key={station.id}>
+                            <TableCell className="font-medium">{station.station_number}</TableCell>
+                            <TableCell>{station.name}</TableCell>
+                            <TableCell>{station.battalion_id}</TableCell>
+                            <TableCell>{station.minimum_staffing}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="staffing" className="mt-4">
+                  <p className="text-sm text-muted-foreground mb-4">Recent staffing records (last 5)</p>
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Station</TableHead>
+                          <TableHead>Personnel Assigned</TableHead>
+                          <TableHead>Modified By</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenantPreviewData.recent_staffing?.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>{record.date}</TableCell>
+                            <TableCell>{record.station_id}</TableCell>
+                            <TableCell>{record.personnel_assigned?.length || 0}</TableCell>
+                            <TableCell>{record.last_modified_by || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="overtime" className="mt-4">
+                  <p className="text-sm text-muted-foreground mb-4">Recent overtime records (last 5)</p>
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Personnel</TableHead>
+                          <TableHead>Hours</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tenantPreviewData.recent_overtime?.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>{record.date}</TableCell>
+                            <TableCell>{record.personnel_name}</TableCell>
+                            <TableCell>{record.hours}</TableCell>
+                            <TableCell>
+                              <Badge variant={record.status === 'assigned' ? 'default' : 'secondary'}>
+                                {record.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Impersonation Dialog */}
+        <Dialog open={showImpersonateDialog} onOpenChange={setShowImpersonateDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserCog className="h-5 w-5" />
+                Access Tenant
+              </DialogTitle>
+              <DialogDescription>
+                Access {selectedTenant?.name} for support or testing
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <span className="font-medium">{selectedTenant?.name}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Subdomain: {selectedTenant?.subdomain}.app.com
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <Label>Access Mode</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div 
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      impersonationMode === 'view' 
+                        ? 'border-primary bg-primary/5' 
+                        : 'hover:border-muted-foreground'
+                    }`}
+                    onClick={() => setImpersonationMode('view')}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye className="h-4 w-4" />
+                      <span className="font-medium">View Only</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only access to view data without making changes
+                    </p>
+                  </div>
+                  <div 
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      impersonationMode === 'full' 
+                        ? 'border-primary bg-primary/5' 
+                        : 'hover:border-muted-foreground'
+                    }`}
+                    onClick={() => setImpersonationMode('full')}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <UserCog className="h-4 w-4" />
+                      <span className="font-medium">Full Access</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Full admin access for testing and troubleshooting
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {impersonationMode === 'full' && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-yellow-600">Full access mode</p>
+                      <p className="text-muted-foreground">
+                        Changes you make will affect the tenant&apos;s live data. Use with caution.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setShowImpersonateDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={handleImpersonate}
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  {impersonationMode === 'view' ? 'View Tenant' : 'Access Tenant'}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </main>

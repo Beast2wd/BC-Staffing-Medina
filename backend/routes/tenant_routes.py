@@ -60,10 +60,15 @@ async def create_tenant(data: TenantCreate, current_user: dict = Depends(require
     
     tenant_id = f"tenant-{data.subdomain.lower()}"
     
+    # Append "BC Staffing" to name if not already present
+    tenant_name = data.name
+    if not tenant_name.lower().endswith("bc staffing"):
+        tenant_name = f"{tenant_name} BC Staffing"
+    
     # Create tenant
     tenant_doc = {
         "id": tenant_id,
-        "name": data.name,
+        "name": tenant_name,
         "subdomain": data.subdomain.lower(),
         "status": TenantStatus.ACTIVE,
         "settings": (data.settings or TenantSettings()).model_dump(),
@@ -198,3 +203,101 @@ async def get_tenant_stats(tenant_id: str, current_user: dict = Depends(require_
     }
     
     return stats
+
+
+@router.post("/{tenant_id}/impersonate")
+async def impersonate_tenant(
+    tenant_id: str, 
+    mode: str = "view",  # "view" or "full"
+    current_user: dict = Depends(require_super_admin())
+):
+    """
+    Generate an impersonation token for a tenant.
+    - mode="view": Read-only access to view tenant data
+    - mode="full": Full admin access for testing/support
+    """
+    from auth import create_token
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    if not tenant.get("is_active"):
+        raise HTTPException(status_code=400, detail="Cannot impersonate inactive tenant")
+    
+    # Find the tenant's admin user (or first active user)
+    tenant_admin = await db.users.find_one(
+        {"tenant_id": tenant_id, "role": "admin", "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not tenant_admin:
+        tenant_admin = await db.users.find_one(
+            {"tenant_id": tenant_id, "is_active": True},
+            {"_id": 0}
+        )
+    
+    if not tenant_admin:
+        raise HTTPException(status_code=400, detail="No active users in this tenant")
+    
+    # For impersonation, we use the super admin's ID but with the tenant context
+    impersonation_role = "admin" if mode == "full" else "viewer"
+    
+    # Create token with super admin privileges but scoped to tenant
+    token = create_token(
+        user_id=current_user["id"],  # Super admin's ID for audit
+        role=impersonation_role,
+        tenant_id=tenant_id,
+        is_super_admin=True  # Keep super admin flag
+    )
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "impersonation": {
+            "tenant_id": tenant_id,
+            "tenant_name": tenant.get("name"),
+            "mode": mode,
+            "impersonating_as": tenant_admin.get("name"),
+            "original_user": current_user.get("name")
+        }
+    }
+
+
+@router.get("/{tenant_id}/data-preview")
+async def get_tenant_data_preview(tenant_id: str, current_user: dict = Depends(require_super_admin())):
+    """Get a preview of tenant data for support/testing purposes (view-only)"""
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get sample data from key collections
+    preview = {
+        "tenant": tenant,
+        "users": await db.users.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0, "password_hash": 0}
+        ).limit(10).to_list(10),
+        "personnel": await db.personnel.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0}
+        ).limit(10).to_list(10),
+        "stations": await db.stations.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0}
+        ).to_list(20),
+        "battalions": await db.battalions.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0}
+        ).to_list(10),
+        "recent_staffing": await db.staffing_records.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0}
+        ).sort("date", -1).limit(5).to_list(5),
+        "recent_overtime": await db.overtime_records.find(
+            {"tenant_id": tenant_id}, 
+            {"_id": 0}
+        ).sort("date", -1).limit(5).to_list(5),
+    }
+    
+    return preview

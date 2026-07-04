@@ -7,6 +7,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
+import ImpersonationBanner from "./components/layout/ImpersonationBanner";
 
 // Pages
 import { LoginPage } from "./pages/LoginPage";
@@ -78,6 +79,9 @@ const AppContent = () => {
   return (
     <StaffingProvider>
       <WebSocketProvider>
+        {/* Impersonation Banner - shows when super admin is viewing/impersonating a tenant */}
+        <ImpersonationBanner />
+        
         {/* Force password change modal - blocks all navigation until password is changed */}
         {user && mustChangePassword && (
           <ChangePasswordModal 
