@@ -1,5 +1,5 @@
 """
-Overtime and Leave routes
+Overtime and Leave routes - Multi-tenant enabled
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
@@ -14,6 +14,7 @@ from models import (
 from auth import get_current_user, require_role
 from websocket_manager import manager
 from routes.user_notifications_routes import create_notification_for_personnel
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(tags=["Overtime & Leave"])
 
@@ -28,6 +29,8 @@ async def get_overtime_records(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    query = add_tenant_to_query(query, current_user)
+    
     if date:
         query["date"] = date
     if battalion_id:
@@ -46,13 +49,21 @@ async def create_overtime_record(
     current_user: dict = Depends(get_current_user)
 ):
     """Create overtime record - any user can submit their own availability"""
-    # Verify personnel exists
-    personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    
+    # Verify personnel exists within tenant
+    personnel_query = {"id": data.personnel_id}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel = await db.personnel.find_one(personnel_query, {"_id": 0})
     if not personnel:
         raise HTTPException(status_code=404, detail="Personnel not found")
     
     # Check if user is submitting for themselves or has elevated permissions
-    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+    user_personnel_query = {"payroll_number": current_user["payroll_number"]}
+    if tenant_id:
+        user_personnel_query["tenant_id"] = tenant_id
+    user_personnel = await db.personnel.find_one(user_personnel_query, {"_id": 0})
     is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
     has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
     
@@ -61,6 +72,8 @@ async def create_overtime_record(
     
     record_id = str(uuid.uuid4())
     record_doc = {"id": record_id, **data.model_dump()}
+    record_doc = add_tenant_to_doc(record_doc, current_user)
+    
     await db.overtime_records.insert_one(record_doc)
     
     # Broadcast WebSocket update
@@ -81,8 +94,13 @@ async def update_overtime_record(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
     # Get the existing record to check previous status
-    existing = await db.overtime_records.find_one({"id": record_id}, {"_id": 0})
+    existing = await db.overtime_records.find_one(query, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Overtime record not found")
     
@@ -91,16 +109,21 @@ async def update_overtime_record(
     hours = data.hours or existing.get("hours", 0)
     personnel_id = existing.get("personnel_id")
     
+    # Build personnel query with tenant filter
+    personnel_query = {"id": personnel_id}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    
     # Update personnel overtime hours based on status change
     if prev_status != new_status:
         if new_status == "assigned" and prev_status != "assigned":
             # Add hours when assigned
             await db.personnel.update_one(
-                {"id": personnel_id},
+                personnel_query,
                 {"$inc": {"overtime_hours_worked": hours}}
             )
             # Create notification for the personnel
-            personnel = await db.personnel.find_one({"id": personnel_id}, {"_id": 0})
+            personnel = await db.personnel.find_one(personnel_query, {"_id": 0})
             if personnel:
                 background_tasks.add_task(
                     create_notification_for_personnel,
@@ -115,18 +138,18 @@ async def update_overtime_record(
         elif new_status == "declined" and prev_status == "assigned":
             # Deduct hours when declining from assigned
             await db.personnel.update_one(
-                {"id": personnel_id},
+                personnel_query,
                 {"$inc": {"overtime_hours_worked": -hours}}
             )
         elif new_status == "available" and prev_status == "assigned":
             # Deduct hours when going back to available from assigned
             await db.personnel.update_one(
-                {"id": personnel_id},
+                personnel_query,
                 {"$inc": {"overtime_hours_worked": -hours}}
             )
     
     result = await db.overtime_records.find_one_and_update(
-        {"id": record_id},
+        query,
         {"$set": data.model_dump()},
         return_document=True
     )
@@ -152,8 +175,13 @@ async def delete_overtime_record(
     current_user: dict = Depends(get_current_user)
 ):
     """Delete an overtime record from the list. Users can delete their own records, BC/Admin can delete any."""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
     # Get the record first
-    record = await db.overtime_records.find_one({"id": record_id}, {"_id": 0})
+    record = await db.overtime_records.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Overtime record not found")
     
@@ -161,7 +189,10 @@ async def delete_overtime_record(
     is_admin_or_bc = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF]
     
     # Find if this is the user's own record
-    user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+    user_personnel_query = {"payroll_number": current_user["payroll_number"]}
+    if tenant_id:
+        user_personnel_query["tenant_id"] = tenant_id
+    user_personnel = await db.personnel.find_one(user_personnel_query, {"_id": 0})
     is_own_record = user_personnel and user_personnel.get("id") == record.get("personnel_id")
     
     if not is_admin_or_bc and not is_own_record:
@@ -175,13 +206,16 @@ async def delete_overtime_record(
     if record.get("status") == "assigned":
         hours = record.get("hours", 0)
         personnel_id = record.get("personnel_id")
+        personnel_query = {"id": personnel_id}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
         await db.personnel.update_one(
-            {"id": personnel_id},
+            personnel_query,
             {"$inc": {"overtime_hours_worked": -hours}}
         )
     
     # Delete the record
-    result = await db.overtime_records.delete_one({"id": record_id})
+    result = await db.overtime_records.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Overtime record not found")
     
@@ -207,6 +241,8 @@ async def get_leave_records(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    query = add_tenant_to_query(query, current_user)
+    
     if personnel_id:
         query["personnel_id"] = personnel_id
     if leave_type:
@@ -231,6 +267,8 @@ async def create_leave_record(
         **data.model_dump(),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    record_doc = add_tenant_to_doc(record_doc, current_user)
+    
     await db.leave_records.insert_one(record_doc)
     return LeaveRecord(**record_doc)
 
@@ -241,8 +279,11 @@ async def update_leave_record(
     data: LeaveRecordCreate,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
     result = await db.leave_records.find_one_and_update(
-        {"id": record_id},
+        query,
         {"$set": data.model_dump()},
         return_document=True
     )
@@ -257,7 +298,10 @@ async def delete_leave_record(
     record_id: str,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
-    result = await db.leave_records.delete_one({"id": record_id})
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
+    result = await db.leave_records.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Leave record not found")
     return {"message": "Leave record deleted"}

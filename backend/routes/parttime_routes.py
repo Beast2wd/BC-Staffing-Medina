@@ -1,5 +1,5 @@
 """
-Part-time employee routes
+Part-time employee routes (Multi-tenant enabled)
 """
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
@@ -12,6 +12,7 @@ from models import (
     PartTimeAvailability, PartTimeAvailabilityCreate, PartTimeAvailabilityUpdate
 )
 from auth import get_current_user, require_role, hash_password
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(tags=["Part-Time"])
 
@@ -23,7 +24,11 @@ async def get_part_time_employees(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all part-time employees sorted alphabetically by name"""
-    employees = await db.part_time_employees.find({}, {"_id": 0}).to_list(1000)
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    employees = await db.part_time_employees.find(query, {"_id": 0}).to_list(1000)
     # Sort alphabetically by name
     employees.sort(key=lambda x: x.get("name", "").lower())
     return employees
@@ -35,29 +40,48 @@ async def create_part_time_employee(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Create a new part-time employee and their user account"""
+    tenant_id = get_tenant_id(current_user)
     # Check if employee number already exists (only active ones block creation)
-    existing = await db.part_time_employees.find_one({"employee_number": data.employee_number, "is_active": True})
+    existing_query = {"employee_number": data.employee_number, "is_active": True}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing = await db.part_time_employees.find_one(existing_query)
     if existing:
         raise HTTPException(status_code=400, detail="Employee number already exists")
     
     # Check if employee number already exists as an ACTIVE user
-    existing_user = await db.users.find_one({"payroll_number": data.employee_number, "is_active": True}, {"_id": 0})
+    existing_user_query = {"payroll_number": data.employee_number, "is_active": True}
+    if tenant_id:
+        existing_user_query["tenant_id"] = tenant_id
+    existing_user = await db.users.find_one(existing_user_query, {"_id": 0})
     if existing_user:
         raise HTTPException(status_code=400, detail="Employee number already registered as user")
     
     # If email is provided, check if it's already in use by an ACTIVE user
     if data.contact_email:
-        existing_email = await db.users.find_one({"email": data.contact_email, "is_active": True}, {"_id": 0})
+        existing_email_query = {"email": data.contact_email, "is_active": True}
+        if tenant_id:
+            existing_email_query["tenant_id"] = tenant_id
+        existing_email = await db.users.find_one(existing_email_query, {"_id": 0})
         if existing_email:
             raise HTTPException(status_code=400, detail="Email already registered")
     
     # Clean up any inactive records with the same employee number (allow reuse)
-    await db.part_time_employees.delete_many({"employee_number": data.employee_number, "is_active": False})
-    await db.users.delete_many({"payroll_number": data.employee_number, "is_active": False})
+    cleanup_pt_query = {"employee_number": data.employee_number, "is_active": False}
+    if tenant_id:
+        cleanup_pt_query["tenant_id"] = tenant_id
+    await db.part_time_employees.delete_many(cleanup_pt_query)
+    cleanup_user_query = {"payroll_number": data.employee_number, "is_active": False}
+    if tenant_id:
+        cleanup_user_query["tenant_id"] = tenant_id
+    await db.users.delete_many(cleanup_user_query)
     
     # If email provided, also clean up inactive users with that email
     if data.contact_email:
-        await db.users.delete_many({"email": data.contact_email, "is_active": False})
+        cleanup_email_query = {"email": data.contact_email, "is_active": False}
+        if tenant_id:
+            cleanup_email_query["tenant_id"] = tenant_id
+        await db.users.delete_many(cleanup_email_query)
     
     # Create part-time employee record
     employee = PartTimeEmployee(
@@ -85,9 +109,15 @@ async def create_part_time_employee(
         "part_time_employee_id": employee.id,  # Link to part-time employee record
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    # Add tenant_id
+    if tenant_id:
+        user_doc["tenant_id"] = tenant_id
     await db.users.insert_one(user_doc)
     
-    await db.part_time_employees.insert_one(employee.model_dump())
+    emp_doc = employee.model_dump()
+    if tenant_id:
+        emp_doc["tenant_id"] = tenant_id
+    await db.part_time_employees.insert_one(emp_doc)
     return employee
 
 
@@ -98,7 +128,11 @@ async def update_part_time_employee(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Update a part-time employee"""
-    employee = await db.part_time_employees.find_one({"id": employee_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": employee_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    employee = await db.part_time_employees.find_one(query, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail="Part-time employee not found")
     
@@ -106,16 +140,16 @@ async def update_part_time_employee(
     if update_data:
         # Check if new employee number conflicts with existing
         if "employee_number" in update_data:
-            existing = await db.part_time_employees.find_one({
-                "employee_number": update_data["employee_number"],
-                "id": {"$ne": employee_id}
-            })
+            conflict_query = {"employee_number": update_data["employee_number"], "id": {"$ne": employee_id}}
+            if tenant_id:
+                conflict_query["tenant_id"] = tenant_id
+            existing = await db.part_time_employees.find_one(conflict_query)
             if existing:
                 raise HTTPException(status_code=400, detail="Employee number already exists")
         
-        await db.part_time_employees.update_one({"id": employee_id}, {"$set": update_data})
+        await db.part_time_employees.update_one(query, {"$set": update_data})
     
-    updated = await db.part_time_employees.find_one({"id": employee_id}, {"_id": 0})
+    updated = await db.part_time_employees.find_one(query, {"_id": 0})
     return updated
 
 
@@ -125,18 +159,28 @@ async def delete_part_time_employee(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Delete a part-time employee and their user account"""
-    employee = await db.part_time_employees.find_one({"id": employee_id})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": employee_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    employee = await db.part_time_employees.find_one(query)
     if not employee:
         raise HTTPException(status_code=404, detail="Part-time employee not found")
     
     # Delete part-time employee record
-    await db.part_time_employees.delete_one({"id": employee_id})
+    await db.part_time_employees.delete_one(query)
     
     # Delete the associated user account from User Management
-    await db.users.delete_one({"part_time_employee_id": employee_id})
+    user_del_query = {"part_time_employee_id": employee_id}
+    if tenant_id:
+        user_del_query["tenant_id"] = tenant_id
+    await db.users.delete_one(user_del_query)
     
     # Also try to match by employee_number (for records created before linking was added)
-    await db.users.delete_one({"payroll_number": employee.get("employee_number")})
+    user_del_query2 = {"payroll_number": employee.get("employee_number")}
+    if tenant_id:
+        user_del_query2["tenant_id"] = tenant_id
+    await db.users.delete_one(user_del_query2)
     
     return {"message": "Part-time employee removed"}
 
@@ -150,7 +194,10 @@ async def get_part_time_availability(
     current_user: dict = Depends(get_current_user)
 ):
     """Get part-time availability records for a date"""
+    tenant_id = get_tenant_id(current_user)
     query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if date:
         query["date"] = date
     if battalion_id:
@@ -166,16 +213,20 @@ async def create_part_time_availability(
     current_user: dict = Depends(get_current_user)
 ):
     """Submit part-time availability"""
+    tenant_id = get_tenant_id(current_user)
     # Get employee details
-    employee = await db.part_time_employees.find_one({"id": data.employee_id}, {"_id": 0})
+    emp_query = {"id": data.employee_id}
+    if tenant_id:
+        emp_query["tenant_id"] = tenant_id
+    employee = await db.part_time_employees.find_one(emp_query, {"_id": 0})
     if not employee:
         raise HTTPException(status_code=404, detail="Part-time employee not found")
     
     # Check for existing availability on same date
-    existing = await db.part_time_availability.find_one({
-        "employee_id": data.employee_id,
-        "date": data.date
-    })
+    existing_query = {"employee_id": data.employee_id, "date": data.date}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing = await db.part_time_availability.find_one(existing_query)
     if existing:
         raise HTTPException(status_code=400, detail="Availability already submitted for this date")
     
@@ -193,8 +244,11 @@ async def create_part_time_availability(
         created_at=datetime.now(timezone.utc).isoformat()
     )
     
-    await db.part_time_availability.insert_one(record.model_dump())
-    return record.model_dump()
+    record_doc = record.model_dump()
+    if tenant_id:
+        record_doc["tenant_id"] = tenant_id
+    await db.part_time_availability.insert_one(record_doc)
+    return record_doc
 
 
 @router.put("/part-time-availability/{record_id}")
@@ -204,15 +258,19 @@ async def update_part_time_availability(
     current_user: dict = Depends(get_current_user)
 ):
     """Update part-time availability record"""
-    record = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": record_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    record = await db.part_time_availability.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if update_data:
-        await db.part_time_availability.update_one({"id": record_id}, {"$set": update_data})
+        await db.part_time_availability.update_one(query, {"$set": update_data})
     
-    updated = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    updated = await db.part_time_availability.find_one(query, {"_id": 0})
     return updated
 
 
@@ -222,11 +280,15 @@ async def delete_part_time_availability(
     current_user: dict = Depends(get_current_user)
 ):
     """Delete part-time availability record"""
-    record = await db.part_time_availability.find_one({"id": record_id})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": record_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    record = await db.part_time_availability.find_one(query)
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     
-    await db.part_time_availability.delete_one({"id": record_id})
+    await db.part_time_availability.delete_one(query)
     return {"message": "Availability removed"}
 
 
@@ -236,7 +298,10 @@ async def get_all_part_time_availability(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all part-time availability records (for BC view)"""
+    tenant_id = get_tenant_id(current_user)
     query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if battalion_id:
         query["battalion_id"] = battalion_id
     
@@ -252,14 +317,18 @@ async def get_part_time_employee_stats(
     current_user: dict = Depends(get_current_user)
 ):
     """Get part-time employee statistics (hours scheduled, worked YTD, monthly)"""
+    tenant_id = get_tenant_id(current_user)
     # Get all records for this employee
-    records = await db.part_time_availability.find(
-        {"employee_id": employee_id},
-        {"_id": 0}
-    ).to_list(500)
+    query = {"employee_id": employee_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    records = await db.part_time_availability.find(query, {"_id": 0}).to_list(500)
     
     # Get stations for lookup
-    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
     # Get current date info
@@ -336,7 +405,11 @@ async def approve_part_time_availability(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
     """Approve part-time availability (BC+ only) with station assignment"""
-    record = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": record_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    record = await db.part_time_availability.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     
@@ -344,7 +417,7 @@ async def approve_part_time_availability(
         raise HTTPException(status_code=400, detail="Station must be selected")
     
     await db.part_time_availability.update_one(
-        {"id": record_id},
+        query,
         {"$set": {
             "status": "assigned", 
             "approved_by": current_user["payroll_number"],
@@ -352,7 +425,7 @@ async def approve_part_time_availability(
         }}
     )
     
-    updated = await db.part_time_availability.find_one({"id": record_id}, {"_id": 0})
+    updated = await db.part_time_availability.find_one(query, {"_id": 0})
     return updated
 
 
@@ -365,10 +438,13 @@ async def get_assigned_part_time(
     current_user: dict = Depends(get_current_user)
 ):
     """Get assigned part-time employees for a specific date"""
+    tenant_id = get_tenant_id(current_user)
     query = {
         "date": date,
         "status": "assigned"
     }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if battalion_id:
         query["battalion_id"] = battalion_id
     if station_id:
@@ -379,11 +455,17 @@ async def get_assigned_part_time(
     records = await db.part_time_availability.find(query, {"_id": 0}).to_list(100)
     
     # Get station info for each record
-    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
     # Get part-time employee info for each record
-    pt_employees = await db.part_time_employees.find({}, {"_id": 0}).to_list(100)
+    pt_query = {}
+    if tenant_id:
+        pt_query["tenant_id"] = tenant_id
+    pt_employees = await db.part_time_employees.find(pt_query, {"_id": 0}).to_list(100)
     pt_employees_dict = {e["id"]: e for e in pt_employees}
     
     for record in records:

@@ -1,5 +1,5 @@
 """
-Notification routes - SMS and Email broadcast via Twilio and SendGrid
+Notification routes - SMS and Email broadcast via Twilio and SendGrid (Multi-tenant enabled)
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from datetime import datetime, timezone
@@ -17,6 +17,7 @@ from database import (
 )
 from models import UserRole, BroadcastNotificationRequest
 from auth import get_current_user, require_role
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 logger = logging.getLogger(__name__)
@@ -169,6 +170,7 @@ async def send_broadcast_notification(
     """
     Send broadcast notification to selected personnel via SMS and/or Email.
     """
+    tenant_id = get_tenant_id(current_user)
     if not data.recipients:
         raise HTTPException(status_code=400, detail="No recipients specified")
     
@@ -202,6 +204,8 @@ async def send_broadcast_notification(
         "sms_results": [],
         "email_results": []
     }
+    if tenant_id:
+        notification_record["tenant_id"] = tenant_id
     
     await db.notifications.insert_one(notification_record)
     
@@ -291,8 +295,12 @@ async def get_notifications(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
     """Get recent notification records"""
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     notifications = await db.notifications.find(
-        {},
+        query,
         {"_id": 0}
     ).sort("created_at", -1).limit(50).to_list(50)
     return notifications
@@ -304,10 +312,11 @@ async def get_notification_details(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
     """Get details of a specific notification including delivery results"""
-    notification = await db.notifications.find_one(
-        {"id": notification_id},
-        {"_id": 0}
-    )
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": notification_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    notification = await db.notifications.find_one(query, {"_id": 0})
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     return notification

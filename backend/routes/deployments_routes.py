@@ -1,5 +1,5 @@
 """
-Deployment routes - deployment records and deployment tracker (TIFMAS/EMTF)
+Deployment routes - deployment records and deployment tracker (TIFMAS/EMTF) (Multi-tenant enabled)
 """
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
@@ -12,6 +12,7 @@ from models import (
     TIFMASDeployRequest, EMTFDeployRequest
 )
 from auth import get_current_user, require_role, RANK_ORDER, get_last_name, sort_by_rank_and_name
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(tags=["Deployments"])
 
@@ -24,7 +25,10 @@ async def get_deployments(
     end_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
+    tenant_id = get_tenant_id(current_user)
     query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if start_date and end_date:
         query["$or"] = [
             {"start_date": {"$lte": end_date}, "end_date": {"$gte": start_date}}
@@ -39,7 +43,11 @@ async def create_deployment(
     data: DeploymentRecord,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
-    await db.deployments.insert_one(data.model_dump())
+    tenant_id = get_tenant_id(current_user)
+    deploy_doc = data.model_dump()
+    if tenant_id:
+        deploy_doc["tenant_id"] = tenant_id
+    await db.deployments.insert_one(deploy_doc)
     return data
 
 
@@ -50,9 +58,13 @@ async def update_deployment(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
     """Update a deployment and sync date changes to Roster and Deployment Log"""
+    tenant_id = get_tenant_id(current_user)
     
     # Get the current entry
-    current_entry = await db.deployments.find_one({"id": deployment_id}, {"_id": 0})
+    query = {"id": deployment_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    current_entry = await db.deployments.find_one(query, {"_id": 0})
     if not current_entry:
         raise HTTPException(status_code=404, detail="Deployment not found")
     
@@ -70,16 +82,13 @@ async def update_deployment(
         
         # Update deployment roster with new start date
         if new_start_date and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
+            roster_query = {"name": personnel_name}
+            if tenant_id:
+                roster_query["tenant_id"] = tenant_id
             if deployment_type == "TIFMAS":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_tifmas_deploy": new_start_date}}
-                )
+                await db.deployment_roster.update_one(roster_query, {"$set": {"last_tifmas_deploy": new_start_date}})
             elif deployment_type == "EMTF":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_emtf_deploy": new_start_date}}
-                )
+                await db.deployment_roster.update_one(roster_query, {"$set": {"last_emtf_deploy": new_start_date}})
     
     # Check if end_date changed
     if "end_date" in data:
@@ -87,18 +96,15 @@ async def update_deployment(
     
     # Update deployment log if there are changes
     if log_update and personnel_name and deployment_type in ["TIFMAS", "EMTF"]:
-        most_recent_log = await db.deployment_log.find_one(
-            {"personnel_name": personnel_name, "incident_type": deployment_type},
-            sort=[("date", -1)]
-        )
+        log_query = {"personnel_name": personnel_name, "incident_type": deployment_type}
+        if tenant_id:
+            log_query["tenant_id"] = tenant_id
+        most_recent_log = await db.deployment_log.find_one(log_query, sort=[("date", -1)])
         if most_recent_log:
-            await db.deployment_log.update_one(
-                {"id": most_recent_log["id"]},
-                {"$set": log_update}
-            )
+            await db.deployment_log.update_one({"id": most_recent_log["id"]}, {"$set": log_update})
     
     result = await db.deployments.find_one_and_update(
-        {"id": deployment_id},
+        query,
         {"$set": data},
         return_document=True
     )
@@ -113,7 +119,11 @@ async def get_deployment_roster(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all deployment roster entries sorted by rank then last name"""
-    roster = await db.deployment_roster.find({}, {"_id": 0}).to_list(1000)
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    roster = await db.deployment_roster.find(query, {"_id": 0}).to_list(1000)
     return sort_by_rank_and_name(roster)
 
 
@@ -123,8 +133,12 @@ async def create_deployment_roster_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Create a new deployment roster entry"""
+    tenant_id = get_tenant_id(current_user)
     entry = DeploymentRoster(**data)
-    await db.deployment_roster.insert_one(entry.model_dump())
+    entry_doc = entry.model_dump()
+    if tenant_id:
+        entry_doc["tenant_id"] = tenant_id
+    await db.deployment_roster.insert_one(entry_doc)
     return {"message": "Roster entry created", "id": entry.id}
 
 
@@ -135,9 +149,13 @@ async def update_deployment_roster_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Update a deployment roster entry and sync Last Deploy changes to Deployment Log and BC Deployments"""
+    tenant_id = get_tenant_id(current_user)
     
     # Get the current entry to check for changes
-    current_entry = await db.deployment_roster.find_one({"id": entry_id}, {"_id": 0})
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    current_entry = await db.deployment_roster.find_one(query, {"_id": 0})
     if not current_entry:
         raise HTTPException(status_code=404, detail="Roster entry not found")
     
@@ -149,26 +167,20 @@ async def update_deployment_roster_entry(
         
         if new_date:
             # Update the most recent TIFMAS deployment log entry for this person (by name)
-            most_recent_log = await db.deployment_log.find_one(
-                {"personnel_name": personnel_name, "incident_type": "TIFMAS"},
-                sort=[("date", -1)]
-            )
+            log_query = {"personnel_name": personnel_name, "incident_type": "TIFMAS"}
+            if tenant_id:
+                log_query["tenant_id"] = tenant_id
+            most_recent_log = await db.deployment_log.find_one(log_query, sort=[("date", -1)])
             if most_recent_log:
-                await db.deployment_log.update_one(
-                    {"id": most_recent_log["id"]},
-                    {"$set": {"date": new_date, "start_date": new_date}}
-                )
+                await db.deployment_log.update_one({"id": most_recent_log["id"]}, {"$set": {"date": new_date, "start_date": new_date}})
             
             # Update the most recent TIFMAS deployment record (BC Deployments) by name
-            most_recent_deployment = await db.deployments.find_one(
-                {"personnel_name": personnel_name, "deployment_type": "TIFMAS"},
-                sort=[("start_date", -1)]
-            )
+            deploy_query = {"personnel_name": personnel_name, "deployment_type": "TIFMAS"}
+            if tenant_id:
+                deploy_query["tenant_id"] = tenant_id
+            most_recent_deployment = await db.deployments.find_one(deploy_query, sort=[("start_date", -1)])
             if most_recent_deployment:
-                await db.deployments.update_one(
-                    {"id": most_recent_deployment["id"]},
-                    {"$set": {"start_date": new_date}}
-                )
+                await db.deployments.update_one({"id": most_recent_deployment["id"]}, {"$set": {"start_date": new_date}})
     
     # Check if last_emtf_deploy changed
     if "last_emtf_deploy" in data and data["last_emtf_deploy"] != current_entry.get("last_emtf_deploy", ""):
@@ -176,30 +188,24 @@ async def update_deployment_roster_entry(
         
         if new_date:
             # Update the most recent EMTF deployment log entry for this person (by name)
-            most_recent_log = await db.deployment_log.find_one(
-                {"personnel_name": personnel_name, "incident_type": "EMTF"},
-                sort=[("date", -1)]
-            )
+            log_query = {"personnel_name": personnel_name, "incident_type": "EMTF"}
+            if tenant_id:
+                log_query["tenant_id"] = tenant_id
+            most_recent_log = await db.deployment_log.find_one(log_query, sort=[("date", -1)])
             if most_recent_log:
-                await db.deployment_log.update_one(
-                    {"id": most_recent_log["id"]},
-                    {"$set": {"date": new_date, "start_date": new_date}}
-                )
+                await db.deployment_log.update_one({"id": most_recent_log["id"]}, {"$set": {"date": new_date, "start_date": new_date}})
             
             # Update the most recent EMTF deployment record (BC Deployments) by name
-            most_recent_deployment = await db.deployments.find_one(
-                {"personnel_name": personnel_name, "deployment_type": "EMTF"},
-                sort=[("start_date", -1)]
-            )
+            deploy_query = {"personnel_name": personnel_name, "deployment_type": "EMTF"}
+            if tenant_id:
+                deploy_query["tenant_id"] = tenant_id
+            most_recent_deployment = await db.deployments.find_one(deploy_query, sort=[("start_date", -1)])
             if most_recent_deployment:
-                await db.deployments.update_one(
-                    {"id": most_recent_deployment["id"]},
-                    {"$set": {"start_date": new_date}}
-                )
+                await db.deployments.update_one({"id": most_recent_deployment["id"]}, {"$set": {"start_date": new_date}})
     
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.deployment_roster.find_one_and_update(
-        {"id": entry_id},
+        query,
         {"$set": data},
         return_document=True
     )
@@ -213,7 +219,11 @@ async def delete_deployment_roster_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Delete a deployment roster entry"""
-    result = await db.deployment_roster.delete_one({"id": entry_id})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    result = await db.deployment_roster.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Roster entry not found")
     return {"message": "Roster entry deleted"}
@@ -225,13 +235,20 @@ async def import_deployment_roster(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Import multiple deployment roster entries"""
-    # Clear existing roster
-    await db.deployment_roster.delete_many({})
+    tenant_id = get_tenant_id(current_user)
+    # Clear existing roster for this tenant
+    del_query = {}
+    if tenant_id:
+        del_query["tenant_id"] = tenant_id
+    await db.deployment_roster.delete_many(del_query)
     
     entries = []
     for item in data:
         entry = DeploymentRoster(**item)
-        entries.append(entry.model_dump())
+        entry_doc = entry.model_dump()
+        if tenant_id:
+            entry_doc["tenant_id"] = tenant_id
+        entries.append(entry_doc)
     
     if entries:
         await db.deployment_roster.insert_many(entries)
@@ -244,10 +261,11 @@ async def get_tifmas_rank(
     current_user: dict = Depends(get_current_user)
 ):
     """Get TIFMAS eligible roster sorted by rank then last name"""
-    roster = await db.deployment_roster.find(
-        {"eligible_tifmas": True}, 
-        {"_id": 0}
-    ).to_list(1000)
+    tenant_id = get_tenant_id(current_user)
+    query = {"eligible_tifmas": True}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    roster = await db.deployment_roster.find(query, {"_id": 0}).to_list(1000)
     return sort_by_rank_and_name(roster)
 
 
@@ -256,10 +274,11 @@ async def get_emtf_rank(
     current_user: dict = Depends(get_current_user)
 ):
     """Get EMTF eligible roster sorted by rank then last name"""
-    roster = await db.deployment_roster.find(
-        {"eligible_emtf": True}, 
-        {"_id": 0}
-    ).to_list(1000)
+    tenant_id = get_tenant_id(current_user)
+    query = {"eligible_emtf": True}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    roster = await db.deployment_roster.find(query, {"_id": 0}).to_list(1000)
     return sort_by_rank_and_name(roster)
 
 
@@ -269,11 +288,15 @@ async def deploy_tifmas_personnel(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Deploy selected personnel for TIFMAS deployment"""
+    tenant_id = get_tenant_id(current_user)
     deployed_personnel = []
     
     # Get personnel info from deployment_roster
     for person_id in data.personnel_ids:
-        person = await db.deployment_roster.find_one({"id": person_id}, {"_id": 0})
+        person_query = {"id": person_id}
+        if tenant_id:
+            person_query["tenant_id"] = tenant_id
+        person = await db.deployment_roster.find_one(person_query, {"_id": 0})
         if person:
             # Create deployment record (for BC Deployments page)
             deployment_id = str(uuid.uuid4())
@@ -290,6 +313,8 @@ async def deploy_tifmas_personnel(
                 "shift": "",
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+            if tenant_id:
+                deployment_record["tenant_id"] = tenant_id
             await db.deployments.insert_one(deployment_record)
             
             # Create deployment log entry
@@ -306,11 +331,13 @@ async def deploy_tifmas_personnel(
                 "end_date": data.end_date,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+            if tenant_id:
+                log_entry["tenant_id"] = tenant_id
             await db.deployment_log.insert_one(log_entry)
             
             # Update deployment_roster with last deploy date and increment 12mo count
             await db.deployment_roster.update_one(
-                {"id": person_id},
+                person_query,
                 {
                     "$set": {
                         "last_tifmas_deploy": data.start_date,
@@ -340,11 +367,15 @@ async def deploy_emtf_personnel(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Deploy selected personnel for EMTF deployment"""
+    tenant_id = get_tenant_id(current_user)
     deployed_personnel = []
     
     # Get personnel info from deployment_roster
     for person_id in data.personnel_ids:
-        person = await db.deployment_roster.find_one({"id": person_id}, {"_id": 0})
+        person_query = {"id": person_id}
+        if tenant_id:
+            person_query["tenant_id"] = tenant_id
+        person = await db.deployment_roster.find_one(person_query, {"_id": 0})
         if person:
             # Create deployment record (for BC Deployments page)
             deployment_id = str(uuid.uuid4())
@@ -361,6 +392,8 @@ async def deploy_emtf_personnel(
                 "shift": "",
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+            if tenant_id:
+                deployment_record["tenant_id"] = tenant_id
             await db.deployments.insert_one(deployment_record)
             
             # Create deployment log entry
@@ -377,11 +410,13 @@ async def deploy_emtf_personnel(
                 "end_date": data.end_date,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
+            if tenant_id:
+                log_entry["tenant_id"] = tenant_id
             await db.deployment_log.insert_one(log_entry)
             
             # Update deployment_roster with last deploy date and increment 12mo count
             await db.deployment_roster.update_one(
-                {"id": person_id},
+                person_query,
                 {
                     "$set": {
                         "last_emtf_deploy": data.start_date,
@@ -412,10 +447,17 @@ async def get_deployment_log(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all deployment log entries sorted by rank then last name"""
-    logs = await db.deployment_log.find({}, {"_id": 0}).to_list(1000)
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    logs = await db.deployment_log.find(query, {"_id": 0}).to_list(1000)
     
     # Get roster to lookup ranks
-    roster = await db.deployment_roster.find({}, {"_id": 0, "name": 1, "rank": 1}).to_list(1000)
+    roster_query = {}
+    if tenant_id:
+        roster_query["tenant_id"] = tenant_id
+    roster = await db.deployment_roster.find(roster_query, {"_id": 0, "name": 1, "rank": 1}).to_list(1000)
     name_to_rank = {r.get("name", ""): r.get("rank", "") for r in roster}
     
     # Sort by rank hierarchy then last name
@@ -432,8 +474,12 @@ async def create_deployment_log_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Create a new deployment log entry"""
+    tenant_id = get_tenant_id(current_user)
     entry = DeploymentLog(**data)
-    await db.deployment_log.insert_one(entry.model_dump())
+    entry_doc = entry.model_dump()
+    if tenant_id:
+        entry_doc["tenant_id"] = tenant_id
+    await db.deployment_log.insert_one(entry_doc)
     return {"message": "Deployment log entry created", "id": entry.id}
 
 
@@ -444,9 +490,13 @@ async def update_deployment_log_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Update a deployment log entry and sync date changes to Roster and BC Deployments"""
+    tenant_id = get_tenant_id(current_user)
     
     # Get the current entry
-    current_entry = await db.deployment_log.find_one({"id": entry_id}, {"_id": 0})
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    current_entry = await db.deployment_log.find_one(query, {"_id": 0})
     if not current_entry:
         raise HTTPException(status_code=404, detail="Deployment log entry not found")
     
@@ -463,16 +513,13 @@ async def update_deployment_log_entry(
             deployments_update["start_date"] = new_start_date
             
             # Update deployment roster
+            roster_query = {"name": personnel_name}
+            if tenant_id:
+                roster_query["tenant_id"] = tenant_id
             if personnel_name and incident_type == "TIFMAS":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_tifmas_deploy": new_start_date}}
-                )
+                await db.deployment_roster.update_one(roster_query, {"$set": {"last_tifmas_deploy": new_start_date}})
             elif personnel_name and incident_type == "EMTF":
-                await db.deployment_roster.update_one(
-                    {"name": personnel_name},
-                    {"$set": {"last_emtf_deploy": new_start_date}}
-                )
+                await db.deployment_roster.update_one(roster_query, {"$set": {"last_emtf_deploy": new_start_date}})
     
     # Check if end_date changed
     if "end_date" in data:
@@ -480,18 +527,15 @@ async def update_deployment_log_entry(
     
     # Update BC deployments (most recent matching entry)
     if deployments_update and personnel_name and incident_type in ["TIFMAS", "EMTF"]:
-        most_recent = await db.deployments.find_one(
-            {"personnel_name": personnel_name, "deployment_type": incident_type},
-            sort=[("start_date", -1)]
-        )
+        deploy_query = {"personnel_name": personnel_name, "deployment_type": incident_type}
+        if tenant_id:
+            deploy_query["tenant_id"] = tenant_id
+        most_recent = await db.deployments.find_one(deploy_query, sort=[("start_date", -1)])
         if most_recent:
-            await db.deployments.update_one(
-                {"id": most_recent["id"]},
-                {"$set": deployments_update}
-            )
+            await db.deployments.update_one({"id": most_recent["id"]}, {"$set": deployments_update})
     
     result = await db.deployment_log.find_one_and_update(
-        {"id": entry_id},
+        query,
         {"$set": data},
         return_document=True
     )
@@ -505,7 +549,11 @@ async def delete_deployment_log_entry(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Delete a deployment log entry"""
-    result = await db.deployment_log.delete_one({"id": entry_id})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    result = await db.deployment_log.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Deployment log entry not found")
     return {"message": "Deployment log entry deleted"}
@@ -517,13 +565,20 @@ async def import_deployment_log(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
     """Import multiple deployment log entries"""
-    # Clear existing log
-    await db.deployment_log.delete_many({})
+    tenant_id = get_tenant_id(current_user)
+    # Clear existing log for this tenant
+    del_query = {}
+    if tenant_id:
+        del_query["tenant_id"] = tenant_id
+    await db.deployment_log.delete_many(del_query)
     
     entries = []
     for item in data:
         entry = DeploymentLog(**item)
-        entries.append(entry.model_dump())
+        entry_doc = entry.model_dump()
+        if tenant_id:
+            entry_doc["tenant_id"] = tenant_id
+        entries.append(entry_doc)
     
     if entries:
         await db.deployment_log.insert_many(entries)

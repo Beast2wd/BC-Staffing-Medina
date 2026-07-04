@@ -1,0 +1,49 @@
+{
+  "summary": "Phase 3 multi-tenant refactor verified: JWT includes tenant_id, all tested GET endpoints (part-time-employees, volunteers, deployments, deployment-roster, user-notifications, reports/daily-summary) accept the token and filter by tenant, and new POST records (part-time-employees, volunteers + linked user account) are persisted with tenant_id='tenant-medina-county'. 10/11 pytest tests pass. Route-level tenant filtering is correct. However a data-migration gap was discovered: several pre-existing collections still have documents WITHOUT tenant_id, so they are effectively invisible to the tenant-scoped queries.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "db.deployment_roster / db.deployment_log / db.volunteer_records / db.part_time_availability", "issue": "Data migration incomplete. Documents missing tenant_id -> deployment_roster: 27/27 (100%), deployment_log: 10/10 (100%), volunteer_records: 5/5 (100%), part_time_availability: 5/5 (100%). With Phase 3 tenant filtering active, these records are excluded from every GET response for tenant-medina-county users. Users will see empty rosters/logs/records even though the data exists in Mongo.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "Response key is 'access_token' (not 'token'). Test spec / prev iteration notes referred to it as 'token' - consider standardising or documenting."},
+      {"endpoint": "PUT /api/user-notifications/{id}/read", "issue": "Does not include tenant_id in the update filter (only user_id + id). Not exploitable in practice since notification_id is a UUID, but for defense-in-depth this endpoint should also add_tenant_to_query."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "passed_tests": [
+    "Login returns JWT payload containing tenant_id='tenant-medina-county'",
+    "GET /api/part-time-employees filters by tenant (200, list)",
+    "POST /api/part-time-employees writes tenant_id on both part_time_employees and users docs (verified in Mongo)",
+    "GET /api/volunteers filters by tenant (200, list)",
+    "POST /api/volunteers writes tenant_id on both volunteers and users docs",
+    "GET /api/deployments filters by tenant (200)",
+    "GET /api/deployment-roster filters by tenant (200)",
+    "GET /api/user-notifications filters by tenant + user_id (all returned notifications belong to admin user)",
+    "GET /api/user-notifications/unread-count returns numeric count with tenant filter",
+    "GET /api/reports/daily-summary returns tenant-filtered aggregation (200)"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_multitenant_phase3.py",
+    "/app/test_reports/pytest/phase3_multitenant.xml"
+  ],
+  "action_items": [
+    "HIGH: Re-run the tenant migration script (or write a new backfill) to set tenant_id='tenant-medina-county' on ALL existing documents in: deployment_roster (27), deployment_log (10), volunteer_records (5), part_time_availability (5). Without this, tenant-scoped GETs return empty lists in the UI.",
+    "MINOR: Add tenant_id to the filter in PUT /api/user-notifications/{notification_id}/read for consistency/defense-in-depth (currently only filters by user_id + id).",
+    "MINOR: Standardise the login response field name ('access_token' vs 'token') or document it in test_credentials.md so consumers/tests use the correct key."
+  ],
+  "critical_code_review_comments": [
+    "tenant_utils.py exposes add_tenant_to_query / add_tenant_to_doc helpers but the route files hand-roll `if tenant_id: query['tenant_id'] = tenant_id` everywhere (~150+ occurrences). Using the helpers would DRY up the routes and reduce the chance of forgetting the filter on a new endpoint.",
+    "reports_routes.py is ~1000 lines - consider splitting daily-summary / overtime-summary / volunteer-hours / time-off / export into separate modules.",
+    "volunteer_routes.py update_volunteer_record calls find_one_and_update but relies on returned document containing '_id' (line 323 `del result['_id']`) - motor find_one_and_update by default returns the document BEFORE update; the return_document arg here is set to True (a truthy value) which motor treats as ReturnDocument.AFTER, but this is fragile and only works because pymongo constants are truthy. Prefer explicit `from pymongo import ReturnDocument; return_document=ReturnDocument.AFTER`.",
+    "user_notifications_routes.mark_notification_read PUT does not include tenant_id in query - defense-in-depth gap.",
+    "notifications_routes.get_notifications route is registered as GET '' (with router prefix '/notifications'), producing endpoint '/api/notifications'. Some ASGI setups treat empty path oddly; consider explicit '/' or a dedicated path."
+  ],
+  "updated_files": ["/app/backend/tests/test_multitenant_phase3.py (new)"],
+  "success_rate": {"backend": "91% (10/11 pytest passing; the 1 failure is a data-migration gap, not a code bug)"},
+  "test_credentials": "Admin 100001/admin123 works (returns super_admin JWT with tenant_id=tenant-medina-county). BC 100002/bc123 works. Note: login response key is 'access_token'.",
+  "seed_data_creation": "Test PT employee + test volunteer temporarily created and deleted within tests (cleanup executed).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend Phase 3 tenant-filter refactor works at the route/query level (10/10 route-behavior tests pass). The remaining failure exposes a data problem: deployment_roster (27), deployment_log (10), volunteer_records (5) and part_time_availability (5) documents have no tenant_id field, so with tenant filtering they're invisible to the tenant admin. Once main agent runs a tenant backfill migration, re-run pytest /app/backend/tests/test_multitenant_phase3.py to verify all 11 tests pass.",
+  "rca of the issue": "Route code correctly injects tenant_id into all Mongo find/update/delete/insert calls (verified per-route). The failing test 'test_all_existing_deployment_roster_belong_to_tenant' revealed that the prior migration only backfilled a subset of collections. Reproduction: pymongo count_documents({'tenant_id':{'$exists':False}}) returns >0 on deployment_roster/deployment_log/volunteer_records/part_time_availability. Mitigation: run a one-shot script that updates those 4 collections with $set tenant_id='tenant-medina-county' where tenant_id does not exist."
+}

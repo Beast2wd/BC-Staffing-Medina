@@ -1,5 +1,5 @@
 """
-Reports routes - all report endpoints and exports
+Reports routes - all report endpoints and exports (Multi-tenant enabled)
 """
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -11,6 +11,7 @@ import os
 from database import db
 from models import UserRole
 from auth import get_current_user, require_role, get_shift_for_date
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -21,24 +22,31 @@ async def get_daily_summary(
     battalion_id: str,
     current_user: dict = Depends(get_current_user)
 ):
+    tenant_id = get_tenant_id(current_user)
     # Get all staffing records for the date
-    staffing = await db.staffing_records.find(
-        {"date": date, "battalion_id": battalion_id},
-        {"_id": 0}
-    ).to_list(100)
+    staffing_query = {"date": date, "battalion_id": battalion_id}
+    if tenant_id:
+        staffing_query["tenant_id"] = tenant_id
+    staffing = await db.staffing_records.find(staffing_query, {"_id": 0}).to_list(100)
     
     # Get all stations
-    stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
+    stations_query = {"battalion_id": battalion_id}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     
     # Get all personnel for name lookups
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Get apparatus assignments for the date
-    apparatus_assignments = await db.apparatus_assignments.find(
-        {"date": date, "battalion_id": battalion_id},
-        {"_id": 0}
-    ).to_list(100)
+    app_query = {"date": date, "battalion_id": battalion_id}
+    if tenant_id:
+        app_query["tenant_id"] = tenant_id
+    apparatus_assignments = await db.apparatus_assignments.find(app_query, {"_id": 0}).to_list(100)
     
     current_shift = get_shift_for_date(date)
     
@@ -121,26 +129,36 @@ async def get_overtime_summary(
     battalion_id: str,
     current_user: dict = Depends(get_current_user)
 ):
+    tenant_id = get_tenant_id(current_user)
     # Get all overtime records
-    overtime_records = await db.overtime_records.find(
-        {
-            "battalion_id": battalion_id,
-            "date": {"$gte": start_date, "$lte": end_date}
-        },
-        {"_id": 0}
-    ).to_list(500)
+    overtime_query = {
+        "battalion_id": battalion_id,
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        overtime_query["tenant_id"] = tenant_id
+    overtime_records = await db.overtime_records.find(overtime_query, {"_id": 0}).to_list(500)
     
     # Get personnel for name lookups
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Get stations for station name lookups
-    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
     # Get staffing records to find who approved (last_modified_by)
+    staffing_query = {"battalion_id": battalion_id}
+    if tenant_id:
+        staffing_query["tenant_id"] = tenant_id
     staffing_records = await db.staffing_records.find(
-        {"battalion_id": battalion_id},
+        staffing_query,
         {"_id": 0, "last_modified_by": 1, "station_id": 1}
     ).to_list(100)
     
@@ -212,11 +230,14 @@ async def get_volunteer_hours_summary(
     current_user: dict = Depends(get_current_user)
 ):
     """Get volunteer hours summary report with monthly breakdown"""
+    tenant_id = get_tenant_id(current_user)
     # Build query
     query = {
         "date": {"$gte": start_date, "$lte": end_date},
         "status": "assigned"  # Only count assigned shifts
     }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if battalion_id:
         query["battalion_id"] = battalion_id
     
@@ -224,15 +245,24 @@ async def get_volunteer_hours_summary(
     volunteer_records = await db.volunteer_records.find(query, {"_id": 0}).to_list(1000)
     
     # Get volunteers for name lookups
-    volunteers_list = await db.volunteers.find({}, {"_id": 0}).to_list(500)
+    volunteers_query = {}
+    if tenant_id:
+        volunteers_query["tenant_id"] = tenant_id
+    volunteers_list = await db.volunteers.find(volunteers_query, {"_id": 0}).to_list(500)
     volunteers_dict = {v["id"]: v for v in volunteers_list}
     
     # Also get regular personnel who might volunteer
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Get stations for name lookups
-    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
     # Also get YTD records for year-to-date calculation
@@ -241,6 +271,8 @@ async def get_volunteer_hours_summary(
         "date": {"$gte": f"{current_year}-01-01", "$lte": end_date},
         "status": "assigned"
     }
+    if tenant_id:
+        ytd_query["tenant_id"] = tenant_id
     if battalion_id:
         ytd_query["battalion_id"] = battalion_id
     ytd_records = await db.volunteer_records.find(ytd_query, {"_id": 0}).to_list(2000)
@@ -354,28 +386,35 @@ async def get_time_off_summary(
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN]))
 ):
     """Get time off summary (sick, vacation, holiday) for a year"""
+    tenant_id = get_tenant_id(current_user)
     
     # Get all personnel for the battalion
-    personnel_list = await db.personnel.find(
-        {"battalion_id": battalion_id, "is_active": True}, 
-        {"_id": 0}
-    ).to_list(1000)
+    personnel_query = {"battalion_id": battalion_id, "is_active": True}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Get all leave records for the year
     start_date = f"{year}-01-01"
     end_date = f"{year}-12-31"
     
-    leave_records = await db.leave_records.find({
+    leave_query = {
         "date": {"$gte": start_date, "$lte": end_date},
         "leave_type": {"$in": ["sick", "vacation", "holiday"]}
-    }, {"_id": 0}).to_list(10000)
+    }
+    if tenant_id:
+        leave_query["tenant_id"] = tenant_id
+    leave_records = await db.leave_records.find(leave_query, {"_id": 0}).to_list(10000)
     
     # Also get from staffing_records for leave tracking
-    staffing_leave_records = await db.staffing_records.find({
+    staffing_query = {
         "date": {"$gte": start_date, "$lte": end_date},
         "battalion_id": battalion_id
-    }, {"_id": 0}).to_list(10000)
+    }
+    if tenant_id:
+        staffing_query["tenant_id"] = tenant_id
+    staffing_leave_records = await db.staffing_records.find(staffing_query, {"_id": 0}).to_list(10000)
     
     # Initialize summary structure
     months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
@@ -510,11 +549,19 @@ async def export_staffing_report_excel(
     from openpyxl.drawing.image import Image as XLImage
     from openpyxl.cell.cell import MergedCell
     
+    tenant_id = get_tenant_id(current_user)
+    
     # Get data
-    stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
+    stations_query = {"battalion_id": battalion_id}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations}
     
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Create workbook
@@ -557,9 +604,10 @@ async def export_staffing_report_excel(
     if report_type == "daily":
         ws.title = f"Staffing {date}"
         
-        staffing_records = await db.staffing_records.find(
-            {"date": date, "battalion_id": battalion_id}, {"_id": 0}
-        ).to_list(100)
+        staffing_query = {"date": date, "battalion_id": battalion_id}
+        if tenant_id:
+            staffing_query["tenant_id"] = tenant_id
+        staffing_records = await db.staffing_records.find(staffing_query, {"_id": 0}).to_list(100)
         
         current_shift = get_shift_for_date(date)
         
@@ -616,10 +664,10 @@ async def export_staffing_report_excel(
         ws2['A1'].alignment = Alignment(horizontal="center")
         
         # Get apparatus assignments
-        apparatus_assignments = await db.apparatus_assignments.find(
-            {"date": date, "battalion_id": battalion_id},
-            {"_id": 0}
-        ).to_list(100)
+        app_query_excel = {"date": date, "battalion_id": battalion_id}
+        if tenant_id:
+            app_query_excel["tenant_id"] = tenant_id
+        apparatus_assignments = await db.apparatus_assignments.find(app_query_excel, {"_id": 0}).to_list(100)
         
         # Headers
         app_headers = ["Station", "Apparatus", "Position", "Personnel", "Rank"]
@@ -683,10 +731,10 @@ async def export_staffing_report_excel(
         ws.title = f"Overtime {date}"
         
         end = end_date or date
-        overtime_records = await db.overtime_records.find(
-            {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"},
-            {"_id": 0}
-        ).to_list(500)
+        overtime_query = {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"}
+        if tenant_id:
+            overtime_query["tenant_id"] = tenant_id
+        overtime_records = await db.overtime_records.find(overtime_query, {"_id": 0}).to_list(500)
         
         # Title (starts at row 3 to leave room for logo)
         ws.merge_cells('A3:F3')
@@ -767,11 +815,19 @@ async def export_staffing_report_pdf(
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     
+    tenant_id = get_tenant_id(current_user)
+    
     # Get data
-    stations = await db.stations.find({"battalion_id": battalion_id}, {"_id": 0}).to_list(100)
+    stations_query = {"battalion_id": battalion_id}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations}
     
-    personnel_list = await db.personnel.find({}, {"_id": 0}).to_list(1000)
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     personnel_dict = {p["id"]: p for p in personnel_list}
     
     # Create PDF
@@ -865,10 +921,10 @@ async def export_staffing_report_pdf(
         elements.append(Paragraph("Apparatus Assignments", app_style))
         
         # Get apparatus assignments
-        apparatus_assignments = await db.apparatus_assignments.find(
-            {"date": date, "battalion_id": battalion_id},
-            {"_id": 0}
-        ).to_list(100)
+        app_query_pdf = {"date": date, "battalion_id": battalion_id}
+        if tenant_id:
+            app_query_pdf["tenant_id"] = tenant_id
+        apparatus_assignments = await db.apparatus_assignments.find(app_query_pdf, {"_id": 0}).to_list(100)
         
         app_table_data = [["Station", "Apparatus", "Position", "Personnel", "Rank"]]
         
@@ -923,10 +979,10 @@ async def export_staffing_report_pdf(
     else:
         # Overtime report
         end = end_date or date
-        overtime_records = await db.overtime_records.find(
-            {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"},
-            {"_id": 0}
-        ).to_list(500)
+        overtime_query_pdf = {"battalion_id": battalion_id, "date": {"$gte": date, "$lte": end}, "status": "assigned"}
+        if tenant_id:
+            overtime_query_pdf["tenant_id"] = tenant_id
+        overtime_records = await db.overtime_records.find(overtime_query_pdf, {"_id": 0}).to_list(500)
         
         elements.append(Paragraph(f"Overtime Summary Report - {date} to {end}", title_style))
         elements.append(Paragraph(

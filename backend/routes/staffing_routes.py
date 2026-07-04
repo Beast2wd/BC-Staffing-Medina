@@ -1,5 +1,5 @@
 """
-Staffing and Apparatus Assignment routes
+Staffing and Apparatus Assignment routes - Multi-tenant enabled
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
@@ -15,6 +15,7 @@ from models import (
 from auth import get_current_user, require_role
 from websocket_manager import manager
 from routes.user_notifications_routes import create_notification_for_personnel
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(tags=["Staffing"])
 
@@ -30,6 +31,8 @@ async def get_staffing_records(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    query = add_tenant_to_query(query, current_user)
+    
     if date:
         query["date"] = date
     if battalion_id:
@@ -45,7 +48,10 @@ async def get_staffing_records(
 
 @router.get("/staffing/{record_id}", response_model=StaffingRecord)
 async def get_staffing_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    record = await db.staffing_records.find_one({"id": record_id}, {"_id": 0})
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
+    record = await db.staffing_records.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Staffing record not found")
     return record
@@ -65,6 +71,8 @@ async def create_staffing_record(
         "created_at": now,
         "updated_at": now
     }
+    record_doc = add_tenant_to_doc(record_doc, current_user)
+    
     await db.staffing_records.insert_one(record_doc)
     
     # Broadcast WebSocket update
@@ -86,8 +94,11 @@ async def update_staffing_record(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
+    query = {"id": record_id}
+    query = add_tenant_to_query(query, current_user)
+    
     # Get existing record for audit log
-    existing = await db.staffing_records.find_one({"id": record_id}, {"_id": 0})
+    existing = await db.staffing_records.find_one(query, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Staffing record not found")
     
@@ -121,7 +132,7 @@ async def update_staffing_record(
         update_data["change_history"] = existing_history
     
     result = await db.staffing_records.find_one_and_update(
-        {"id": record_id},
+        query,
         {"$set": update_data},
         return_document=True
     )
@@ -151,6 +162,8 @@ async def get_apparatus_assignments(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    query = add_tenant_to_query(query, current_user)
+    
     if date:
         query["date"] = date
     if battalion_id:
@@ -160,6 +173,8 @@ async def get_apparatus_assignments(
     
     assignments = await db.apparatus_assignments.find(query, {"_id": 0}).to_list(500)
     
+    tenant_id = get_tenant_id(current_user)
+    
     # Enrich assignments with personnel/volunteer/part-time names for display
     for assignment in assignments:
         personnel_names = {}
@@ -167,9 +182,15 @@ async def get_apparatus_assignments(
             # Check if it's a part-time employee (prefixed with pt-)
             if pid.startswith("pt-"):
                 pt_availability_id = pid[3:]  # Remove 'pt-' prefix
-                pt_record = await db.part_time_availability.find_one({"id": pt_availability_id}, {"_id": 0})
+                pt_query = {"id": pt_availability_id}
+                if tenant_id:
+                    pt_query["tenant_id"] = tenant_id
+                pt_record = await db.part_time_availability.find_one(pt_query, {"_id": 0})
                 if pt_record:
-                    pt_employee = await db.part_time_employees.find_one({"id": pt_record.get("employee_id")}, {"_id": 0})
+                    emp_query = {"id": pt_record.get("employee_id")}
+                    if tenant_id:
+                        emp_query["tenant_id"] = tenant_id
+                    pt_employee = await db.part_time_employees.find_one(emp_query, {"_id": 0})
                     if pt_employee:
                         personnel_names[pid] = f"PT {pt_employee.get('name', '')}"
                     else:
@@ -178,12 +199,18 @@ async def get_apparatus_assignments(
                     personnel_names[pid] = pid
             else:
                 # Check personnel first
-                person = await db.personnel.find_one({"id": pid}, {"_id": 0, "name": 1, "rank": 1})
+                person_query = {"id": pid}
+                if tenant_id:
+                    person_query["tenant_id"] = tenant_id
+                person = await db.personnel.find_one(person_query, {"_id": 0, "name": 1, "rank": 1})
                 if person:
                     personnel_names[pid] = f"{person.get('rank', '')} {person.get('name', '')}"
                 else:
                     # Check volunteers
-                    volunteer = await db.volunteers.find_one({"id": pid}, {"_id": 0, "name": 1})
+                    vol_query = {"id": pid}
+                    if tenant_id:
+                        vol_query["tenant_id"] = tenant_id
+                    volunteer = await db.volunteers.find_one(vol_query, {"_id": 0, "name": 1})
                     if volunteer:
                         personnel_names[pid] = f"Vol. {volunteer.get('name', '')}"
                     else:
@@ -201,6 +228,8 @@ async def create_apparatus_assignment(
 ):
     assignment_id = str(uuid.uuid4())
     assignment_doc = {"id": assignment_id, **data.model_dump()}
+    assignment_doc = add_tenant_to_doc(assignment_doc, current_user)
+    
     await db.apparatus_assignments.insert_one(assignment_doc)
     
     # Broadcast WebSocket update
@@ -222,6 +251,9 @@ async def update_apparatus_assignment(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
+    query = {"id": assignment_id}
+    query = add_tenant_to_query(query, current_user)
+    
     # Only update provided fields
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
@@ -229,10 +261,10 @@ async def update_apparatus_assignment(
         raise HTTPException(status_code=400, detail="No update data provided")
     
     # Get existing for broadcast context
-    existing = await db.apparatus_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    existing = await db.apparatus_assignments.find_one(query, {"_id": 0})
     
     result = await db.apparatus_assignments.find_one_and_update(
-        {"id": assignment_id},
+        query,
         {"$set": update_data},
         return_document=True
     )
@@ -256,8 +288,12 @@ async def update_apparatus_assignment(
         station_id = existing.get("station_id") if existing else result.get("station_id")
         assignment_date = existing.get("date") if existing else result.get("date")
         
+        tenant_id = get_tenant_id(current_user)
         # Get station name for notification
-        station = await db.stations.find_one({"id": station_id}, {"_id": 0})
+        station_query = {"id": station_id}
+        if tenant_id:
+            station_query["tenant_id"] = tenant_id
+        station = await db.stations.find_one(station_query, {"_id": 0})
         station_name = f"Station {station.get('station_number')}" if station else "Station"
         
         # Notify all personnel in the updated list
@@ -286,10 +322,13 @@ async def delete_apparatus_assignment(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
-    # Get existing for broadcast context
-    existing = await db.apparatus_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    query = {"id": assignment_id}
+    query = add_tenant_to_query(query, current_user)
     
-    result = await db.apparatus_assignments.delete_one({"id": assignment_id})
+    # Get existing for broadcast context
+    existing = await db.apparatus_assignments.find_one(query, {"_id": 0})
+    
+    result = await db.apparatus_assignments.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
@@ -315,6 +354,8 @@ async def get_remarks(
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
+    query = add_tenant_to_query(query, current_user)
+    
     if date:
         query["date"] = date
     if battalion_id:
@@ -329,5 +370,8 @@ async def create_remark(
     data: RemarkEntry,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
 ):
-    await db.remarks.insert_one(data.model_dump())
-    return data
+    remark_doc = data.model_dump()
+    remark_doc = add_tenant_to_doc(remark_doc, current_user)
+    
+    await db.remarks.insert_one(remark_doc)
+    return RemarkEntry(**remark_doc)

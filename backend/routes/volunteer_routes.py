@@ -1,5 +1,5 @@
 """
-Volunteer routes - volunteer records and volunteer firefighter management
+Volunteer routes - volunteer records and volunteer firefighter management (Multi-tenant enabled)
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
@@ -13,6 +13,7 @@ from models import (
 )
 from auth import get_current_user, require_role, hash_password
 from websocket_manager import manager
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(tags=["Volunteers"])
 
@@ -25,7 +26,10 @@ async def get_volunteer_records(
     battalion_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
+    tenant_id = get_tenant_id(current_user)
     query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if date:
         query["date"] = date
     if battalion_id:
@@ -40,6 +44,7 @@ async def get_volunteer_stats(
     current_user: dict = Depends(get_current_user)
 ):
     """Get overall volunteer statistics - totals for all volunteers"""
+    tenant_id = get_tenant_id(current_user)
     current_year = datetime.now().year
     current_month = datetime.now().strftime("%Y-%m")
     current_month_name = datetime.now().strftime("%B %Y")
@@ -49,6 +54,8 @@ async def get_volunteer_stats(
         "date": {"$gte": f"{current_year}-01-01"},
         "status": "assigned"
     }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if battalion_id:
         query["battalion_id"] = battalion_id
     
@@ -91,17 +98,24 @@ async def get_my_volunteer_hours(
     current_user: dict = Depends(get_current_user)
 ):
     """Get the current volunteer's hours summary"""
+    tenant_id = get_tenant_id(current_user)
     # Determine the volunteer's personnel_id
     is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
     
     if is_volunteer_ff:
         volunteer_id = current_user.get("volunteer_id")
         if not volunteer_id:
-            user = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+            user_query = {"id": current_user.get("id")}
+            if tenant_id:
+                user_query["tenant_id"] = tenant_id
+            user = await db.users.find_one(user_query, {"_id": 0})
             volunteer_id = user.get("volunteer_id") if user else None
     else:
         # Regular personnel
-        personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        personnel_query = {"payroll_number": current_user["payroll_number"]}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        personnel = await db.personnel.find_one(personnel_query, {"_id": 0})
         volunteer_id = personnel.get("id") if personnel else None
     
     if not volunteer_id:
@@ -109,6 +123,8 @@ async def get_my_volunteer_hours(
     
     # Build query for this volunteer's records
     query = {"personnel_id": volunteer_id, "status": "assigned"}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     
     # Default to current year if no dates provided
     if not start_date:
@@ -121,7 +137,10 @@ async def get_my_volunteer_hours(
     records = await db.volunteer_records.find(query, {"_id": 0}).to_list(500)
     
     # Get stations for name lookups
-    stations_list = await db.stations.find({}, {"_id": 0}).to_list(100)
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
     stations_dict = {s["id"]: s for s in stations_list}
     
     # Calculate totals and monthly breakdown
@@ -180,6 +199,7 @@ async def create_volunteer_record(
     current_user: dict = Depends(get_current_user)
 ):
     """Create volunteer record - any user can submit their own availability"""
+    tenant_id = get_tenant_id(current_user)
     # For volunteer firefighters, get their volunteer record ID
     is_volunteer_ff = current_user.get("role") == UserRole.VOLUNTEER
     
@@ -189,10 +209,10 @@ async def create_volunteer_record(
         if payroll.startswith("VOL-"):
             volunteer_id_prefix = payroll[4:].lower()  # Remove "VOL-" prefix
             # Find volunteer by matching ID prefix
-            volunteer = await db.volunteers.find_one(
-                {"id": {"$regex": f"^{volunteer_id_prefix}", "$options": "i"}}, 
-                {"_id": 0}
-            )
+            vol_query = {"id": {"$regex": f"^{volunteer_id_prefix}", "$options": "i"}}
+            if tenant_id:
+                vol_query["tenant_id"] = tenant_id
+            volunteer = await db.volunteers.find_one(vol_query, {"_id": 0})
             if volunteer:
                 data.personnel_id = volunteer.get("id")
             else:
@@ -201,12 +221,18 @@ async def create_volunteer_record(
             raise HTTPException(status_code=400, detail="Invalid volunteer account")
     else:
         # Regular personnel
-        personnel = await db.personnel.find_one({"id": data.personnel_id}, {"_id": 0})
+        personnel_query = {"id": data.personnel_id}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        personnel = await db.personnel.find_one(personnel_query, {"_id": 0})
         if not personnel:
             raise HTTPException(status_code=404, detail="Personnel not found")
         
         # Check if user is submitting for themselves or has elevated permissions
-        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        user_personnel_query = {"payroll_number": current_user["payroll_number"]}
+        if tenant_id:
+            user_personnel_query["tenant_id"] = tenant_id
+        user_personnel = await db.personnel.find_one(user_personnel_query, {"_id": 0})
         is_own_record = user_personnel and user_personnel.get("id") == data.personnel_id
         has_permissions = current_user["role"] in [UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]
         
@@ -221,15 +247,19 @@ async def create_volunteer_record(
         **data.model_dump(),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    # Add tenant_id to record
+    if tenant_id:
+        record_doc["tenant_id"] = tenant_id
+    
     await db.volunteer_records.insert_one(record_doc)
     
     # Auto-sync to daily worksheet when assigned
     station_id = data.assigned_station_id or data.station_id
     if station_id:
-        existing_staffing = await db.staffing_records.find_one({
-            "date": data.date,
-            "station_id": station_id
-        }, {"_id": 0})
+        staffing_query = {"date": data.date, "station_id": station_id}
+        if tenant_id:
+            staffing_query["tenant_id"] = tenant_id
+        existing_staffing = await db.staffing_records.find_one(staffing_query, {"_id": 0})
         
         if existing_staffing:
             current_categories = existing_staffing.get("categories", {})
@@ -249,8 +279,12 @@ async def update_volunteer_record(
     current_user: dict = Depends(get_current_user)
 ):
     """Update a volunteer record. Users can update their own records, BC/Admin/Captain/Lt can update any."""
+    tenant_id = get_tenant_id(current_user)
     # Get the existing record to check previous status
-    existing = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
+    existing_query = {"id": record_id}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing = await db.volunteer_records.find_one(existing_query, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
@@ -261,12 +295,18 @@ async def update_volunteer_record(
     is_own_record = False
     if current_user.get("role") == UserRole.VOLUNTEER:
         # For volunteers, check volunteer_id
-        user_doc = await db.users.find_one({"id": current_user.get("id")}, {"_id": 0})
+        user_query = {"id": current_user.get("id")}
+        if tenant_id:
+            user_query["tenant_id"] = tenant_id
+        user_doc = await db.users.find_one(user_query, {"_id": 0})
         if user_doc and user_doc.get("volunteer_id") == existing.get("personnel_id"):
             is_own_record = True
     else:
         # For regular personnel
-        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        user_personnel_query = {"payroll_number": current_user["payroll_number"]}
+        if tenant_id:
+            user_personnel_query["tenant_id"] = tenant_id
+        user_personnel = await db.personnel.find_one(user_personnel_query, {"_id": 0})
         if user_personnel and user_personnel.get("id") == existing.get("personnel_id"):
             is_own_record = True
     
@@ -274,7 +314,7 @@ async def update_volunteer_record(
         raise HTTPException(status_code=403, detail="Not authorized to update this record")
     
     result = await db.volunteer_records.find_one_and_update(
-        {"id": record_id},
+        existing_query,
         {"$set": data.model_dump()},
         return_document=True
     )
@@ -292,7 +332,11 @@ async def delete_volunteer_record(
 ):
     """Delete a volunteer record. Users can delete/revoke their own records, BC/Admin/Captain/Lt can delete any.
     Also removes the volunteer from apparatus assignments and updates staffing records."""
-    record = await db.volunteer_records.find_one({"id": record_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    record_query = {"id": record_id}
+    if tenant_id:
+        record_query["tenant_id"] = tenant_id
+    record = await db.volunteer_records.find_one(record_query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
@@ -313,7 +357,10 @@ async def delete_volunteer_record(
                 is_own_record = True
     else:
         # For regular personnel
-        user_personnel = await db.personnel.find_one({"payroll_number": current_user["payroll_number"]}, {"_id": 0})
+        user_personnel_query = {"payroll_number": current_user["payroll_number"]}
+        if tenant_id:
+            user_personnel_query["tenant_id"] = tenant_id
+        user_personnel = await db.personnel.find_one(user_personnel_query, {"_id": 0})
         if user_personnel and user_personnel.get("id") == record.get("personnel_id"):
             is_own_record = True
     
@@ -326,12 +373,13 @@ async def delete_volunteer_record(
     station_id = record.get("assigned_station_id") or record.get("station_id")
     
     # 1. Remove volunteer from ALL apparatus assignments for this date
+    apparatus_assignments = []
     if volunteer_personnel_id and record_date:
         # Find all apparatus assignments for this date that include this volunteer
-        apparatus_assignments = await db.apparatus_assignments.find(
-            {"date": record_date, "personnel_ids": volunteer_personnel_id},
-            {"_id": 0}
-        ).to_list(100)
+        app_query = {"date": record_date, "personnel_ids": volunteer_personnel_id}
+        if tenant_id:
+            app_query["tenant_id"] = tenant_id
+        apparatus_assignments = await db.apparatus_assignments.find(app_query, {"_id": 0}).to_list(100)
         
         for assignment in apparatus_assignments:
             # Remove volunteer from personnel_ids array
@@ -353,10 +401,10 @@ async def delete_volunteer_record(
     
     # 2. Update staffing record to decrement volunteer count
     if station_id and record_date:
-        staffing_record = await db.staffing_records.find_one({
-            "date": record_date,
-            "station_id": station_id
-        }, {"_id": 0})
+        staffing_query = {"date": record_date, "station_id": station_id}
+        if tenant_id:
+            staffing_query["tenant_id"] = tenant_id
+        staffing_record = await db.staffing_records.find_one(staffing_query, {"_id": 0})
         
         if staffing_record:
             current_categories = staffing_record.get("categories", {})
@@ -368,12 +416,12 @@ async def delete_volunteer_record(
                 )
     
     # 3. Delete the volunteer record itself
-    result = await db.volunteer_records.delete_one({"id": record_id})
+    result = await db.volunteer_records.delete_one(record_query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
     # 4. Broadcast WebSocket updates for real-time sync
-    apparatus_count = len(apparatus_assignments) if volunteer_personnel_id and record_date else 0
+    apparatus_count = len(apparatus_assignments)
     
     # Notify about volunteer record deletion
     background_tasks.add_task(
@@ -421,7 +469,10 @@ async def get_volunteer_assignments(
     current_user: dict = Depends(get_current_user)
 ):
     """Get volunteer assignments for a specific date and optionally shift/station"""
+    tenant_id = get_tenant_id(current_user)
     query = {"date": date, "assigned_shift": {"$ne": ""}, "assigned_station_id": {"$ne": ""}}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if shift:
         query["assigned_shift"] = shift
     if station_id:
@@ -433,14 +484,20 @@ async def get_volunteer_assignments(
     enriched = []
     for record in records:
         # First try to find in volunteers collection (for volunteer firefighters)
-        volunteer = await db.volunteers.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+        vol_query = {"id": record.get("personnel_id")}
+        if tenant_id:
+            vol_query["tenant_id"] = tenant_id
+        volunteer = await db.volunteers.find_one(vol_query, {"_id": 0})
         if volunteer:
             record["volunteer_name"] = volunteer.get("name", "Unknown")
             record["volunteer_phone"] = volunteer.get("contact_phone", "")
             record["is_volunteer_ff"] = True
         else:
             # Try personnel collection (for regular firefighters volunteering)
-            person = await db.personnel.find_one({"id": record.get("personnel_id")}, {"_id": 0})
+            person_query = {"id": record.get("personnel_id")}
+            if tenant_id:
+                person_query["tenant_id"] = tenant_id
+            person = await db.personnel.find_one(person_query, {"_id": 0})
             if person:
                 record["volunteer_name"] = person.get("name", "Unknown")
                 record["volunteer_phone"] = person.get("contact_phone", "")
@@ -458,7 +515,10 @@ async def get_volunteers(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Get all volunteer firefighters"""
+    tenant_id = get_tenant_id(current_user)
     query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     if station_id:
         query["station_id"] = station_id
     
@@ -472,19 +532,29 @@ async def create_volunteer(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Create a new volunteer firefighter and their user account"""
+    tenant_id = get_tenant_id(current_user)
     # Check if email is provided for login
     if not data.contact_email:
         raise HTTPException(status_code=400, detail="Email is required for volunteer login")
     
     # Check if email already exists for an ACTIVE user
-    existing_user = await db.users.find_one({"email": data.contact_email, "is_active": True}, {"_id": 0})
+    user_query = {"email": data.contact_email, "is_active": True}
+    if tenant_id:
+        user_query["tenant_id"] = tenant_id
+    existing_user = await db.users.find_one(user_query, {"_id": 0})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Clean up any inactive records with the same email (allow reuse)
-    await db.users.delete_many({"email": data.contact_email, "is_active": False})
+    cleanup_user_query = {"email": data.contact_email, "is_active": False}
+    if tenant_id:
+        cleanup_user_query["tenant_id"] = tenant_id
+    await db.users.delete_many(cleanup_user_query)
     # Also clean up inactive volunteers with the same email
-    await db.volunteers.delete_many({"contact_email": data.contact_email, "is_active": False})
+    cleanup_vol_query = {"contact_email": data.contact_email, "is_active": False}
+    if tenant_id:
+        cleanup_vol_query["tenant_id"] = tenant_id
+    await db.volunteers.delete_many(cleanup_vol_query)
     
     volunteer = Volunteer(
         name=data.name,
@@ -513,9 +583,16 @@ async def create_volunteer(
         "volunteer_id": volunteer.id,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    # Add tenant_id
+    if tenant_id:
+        user_doc["tenant_id"] = tenant_id
+    
+    vol_doc = volunteer.model_dump()
+    if tenant_id:
+        vol_doc["tenant_id"] = tenant_id
     
     await db.users.insert_one(user_doc)
-    await db.volunteers.insert_one(volunteer.model_dump())
+    await db.volunteers.insert_one(vol_doc)
     
     return volunteer
 
@@ -527,15 +604,19 @@ async def update_volunteer(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Update a volunteer firefighter"""
-    volunteer = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": volunteer_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    volunteer = await db.volunteers.find_one(query, {"_id": 0})
     if not volunteer:
         raise HTTPException(status_code=404, detail="Volunteer not found")
     
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if update_data:
-        await db.volunteers.update_one({"id": volunteer_id}, {"$set": update_data})
+        await db.volunteers.update_one(query, {"$set": update_data})
     
-    updated = await db.volunteers.find_one({"id": volunteer_id}, {"_id": 0})
+    updated = await db.volunteers.find_one(query, {"_id": 0})
     return Volunteer(**updated)
 
 
@@ -545,15 +626,22 @@ async def delete_volunteer(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Delete a volunteer firefighter and their user account"""
+    tenant_id = get_tenant_id(current_user)
     # Get volunteer info first
-    volunteer = await db.volunteers.find_one({"id": volunteer_id})
+    vol_query = {"id": volunteer_id}
+    if tenant_id:
+        vol_query["tenant_id"] = tenant_id
+    volunteer = await db.volunteers.find_one(vol_query)
     if not volunteer:
         raise HTTPException(status_code=404, detail="Volunteer not found")
     
     # Delete volunteer record
-    await db.volunteers.delete_one({"id": volunteer_id})
+    await db.volunteers.delete_one(vol_query)
     
     # Delete the associated user account from User Management
-    await db.users.delete_one({"volunteer_id": volunteer_id})
+    user_del_query = {"volunteer_id": volunteer_id}
+    if tenant_id:
+        user_del_query["tenant_id"] = tenant_id
+    await db.users.delete_one(user_del_query)
     
     return {"message": "Volunteer removed"}

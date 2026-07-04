@@ -1,5 +1,5 @@
 """
-User management routes (Admin)
+User management routes (Admin) - Multi-tenant enabled
 """
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List
@@ -10,13 +10,17 @@ from database import db
 from models import UserRole, UserResponse, UserUpdate, ResetPasswordRequest, UserCreate
 from auth import get_current_user, require_role, hash_password
 from routes.user_notifications_routes import create_notification
+from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
 
 router = APIRouter(prefix="/users", tags=["User Management"])
 
 
 @router.get("", response_model=List[UserResponse])
 async def get_users(current_user: dict = Depends(require_role([UserRole.ADMIN]))):
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    query = {}
+    query = add_tenant_to_query(query, current_user)
+    
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
 
 
@@ -26,8 +30,13 @@ async def create_user(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Create a new user and automatically create a personnel record"""
-    # Check if user already exists
-    existing_user = await db.users.find_one({"payroll_number": data.payroll_number})
+    tenant_id = get_tenant_id(current_user)
+    
+    # Check if user already exists within tenant
+    existing_query = {"payroll_number": data.payroll_number}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing_user = await db.users.find_one(existing_query)
     if existing_user:
         raise HTTPException(status_code=400, detail="User with this payroll number already exists")
     
@@ -47,14 +56,22 @@ async def create_user(
         "phone_number": data.phone_number,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    user_doc = add_tenant_to_doc(user_doc, current_user)
     
     await db.users.insert_one(user_doc)
     
     # Automatically create a personnel record if one doesn't exist
-    existing_personnel = await db.personnel.find_one({"payroll_number": data.payroll_number})
+    personnel_query = {"payroll_number": data.payroll_number}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    existing_personnel = await db.personnel.find_one(personnel_query)
+    
     if not existing_personnel and data.station_id:
         # Get battalion_id from station
-        station = await db.stations.find_one({"id": data.station_id}, {"_id": 0})
+        station_query = {"id": data.station_id}
+        if tenant_id:
+            station_query["tenant_id"] = tenant_id
+        station = await db.stations.find_one(station_query, {"_id": 0})
         battalion_id = station.get("battalion_id") if station else "bat-8110"
         
         person_id = str(uuid.uuid4())
@@ -72,6 +89,7 @@ async def create_user(
             "contact_email": data.email,
             "overtime_hours_worked": 0.0
         }
+        person_doc = add_tenant_to_doc(person_doc, current_user)
         await db.personnel.insert_one(person_doc)
     
     return UserResponse(**{k: v for k, v in user_doc.items() if k != "password_hash"})
@@ -84,19 +102,25 @@ async def update_user(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
+    tenant_id = get_tenant_id(current_user)
+    
     # Only include non-None values in update
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
     
-    # Get current user to find their payroll_number
-    current_user_record = await db.users.find_one({"id": user_id}, {"_id": 0})
+    # Get current user record with tenant filter
+    query = {"id": user_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    current_user_record = await db.users.find_one(query, {"_id": 0})
     if not current_user_record:
         raise HTTPException(status_code=404, detail="User not found")
     
     result = await db.users.find_one_and_update(
-        {"id": user_id},
+        query,
         {"$set": update_data},
         return_document=True
     )
@@ -123,17 +147,20 @@ async def update_user(
         personnel_update_fields["contact_phone"] = update_data["phone_number"]
     
     if personnel_update_fields:
-        # Update personnel by the old payroll_number (in case it changed)
-        await db.personnel.update_one(
-            {"payroll_number": current_user_record["payroll_number"]},
-            {"$set": personnel_update_fields}
-        )
+        # Update personnel by the old payroll_number within tenant
+        personnel_query = {"payroll_number": current_user_record["payroll_number"]}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        await db.personnel.update_one(personnel_query, {"$set": personnel_update_fields})
     
     # Create notification for the user about their profile update (if not self-update)
     if user_id != current_user.get("id"):
         changes = []
         if "station_id" in update_data:
-            station = await db.stations.find_one({"id": update_data["station_id"]}, {"_id": 0})
+            station_query = {"id": update_data["station_id"]}
+            if tenant_id:
+                station_query["tenant_id"] = tenant_id
+            station = await db.stations.find_one(station_query, {"_id": 0})
             station_name = f"Station {station.get('station_number')}" if station else "New Station"
             changes.append(f"Station: {station_name}")
         if "shift" in update_data:
@@ -160,20 +187,26 @@ async def update_user(
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {"id": user_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
     # Get user to find their payroll_number
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    user = await db.users.find_one(query, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    result = await db.users.update_one({"id": user_id}, {"$set": {"is_active": False}})
+    result = await db.users.update_one(query, {"$set": {"is_active": False}})
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Also deactivate the corresponding personnel record
-    await db.personnel.update_one(
-        {"payroll_number": user["payroll_number"]},
-        {"$set": {"is_active": False}}
-    )
+    # Also deactivate the corresponding personnel record within tenant
+    personnel_query = {"payroll_number": user["payroll_number"]}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    await db.personnel.update_one(personnel_query, {"$set": {"is_active": False}})
     
     return {"message": "User deactivated"}
 
@@ -185,15 +218,21 @@ async def reset_user_password(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     """Admin can reset any user's password"""
+    tenant_id = get_tenant_id(current_user)
+    
     if len(data.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    query = {"id": user_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     
     # Hash the new password using the hash_password function
     hashed_password = hash_password(data.new_password)
     
     # Update the user's password
     result = await db.users.update_one(
-        {"id": user_id},
+        query,
         {"$set": {"password_hash": hashed_password, "must_change_password": data.force_change}}
     )
     
