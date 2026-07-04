@@ -34,7 +34,8 @@ import {
   Flame,
   Ambulance,
   ChevronRight,
-  History
+  History,
+  Shield
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
@@ -42,7 +43,7 @@ import { NotificationBell } from './NotificationBell';
 const LOGO_URL = '/medina-logo.png';
 
 export const Navbar = () => {
-  const { user, logout, isAdmin, isFirefighter, isVolunteer } = useAuth();
+  const { user, logout, isAdmin, isFirefighter, isVolunteer, isSuperAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -296,6 +297,16 @@ export const Navbar = () => {
                     <UserPlus className="h-4 w-4" /> Volunteer Management
                   </Link>
                 </DropdownMenuItem>
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/super-admin" className="flex items-center gap-2 text-purple-600" data-testid="nav-super-admin">
+                        <Shield className="h-4 w-4" /> Super Admin Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

@@ -32,6 +32,7 @@ import { OnDutyPage } from "./pages/OnDutyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ChangeLogPage } from "./pages/ChangeLogPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import SuperAdminDashboard from "./pages/admin/SuperAdminDashboard";
 
 // Deployment Tracker Pages
 import { DeploymentRosterPage } from "./pages/deployment-tracker/DeploymentRosterPage";
@@ -197,6 +198,11 @@ const AppContent = () => {
           {/* Notifications Page - Available to all users */}
           <Route path="/notifications" element={
             <ProtectedRoute><NotificationsPage /></ProtectedRoute>
+          } />
+          
+          {/* Super Admin Dashboard - Super Admin only */}
+          <Route path="/super-admin" element={
+            <ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>
           } />
           
           {/* Default Redirect */}

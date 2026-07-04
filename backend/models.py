@@ -58,6 +58,8 @@ class UserResponse(BaseModel):
     must_change_password: bool = False
     email: Optional[str] = None
     phone_number: Optional[str] = None
+    is_super_admin: bool = False
+    tenant_id: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

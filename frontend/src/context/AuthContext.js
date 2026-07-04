@@ -92,6 +92,7 @@ export const AuthProvider = ({ children }) => {
   const isLieutenant = user?.role === 'lieutenant';
   const isFirefighter = user?.role === 'firefighter';
   const isVolunteer = user?.role === 'volunteer';
+  const isSuperAdmin = user?.is_super_admin === true;
   
   const canEdit = isAdmin || isBattalionChief || isCaptain || isLieutenant;
 
@@ -110,6 +111,7 @@ export const AuthProvider = ({ children }) => {
       isLieutenant,
       isFirefighter,
       isVolunteer,
+      isSuperAdmin,
       canEdit,
       mustChangePassword
     }}>

@@ -35,7 +35,10 @@ async def login(credentials: UserLogin):
     if not user.get("is_active", True):
         raise HTTPException(status_code=401, detail="Account disabled")
     
-    token = create_token(user["id"], user["role"])
+    # Create token with tenant_id for multi-tenant support
+    tenant_id = user.get("tenant_id")
+    is_super_admin = user.get("is_super_admin", False)
+    token = create_token(user["id"], user["role"], tenant_id, is_super_admin)
     must_change = user.get("must_change_password", False)
     
     return TokenResponse(
@@ -49,7 +52,9 @@ async def login(credentials: UserLogin):
             station_id=user.get("station_id"),
             shift=user.get("shift"),
             is_active=user.get("is_active", True),
-            must_change_password=must_change
+            must_change_password=must_change,
+            is_super_admin=is_super_admin,
+            tenant_id=tenant_id
         ),
         must_change_password=must_change
     )
@@ -106,7 +111,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         station_id=current_user.get("station_id"),
         shift=current_user.get("shift"),
         is_active=current_user.get("is_active", True),
-        must_change_password=current_user.get("must_change_password", False)
+        must_change_password=current_user.get("must_change_password", False),
+        is_super_admin=current_user.get("is_super_admin", False),
+        tenant_id=current_user.get("tenant_id")
     )
 
 

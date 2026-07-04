@@ -432,3 +432,63 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Renamed BC Tab** - "Volunteer Available" renamed to "Volunteer Availability"
 - ✅ **Volunteer Hours Summary Report** - New report type under Reports showing all volunteer hours by date range
 - ✅ **Auto-sync to Worksheet** - When volunteer submits availability, automatically increments the Volunteer (+) row on daily worksheet
+
+## Multi-Tenant SaaS Architecture (July 4, 2026)
+
+### Phase 1: Database Foundation ✅
+- ✅ Created `tenants` collection with id, name, subdomain, status, settings
+- ✅ Added `tenant_id` field to ALL existing collections via migration script
+- ✅ Migrated existing Medina County data to `tenant-medina-county` tenant
+- ✅ Created database indexes for tenant_id on all collections
+- ✅ Compound indexes for unique constraints within tenant (payroll_number, etc.)
+
+### Phase 2: Backend Middleware & Auth ✅
+- ✅ Updated `create_token()` to include tenant_id in JWT payload
+- ✅ Added `get_tenant_id()` dependency for tenant-scoped queries
+- ✅ Added `get_current_user_with_tenant()` for tenant context enforcement
+- ✅ Added `require_super_admin()` dependency for super admin routes
+- ✅ Super admin (100001) can manage all tenants
+- ✅ `is_super_admin` flag in users collection
+
+### Phase 3: Route Updates - IN PROGRESS
+- ⏳ Updating all routes to filter by tenant_id
+- ⏳ WebSocket connections scoped to tenant (pending)
+
+### Phase 4: Super Admin Dashboard ✅
+- ✅ Super Admin Dashboard page (`/super-admin`)
+- ✅ List all tenants with stats (users, stations)
+- ✅ Create new tenant (with initial admin user)
+- ✅ Activate/Deactivate tenants
+- ✅ View tenant statistics (detailed counts)
+- ✅ Access via Tools dropdown (purple link, only visible to super admins)
+
+### Phase 5: Tenant Onboarding ✅
+- ✅ Create tenant creates default battalions (8110, 8114)
+- ✅ Initial admin user created with default password `changeme123`
+- ✅ Admin must change password on first login
+
+### Phase 6: Frontend Updates - PENDING
+- ⏳ Subdomain-based routing for production
+- ⏳ Tenant context in frontend state
+
+### Files Created
+- `/app/backend/tenant_models.py` - Tenant Pydantic models
+- `/app/backend/migrate_to_multitenant.py` - Migration script
+- `/app/backend/routes/tenant_routes.py` - Tenant management API
+- `/app/frontend/src/pages/admin/SuperAdminDashboard.js` - Super Admin UI
+
+### New API Endpoints
+- `GET /api/tenants` - List all tenants (Super Admin)
+- `GET /api/tenants/{id}` - Get tenant details (Super Admin)
+- `POST /api/tenants` - Create new tenant (Super Admin)
+- `PUT /api/tenants/{id}` - Update tenant (Super Admin)
+- `DELETE /api/tenants/{id}` - Deactivate tenant (Super Admin)
+- `POST /api/tenants/{id}/activate` - Reactivate tenant (Super Admin)
+- `GET /api/tenants/{id}/stats` - Get tenant statistics (Super Admin)
+
+### Remaining Work for Full Multi-Tenancy
+1. Update ALL route handlers to filter queries by tenant_id
+2. Add tenant_id to new record creation
+3. Scope WebSocket connections by tenant
+4. Add subdomain routing in production nginx config
+5. Test data isolation between tenants
