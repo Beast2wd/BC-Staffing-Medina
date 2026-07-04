@@ -78,8 +78,12 @@ async def mark_notification_read(
     current_user: dict = Depends(get_current_user)
 ):
     """Mark a single notification as read"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": notification_id, "user_id": current_user["id"]}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
     result = await db.user_notifications.update_one(
-        {"id": notification_id, "user_id": current_user["id"]},
+        query,
         {"$set": {"is_read": True, "read_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.modified_count == 0:

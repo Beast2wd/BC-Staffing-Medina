@@ -450,8 +450,11 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ Super admin (100001) can manage all tenants
 - ✅ `is_super_admin` flag in users collection
 
-### Phase 3: Route Updates - IN PROGRESS
-- ⏳ Updating all routes to filter by tenant_id
+### Phase 3: Route Updates ✅ (Completed July 4, 2026)
+- ✅ Updated ALL routes to filter by tenant_id
+- ✅ Routes updated: `user_notifications_routes.py`, `volunteer_routes.py`, `parttime_routes.py`, `deployments_routes.py`, `notifications_routes.py`, `reports_routes.py`
+- ✅ All database queries (find, update, insert, delete) now include tenant_id filtering
+- ✅ Backfilled missing tenant_id in: deployment_roster, deployment_log, volunteer_records, part_time_availability, remarks
 - ⏳ WebSocket connections scoped to tenant (pending)
 
 ### Phase 4: Super Admin Dashboard ✅
@@ -487,8 +490,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - `GET /api/tenants/{id}/stats` - Get tenant statistics (Super Admin)
 
 ### Remaining Work for Full Multi-Tenancy
-1. Update ALL route handlers to filter queries by tenant_id
-2. Add tenant_id to new record creation
+1. ~~Update ALL route handlers to filter queries by tenant_id~~ ✅ DONE
+2. ~~Add tenant_id to new record creation~~ ✅ DONE
 3. Scope WebSocket connections by tenant
 4. Add subdomain routing in production nginx config
 5. Test data isolation between tenants
