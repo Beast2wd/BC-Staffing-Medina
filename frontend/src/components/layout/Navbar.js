@@ -297,16 +297,6 @@ export const Navbar = () => {
                     <UserPlus className="h-4 w-4" /> Volunteer Management
                   </Link>
                 </DropdownMenuItem>
-                {isSuperAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link to="/super-admin" className="flex items-center gap-2 text-purple-600" data-testid="nav-super-admin">
-                        <Shield className="h-4 w-4" /> Super Admin Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -350,6 +340,16 @@ export const Navbar = () => {
                 <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ')}</p>
               </div>
               <DropdownMenuSeparator />
+              {isSuperAdmin && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link to="/super-admin" className="flex items-center gap-2 text-purple-600" data-testid="nav-super-admin">
+                      <Shield className="h-4 w-4" /> Super Admin Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {canAccessFullMenu && (
                 <DropdownMenuItem asChild>
                   <Link to="/change-log" className="flex items-center gap-2" data-testid="change-log-menu">
