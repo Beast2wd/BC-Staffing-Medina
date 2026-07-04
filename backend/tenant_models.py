@@ -22,6 +22,13 @@ class TenantSettings(BaseModel):
     custom_branding: bool = False
     logo_url: Optional[str] = None
     primary_color: Optional[str] = None
+    # Operational settings
+    shifts: List[str] = ["A", "B", "C"]
+    ranks: List[str] = [
+        "Fire Chief", "Deputy Chief", "Battalion Chief", "Captain",
+        "Lieutenant", "Engineer", "Firefighter", "Firefighter/Paramedic", "Firefighter/EMT"
+    ]
+    apparatus_types: List[str] = ["Engine", "Medic", "Ladder", "Rescue", "Battalion Chief", "Brush", "Tanker"]
 
 
 class Tenant(BaseModel):

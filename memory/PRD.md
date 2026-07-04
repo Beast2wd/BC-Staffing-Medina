@@ -476,10 +476,27 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ View tenant statistics (detailed counts)
 - ✅ Access via Tools dropdown (purple link, only visible to super admins)
 
-### Phase 5: Tenant Onboarding ✅
-- ✅ Create tenant creates default battalions (8110, 8114)
-- ✅ Initial admin user created with default password `changeme123`
-- ✅ Admin must change password on first login
+### Phase 4.5: Tenant Onboarding Wizard ✅ (Completed July 4, 2026)
+- ✅ **Starter Templates** - 4 pre-configured templates:
+  - Blank (Start from Scratch) - 0 battalions, 0 stations
+  - Small Department - 1 battalion, 3 stations (10, 11, 12)
+  - Medium Department - 2 battalions, 7 stations
+  - Large Department - 3 battalions, 15 stations
+- ✅ **Copy from Existing Tenant** - Clone structure from another fire department
+- ✅ **Multi-Step Wizard UI** - 4 steps: Basic Info → Template Selection → Structure Customization → Review
+- ✅ **Customizable Structure** - Add/edit/remove battalions and stations before creation
+- ✅ **Apparatus Configuration** - Each template pre-populates appropriate apparatus per station
+- ✅ **Admin Credentials** - Initial admin with temp password `changeme123` (must change on first login)
+- ✅ **E2E Tested** - All 4 templates verified to correctly seed database (battalions, stations, apparatus, admin user)
+- ✅ **Files Created**:
+  - `/app/backend/tenant_templates.py` - Template definitions and configuration
+  - `/app/frontend/src/components/admin/TenantOnboardingWizard.js` - 4-step wizard component
+
+### New API Endpoints (Phase 4.5)
+- `GET /api/tenants/templates` - List all available onboarding templates
+- `GET /api/tenants/templates/{template_id}` - Get detailed template configuration
+- `POST /api/tenants/onboard` - Create tenant with full onboarding configuration
+- `GET /api/tenants/copy-source/{tenant_id}` - Get tenant config for copying
 
 ### Phase 6: Frontend Updates - PENDING
 - ⏳ Subdomain-based routing for production
@@ -503,6 +520,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ### Remaining Work for Full Multi-Tenancy
 1. ~~Update ALL route handlers to filter queries by tenant_id~~ ✅ DONE
 2. ~~Add tenant_id to new record creation~~ ✅ DONE
-3. Scope WebSocket connections by tenant
-4. Add subdomain routing in production nginx config
-5. Test data isolation between tenants
+3. ~~Tenant Onboarding Wizard with templates~~ ✅ DONE
+4. **Scope WebSocket connections by tenant** (Phase 5 - P0 CRITICAL)
+5. Add subdomain routing in production nginx config
+6. Test data isolation between tenants

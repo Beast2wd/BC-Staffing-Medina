@@ -52,13 +52,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import TenantOnboardingWizard from '../../components/admin/TenantOnboardingWizard';
 
 const SuperAdminDashboard = () => {
   const { api, login } = useAuth();
   const navigate = useNavigate();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showDataPreview, setShowDataPreview] = useState(false);
   const [showImpersonateDialog, setShowImpersonateDialog] = useState(false);
@@ -67,13 +68,6 @@ const SuperAdminDashboard = () => {
   const [tenantPreviewData, setTenantPreviewData] = useState(null);
   const [impersonationMode, setImpersonationMode] = useState('view');
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    subdomain: '',
-    admin_email: '',
-    admin_name: 'Admin User',
-    admin_payroll: '100001'
-  });
 
   const fetchTenants = async () => {
     try {
@@ -93,23 +87,6 @@ const SuperAdminDashboard = () => {
       setShowStatsDialog(true);
     } catch (error) {
       toast.error('Failed to load tenant stats');
-    }
-  };
-
-  const handleCreateTenant = async () => {
-    if (!formData.name || !formData.subdomain) {
-      toast.error('Name and subdomain are required');
-      return;
-    }
-
-    try {
-      await api.post('/tenants', formData);
-      toast.success('Tenant created successfully');
-      setShowAddDialog(false);
-      setFormData({ name: '', subdomain: '', admin_email: '', admin_name: 'Admin User', admin_payroll: '100001' });
-      fetchTenants();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create tenant');
     }
   };
 
@@ -198,7 +175,7 @@ const SuperAdminDashboard = () => {
               <p className="text-muted-foreground">Manage all tenants across the platform</p>
             </div>
           </div>
-          <Button onClick={() => setShowAddDialog(true)} data-testid="add-tenant-btn">
+          <Button onClick={() => setShowOnboardingWizard(true)} data-testid="add-tenant-btn">
             <Plus className="h-4 w-4 mr-2" /> New Tenant
           </Button>
         </div>
@@ -360,77 +337,13 @@ const SuperAdminDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Add Tenant Dialog */}
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create New Tenant</DialogTitle>
-              <DialogDescription>
-                Set up a new fire department on BC Staffing
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Fire Department Name *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="e.g., Lakewood County"
-                  data-testid="tenant-name-input"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Will appear as: <span className="font-medium">{formData.name || '[Name]'} BC Staffing</span>
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Subdomain *</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={formData.subdomain}
-                    onChange={(e) => setFormData({...formData, subdomain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
-                    placeholder="lakewood"
-                    data-testid="tenant-subdomain-input"
-                  />
-                  <span className="text-muted-foreground whitespace-nowrap">.app.com</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Admin Email</Label>
-                <Input
-                  type="email"
-                  value={formData.admin_email}
-                  onChange={(e) => setFormData({...formData, admin_email: e.target.value})}
-                  placeholder="admin@department.gov"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Admin Name</Label>
-                <Input
-                  value={formData.admin_name}
-                  onChange={(e) => setFormData({...formData, admin_name: e.target.value})}
-                  placeholder="Admin User"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Admin Payroll Number</Label>
-                <Input
-                  value={formData.admin_payroll}
-                  onChange={(e) => setFormData({...formData, admin_payroll: e.target.value})}
-                  placeholder="100001"
-                />
-              </div>
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
-                <p className="font-medium text-blue-600 dark:text-blue-400">Note:</p>
-                <p className="text-muted-foreground">
-                  An admin user will be created with default password: <code className="bg-muted px-1 rounded">changeme123</code>
-                </p>
-              </div>
-              <Button onClick={handleCreateTenant} className="w-full" data-testid="create-tenant-btn">
-                <Building2 className="h-4 w-4 mr-2" /> Create Tenant
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Tenant Onboarding Wizard */}
+        <TenantOnboardingWizard
+          isOpen={showOnboardingWizard}
+          onClose={() => setShowOnboardingWizard(false)}
+          onSuccess={() => fetchTenants()}
+          existingTenants={tenants}
+        />
 
         {/* Tenant Stats Dialog */}
         <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
