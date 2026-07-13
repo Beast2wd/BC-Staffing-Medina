@@ -487,10 +487,12 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Customizable Structure** - Add/edit/remove battalions and stations before creation
 - ✅ **Apparatus Configuration** - Each template pre-populates appropriate apparatus per station
 - ✅ **Admin Credentials** - Initial admin with temp password `changeme123` (must change on first login)
+- ✅ **Success Screen** - Shows summary stats, admin credentials, and subdomain after creation
+- ✅ **Preview as Admin Button** - Super Admins can immediately impersonate the new tenant's admin to verify setup before handing off credentials (July 13, 2026)
 - ✅ **E2E Tested** - All 4 templates verified to correctly seed database (battalions, stations, apparatus, admin user)
 - ✅ **Files Created**:
   - `/app/backend/tenant_templates.py` - Template definitions and configuration
-  - `/app/frontend/src/components/admin/TenantOnboardingWizard.js` - 4-step wizard component
+  - `/app/frontend/src/components/admin/TenantOnboardingWizard.js` - 4-step wizard component with success screen
 
 ### New API Endpoints (Phase 4.5)
 - `GET /api/tenants/templates` - List all available onboarding templates

@@ -41,22 +41,31 @@ import {
   Users,
   Building,
   Truck,
-  CheckCircle2
+  CheckCircle2,
+  Eye,
+  PartyPopper,
+  Key,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const STEPS = [
   { id: 'basic', title: 'Basic Info', icon: FileText },
   { id: 'template', title: 'Starting Point', icon: Copy },
   { id: 'structure', title: 'Structure', icon: Building },
   { id: 'review', title: 'Review', icon: CheckCircle2 },
+  { id: 'success', title: 'Complete', icon: PartyPopper },
 ];
 
 const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = [] }) => {
-  const { api } = useAuth();
+  const { api, login } = useAuth();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
+  const [createdTenant, setCreatedTenant] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [defaults, setDefaults] = useState({ shifts: [], ranks: [], apparatus_types: [] });
   
@@ -189,9 +198,11 @@ const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = 
         ranks: formData.ranks
       });
       
+      // Store created tenant data and move to success step
+      setCreatedTenant(response.data);
+      setCurrentStep(STEPS.length - 1); // Move to success step
       toast.success(`Tenant "${formData.name} BC Staffing" created successfully!`);
       onSuccess?.(response.data);
-      handleClose();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create tenant');
     } finally {
@@ -199,8 +210,42 @@ const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = 
     }
   };
 
+  const handlePreviewAsAdmin = async () => {
+    if (!createdTenant) return;
+    
+    setImpersonating(true);
+    try {
+      const tenantId = createdTenant.tenant.id;
+      const response = await api.post(`/tenants/${tenantId}/impersonate?mode=full`);
+      
+      // Store impersonation data in localStorage
+      localStorage.setItem('impersonation', JSON.stringify({
+        token: response.data.access_token,
+        tenant_id: tenantId,
+        tenant_name: createdTenant.tenant.name,
+        mode: 'full',
+        original_user: response.data.impersonation.original_user
+      }));
+      
+      // Update auth context with new token
+      localStorage.setItem('token', response.data.access_token);
+      
+      toast.success(`Now previewing as ${createdTenant.tenant.name} admin`);
+      handleClose();
+      
+      // Navigate to dashboard and reload to apply new token
+      window.location.href = '/';
+    } catch (error) {
+      toast.error('Failed to start preview. Please try again.');
+      console.error('Impersonation error:', error);
+    } finally {
+      setImpersonating(false);
+    }
+  };
+
   const handleClose = () => {
     setCurrentStep(0);
+    setCreatedTenant(null);
     setFormData({
       name: '',
       subdomain: '',
@@ -707,6 +752,110 @@ const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = 
           </div>
         );
 
+      case 4: // Success
+        return (
+          <div className="space-y-6 text-center py-4">
+            <div className="flex justify-center">
+              <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">
+                Tenant Created Successfully!
+              </h3>
+              <p className="text-muted-foreground mt-2">
+                {createdTenant?.tenant?.name} is now ready to use.
+              </p>
+            </div>
+
+            {createdTenant && (
+              <div className="space-y-4 text-left">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-2xl text-center">{createdTenant.created?.battalions || 0}</CardTitle>
+                      <CardDescription className="text-center">Battalions</CardDescription>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-2xl text-center">{createdTenant.created?.stations || 0}</CardTitle>
+                      <CardDescription className="text-center">Stations</CardDescription>
+                    </CardHeader>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-2xl text-center">1</CardTitle>
+                      <CardDescription className="text-center">Admin User</CardDescription>
+                    </CardHeader>
+                  </Card>
+                </div>
+
+                {/* Admin Credentials */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Key className="h-5 w-5 text-primary" />
+                    <h4 className="font-semibold">Admin Login Credentials</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Payroll Number:</span>
+                      <p className="font-mono font-medium">{createdTenant.admin_credentials?.payroll_number}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Temporary Password:</span>
+                      <p className="font-mono font-medium">{createdTenant.admin_credentials?.temporary_password}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Email:</span>
+                      <p className="font-medium">{createdTenant.tenant?.admin_email}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Subdomain:</span>
+                      <p className="font-medium">{createdTenant.tenant?.subdomain}.bcstaffing.com</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    * Admin will be required to change password on first login
+                  </p>
+                </div>
+
+                {/* Preview as Admin Option */}
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="h-5 w-5 text-primary" />
+                    <h4 className="font-semibold">Preview the New Tenant</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Want to verify the setup before handing off credentials? Preview the tenant as their admin to see exactly what they&apos;ll experience.
+                  </p>
+                  <Button 
+                    onClick={handlePreviewAsAdmin} 
+                    disabled={impersonating}
+                    className="w-full"
+                    data-testid="preview-as-admin-btn"
+                  >
+                    {impersonating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Starting Preview...
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Preview as Admin
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -725,33 +874,35 @@ const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = 
           </DialogDescription>
         </DialogHeader>
 
-        {/* Progress Steps */}
-        <div className="flex items-center justify-between mb-6">
-          {STEPS.map((step, index) => {
-            const Icon = step.icon;
-            const isActive = index === currentStep;
-            const isCompleted = index < currentStep;
-            
-            return (
-              <div key={step.id} className="flex items-center">
-                <div className={`flex items-center gap-2 ${
-                  isActive ? 'text-primary' : isCompleted ? 'text-green-600' : 'text-muted-foreground'
-                }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isActive ? 'bg-primary text-primary-foreground' : 
-                    isCompleted ? 'bg-green-600 text-white' : 'bg-muted'
+        {/* Progress Steps - Hide on success */}
+        {currentStep < STEPS.length - 1 && (
+          <div className="flex items-center justify-between mb-6">
+            {STEPS.slice(0, -1).map((step, index) => {
+              const Icon = step.icon;
+              const isActive = index === currentStep;
+              const isCompleted = index < currentStep;
+              
+              return (
+                <div key={step.id} className="flex items-center">
+                  <div className={`flex items-center gap-2 ${
+                    isActive ? 'text-primary' : isCompleted ? 'text-green-600' : 'text-muted-foreground'
                   }`}>
-                    {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      isActive ? 'bg-primary text-primary-foreground' : 
+                      isCompleted ? 'bg-green-600 text-white' : 'bg-muted'
+                    }`}>
+                      {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                    </div>
+                    <span className="text-sm font-medium hidden sm:inline">{step.title}</span>
                   </div>
-                  <span className="text-sm font-medium hidden sm:inline">{step.title}</span>
+                  {index < STEPS.length - 2 && (
+                    <ChevronRight className="h-4 w-4 mx-2 text-muted-foreground" />
+                  )}
                 </div>
-                {index < STEPS.length - 1 && (
-                  <ChevronRight className="h-4 w-4 mx-2 text-muted-foreground" />
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Step Content */}
         <div className="min-h-[300px]">
@@ -760,37 +911,51 @@ const TenantOnboardingWizard = ({ isOpen, onClose, onSuccess, existingTenants = 
 
         {/* Navigation Buttons */}
         <div className="flex justify-between pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={currentStep === 0 ? handleClose : handleBack}
-          >
-            {currentStep === 0 ? 'Cancel' : (
-              <>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
-              </>
-            )}
-          </Button>
-
-          {currentStep < STEPS.length - 1 ? (
-            <Button onClick={handleNext}>
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+          {currentStep === STEPS.length - 1 ? (
+            // Success step - only show Done button
+            <>
+              <div></div>
+              <Button onClick={handleClose} data-testid="wizard-done-btn">
+                <Check className="h-4 w-4 mr-1" />
+                Done
+              </Button>
+            </>
           ) : (
-            <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
+            // Normal navigation
+            <>
+              <Button
+                variant="outline"
+                onClick={currentStep === 0 ? handleClose : handleBack}
+              >
+                {currentStep === 0 ? 'Cancel' : (
+                  <>
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Back
+                  </>
+                )}
+              </Button>
+
+              {currentStep < STEPS.length - 2 ? (
+                <Button onClick={handleNext}>
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               ) : (
-                <>
-                  <Check className="h-4 w-4 mr-1" />
-                  Create Tenant
-                </>
+                <Button onClick={handleSubmit} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-1" />
+                      Create Tenant
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
+            </>
           )}
         </div>
       </DialogContent>
