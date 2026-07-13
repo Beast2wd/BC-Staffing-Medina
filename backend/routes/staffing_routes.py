@@ -75,13 +75,16 @@ async def create_staffing_record(
     
     await db.staffing_records.insert_one(record_doc)
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
+    tenant_id = get_tenant_id(current_user)
     background_tasks.add_task(
         manager.broadcast_staffing_update,
         "created",
         {"id": record_id, "station_id": data.station_id, "modified_by": current_user.get("name")},
         data.date,
-        data.station_id
+        data.station_id,
+        tenant_id,
+        current_user.get("name")
     )
     
     return StaffingRecord(**record_doc)
@@ -140,13 +143,16 @@ async def update_staffing_record(
         raise HTTPException(status_code=404, detail="Staffing record not found")
     del result["_id"]
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
+    tenant_id = get_tenant_id(current_user)
     background_tasks.add_task(
         manager.broadcast_staffing_update,
         "updated",
         {"id": record_id, "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
         existing.get("date"),
-        existing.get("station_id")
+        existing.get("station_id"),
+        tenant_id,
+        current_user.get("name")
     )
     
     return StaffingRecord(**result)
@@ -232,13 +238,16 @@ async def create_apparatus_assignment(
     
     await db.apparatus_assignments.insert_one(assignment_doc)
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
+    tenant_id = get_tenant_id(current_user)
     background_tasks.add_task(
         manager.broadcast_apparatus_update,
         "created",
         {"id": assignment_id, "apparatus_name": data.apparatus_name, "station_id": data.station_id, "modified_by": current_user.get("name")},
         data.date,
-        data.station_id
+        data.station_id,
+        tenant_id,
+        current_user.get("name")
     )
     
     return ApparatusAssignment(**assignment_doc)
@@ -272,14 +281,17 @@ async def update_apparatus_assignment(
         raise HTTPException(status_code=404, detail="Assignment not found")
     del result["_id"]
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
     if existing:
+        tenant_id = get_tenant_id(current_user)
         background_tasks.add_task(
             manager.broadcast_apparatus_update,
             "updated",
             {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
             existing.get("date"),
-            existing.get("station_id")
+            existing.get("station_id"),
+            tenant_id,
+            current_user.get("name")
         )
     
     # Create notifications for personnel assigned to this apparatus
@@ -332,14 +344,17 @@ async def delete_apparatus_assignment(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
     if existing:
+        tenant_id = get_tenant_id(current_user)
         background_tasks.add_task(
             manager.broadcast_apparatus_update,
             "deleted",
             {"id": assignment_id, "apparatus_name": existing.get("apparatus_name"), "station_id": existing.get("station_id"), "modified_by": current_user.get("name")},
             existing.get("date"),
-            existing.get("station_id")
+            existing.get("station_id"),
+            tenant_id,
+            current_user.get("name")
         )
     
     return {"message": "Assignment deleted"}

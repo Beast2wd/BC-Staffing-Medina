@@ -76,12 +76,15 @@ async def create_overtime_record(
     
     await db.overtime_records.insert_one(record_doc)
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
+    tenant_id = get_tenant_id(current_user)
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "created",
         {"id": record_id, "personnel_name": personnel.get("name"), "status": data.status, "modified_by": current_user.get("name")},
-        data.date
+        data.date,
+        tenant_id,
+        current_user.get("name")
     )
     
     return OvertimeRecord(**record_doc)
@@ -157,12 +160,14 @@ async def update_overtime_record(
         raise HTTPException(status_code=404, detail="Overtime record not found")
     del result["_id"]
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "updated",
         {"id": record_id, "status": new_status, "prev_status": prev_status, "modified_by": current_user.get("name")},
-        existing.get("date")
+        existing.get("date"),
+        tenant_id,
+        current_user.get("name")
     )
     
     return OvertimeRecord(**result)
@@ -219,12 +224,14 @@ async def delete_overtime_record(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Overtime record not found")
     
-    # Broadcast WebSocket update
+    # Broadcast WebSocket update (tenant-scoped)
     background_tasks.add_task(
         manager.broadcast_overtime_update,
         "deleted",
         {"id": record_id, "modified_by": current_user.get("name")},
-        record.get("date")
+        record.get("date"),
+        tenant_id,
+        current_user.get("name")
     )
     
     return {"message": "Overtime record deleted"}

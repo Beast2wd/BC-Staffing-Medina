@@ -1,5 +1,6 @@
 """
 WebSocket routes for real-time updates
+MULTI-TENANT SCOPED: Connections are tagged with tenant_id for data isolation
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from typing import Optional
@@ -14,13 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 async def get_user_from_token(token: str) -> Optional[dict]:
-    """Validate JWT token and return user info"""
+    """Validate JWT token and return user info including tenant_id"""
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("user_id")
+        tenant_id = payload.get("tenant_id")  # Extract tenant_id from JWT
+        
         if user_id:
             user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
-            return user
+            if user:
+                # Ensure tenant_id is set (prefer JWT payload, fallback to user record)
+                user["tenant_id"] = tenant_id or user.get("tenant_id")
+                return user
     except jwt.ExpiredSignatureError:
         logger.warning("WebSocket auth: Token expired")
     except jwt.InvalidTokenError as e:
@@ -36,6 +42,10 @@ async def websocket_endpoint(
     """
     WebSocket endpoint for real-time updates.
     
+    MULTI-TENANT SCOPED:
+    - Authenticated users receive updates only for their tenant
+    - Anonymous connections do not receive tenant-scoped broadcasts
+    
     Connection: ws://host/api/ws?token=<jwt_token>
     
     Client can send messages to subscribe/unsubscribe from channels:
@@ -50,25 +60,29 @@ async def websocket_endpoint(
     - volunteer_update: Changes to volunteer records
     - parttime_update: Changes to part-time records
     - deployment_update: Changes to deployment records
+    - user_notification: Personal notifications for the user
     """
     user = None
     user_id = None
+    tenant_id = None
     
     # Authenticate if token provided
     if token:
         user = await get_user_from_token(token)
         if user:
             user_id = user.get("id")
-            logger.info(f"WebSocket authenticated for user: {user.get('name')} ({user_id})")
+            tenant_id = user.get("tenant_id")
+            logger.info(f"WebSocket authenticated for user: {user.get('name')} ({user_id}) in tenant: {tenant_id}")
     
-    # Accept connection (allow anonymous for read-only updates)
-    await manager.connect(websocket, user_id)
+    # Accept connection with tenant context
+    await manager.connect(websocket, user_id, tenant_id)
     
-    # Send connection confirmation
+    # Send connection confirmation with tenant info
     await websocket.send_json({
         "type": "connected",
         "authenticated": user is not None,
         "user_name": user.get("name") if user else None,
+        "tenant_id": tenant_id,
         "message": "WebSocket connected. Send subscribe message to receive updates."
     })
     
@@ -89,7 +103,7 @@ async def websocket_endpoint(
                         "type": "subscribed",
                         "channels": channels
                     })
-                    logger.info(f"Client subscribed to channels: {channels}")
+                    logger.info(f"Client (tenant: {tenant_id}) subscribed to channels: {channels}")
             
             elif action == "unsubscribe":
                 channels = data.get("channels", [])
@@ -101,15 +115,18 @@ async def websocket_endpoint(
                     })
             
             elif action == "get_status":
+                # Return connection count for this tenant only
                 await websocket.send_json({
                     "type": "status",
-                    "connections": manager.get_connection_count(),
+                    "connections": manager.get_connection_count(tenant_id),
+                    "total_connections": manager.get_connection_count(),
+                    "tenant_id": tenant_id,
                     "authenticated": user is not None
                 })
     
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
-        logger.info(f"WebSocket disconnected for user: {user_id or 'anonymous'}")
+        logger.info(f"WebSocket disconnected for user: {user_id or 'anonymous'} (tenant: {tenant_id})")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket, user_id)

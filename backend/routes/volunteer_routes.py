@@ -420,15 +420,18 @@ async def delete_volunteer_record(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Volunteer record not found")
     
-    # 4. Broadcast WebSocket updates for real-time sync
+    # 4. Broadcast WebSocket updates for real-time sync (tenant-scoped)
     apparatus_count = len(apparatus_assignments)
+    tenant_id = get_tenant_id(current_user)
     
     # Notify about volunteer record deletion
     background_tasks.add_task(
         manager.broadcast_volunteer_update,
         "deleted",
         {"id": record_id, "personnel_id": volunteer_personnel_id, "rescinded_by": current_user.get("name")},
-        record_date
+        record_date,
+        tenant_id,
+        current_user.get("name")
     )
     
     # If apparatus assignments were updated, notify about those too
@@ -438,7 +441,9 @@ async def delete_volunteer_record(
             "updated",
             {"volunteer_removed": volunteer_personnel_id, "station_id": station_id, "modified_by": current_user.get("name")},
             record_date,
-            station_id
+            station_id,
+            tenant_id,
+            current_user.get("name")
         )
     
     # If staffing was updated, notify about that
@@ -448,7 +453,9 @@ async def delete_volunteer_record(
             "updated",
             {"volunteer_count_decreased": True, "station_id": station_id, "modified_by": current_user.get("name")},
             record_date,
-            station_id
+            station_id,
+            tenant_id,
+            current_user.get("name")
         )
     
     return {

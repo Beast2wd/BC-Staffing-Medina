@@ -500,6 +500,19 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - `POST /api/tenants/onboard` - Create tenant with full onboarding configuration
 - `GET /api/tenants/copy-source/{tenant_id}` - Get tenant config for copying
 
+### Phase 5: WebSocket Tenant Scoping ✅ (Completed July 13, 2026)
+- ✅ **Tenant-aware Connection Tracking** - WebSocket connections now store tenant_id from JWT
+- ✅ **Scoped Broadcasts** - All broadcast methods (staffing, overtime, apparatus, volunteer, parttime, deployment) now accept and filter by tenant_id
+- ✅ **Data Isolation** - Users in one tenant cannot receive real-time updates from other tenants
+- ✅ **Anonymous Connections** - Unauthenticated WebSocket connections don't receive tenant-scoped broadcasts
+- ✅ **Connection Status** - `get_status` action returns tenant-specific connection count
+- ✅ **Files Updated**:
+  - `/app/backend/websocket_manager.py` - Added tenant_id tracking to ConnectionManager
+  - `/app/backend/routes/websocket_routes.py` - Extract tenant_id from JWT on connection
+  - `/app/backend/routes/staffing_routes.py` - Pass tenant_id to all broadcast calls
+  - `/app/backend/routes/overtime_routes.py` - Pass tenant_id to all broadcast calls
+  - `/app/backend/routes/volunteer_routes.py` - Pass tenant_id to all broadcast calls
+
 ### Phase 6: Frontend Updates - PENDING
 - ⏳ Subdomain-based routing for production
 - ⏳ Tenant context in frontend state
@@ -523,6 +536,6 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 1. ~~Update ALL route handlers to filter queries by tenant_id~~ ✅ DONE
 2. ~~Add tenant_id to new record creation~~ ✅ DONE
 3. ~~Tenant Onboarding Wizard with templates~~ ✅ DONE
-4. **Scope WebSocket connections by tenant** (Phase 5 - P0 CRITICAL)
+4. ~~Scope WebSocket connections by tenant~~ ✅ DONE (Phase 5)
 5. Add subdomain routing in production nginx config
 6. Test data isolation between tenants
