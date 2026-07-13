@@ -43,6 +43,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     payroll_number: str
     password: str
+    subdomain: Optional[str] = None  # For subdomain-based tenant routing
 
 
 class UserResponse(BaseModel):

@@ -8,6 +8,7 @@ import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 import ImpersonationBanner from "./components/layout/ImpersonationBanner";
+import TenantSwitcher from "./components/dev/TenantSwitcher";
 
 // Pages
 import { LoginPage } from "./pages/LoginPage";
@@ -226,6 +227,8 @@ function App() {
           <BrowserRouter>
             <AppContent />
             <Toaster position="top-center" richColors expand={true} />
+            {/* Dev tool for testing subdomain routing - only visible in dev/preview */}
+            <TenantSwitcher />
           </BrowserRouter>
         </AuthProvider>
       </SettingsProvider>

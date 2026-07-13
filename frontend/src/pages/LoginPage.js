@@ -6,7 +6,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { toast } from 'sonner';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
+import { getSubdomain } from '../utils/tenantUtils';
 
 const LOGO_URL = '/medina-logo.png';
 
@@ -15,8 +16,12 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, tenant, tenantLoading } = useAuth();
   const navigate = useNavigate();
+  
+  const subdomain = getSubdomain();
+  const displayName = tenant?.name || 'BC Staffing';
+  const isSubdomainContext = subdomain !== null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,18 +53,34 @@ export const LoginPage = () => {
           <div className="flex justify-center">
             <img 
               src={LOGO_URL} 
-              alt="Medina County Fire/EMS" 
+              alt="BC Staffing" 
               className="h-28 w-auto drop-shadow-2xl"
               data-testid="login-logo"
             />
           </div>
           <div>
-            <CardTitle className="text-3xl font-heading uppercase tracking-wider text-white">
-              Medina County BC Staffing
-            </CardTitle>
-            <CardDescription className="text-zinc-300 mt-2">
-              Battalion Chief Daily Staffing System
-            </CardDescription>
+            {tenantLoading && isSubdomainContext ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+                <span className="text-zinc-300">Loading tenant...</span>
+              </div>
+            ) : (
+              <>
+                <CardTitle className="text-3xl font-heading uppercase tracking-wider text-white">
+                  {displayName}
+                </CardTitle>
+                <CardDescription className="text-zinc-300 mt-2">
+                  {isSubdomainContext && tenant ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Battalion Chief Daily Staffing System
+                    </span>
+                  ) : (
+                    'Battalion Chief Daily Staffing System'
+                  )}
+                </CardDescription>
+              </>
+            )}
           </div>
         </CardHeader>
         

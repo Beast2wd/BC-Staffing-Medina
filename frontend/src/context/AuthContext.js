@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getSubdomain } from '../utils/tenantUtils';
 
 const AuthContext = createContext(null);
 
@@ -10,17 +11,43 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [tenant, setTenant] = useState(null);
+  const [tenantLoading, setTenantLoading] = useState(true);
 
   const api = axios.create({
     baseURL: `${API_URL}/api`,
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   });
 
+  // Detect tenant from subdomain on mount
+  useEffect(() => {
+    const detectTenant = async () => {
+      const subdomain = getSubdomain();
+      
+      if (subdomain) {
+        try {
+          const response = await axios.get(`${API_URL}/api/auth/tenant-by-subdomain/${subdomain}`);
+          setTenant(response.data);
+        } catch (error) {
+          console.error('Failed to detect tenant from subdomain:', error);
+          setTenant(null);
+        }
+      }
+      setTenantLoading(false);
+    };
+    
+    detectTenant();
+  }, []);
+
   const login = async (payrollNumber, password) => {
     try {
+      // Include subdomain if in subdomain context
+      const subdomain = getSubdomain();
+      
       const response = await axios.post(`${API_URL}/api/auth/login`, {
         payroll_number: payrollNumber,
-        password: password
+        password: password,
+        subdomain: subdomain // Will be null if not in subdomain context
       });
       
       const { access_token, user: userData, must_change_password } = response.data;
@@ -113,7 +140,9 @@ export const AuthProvider = ({ children }) => {
       isVolunteer,
       isSuperAdmin,
       canEdit,
-      mustChangePassword
+      mustChangePassword,
+      tenant,
+      tenantLoading
     }}>
       {children}
     </AuthContext.Provider>

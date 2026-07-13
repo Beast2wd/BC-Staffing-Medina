@@ -513,9 +513,33 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/backend/routes/overtime_routes.py` - Pass tenant_id to all broadcast calls
   - `/app/backend/routes/volunteer_routes.py` - Pass tenant_id to all broadcast calls
 
-### Phase 6: Frontend Updates - PENDING
-- ⏳ Subdomain-based routing for production
-- ⏳ Tenant context in frontend state
+### Phase 6: Subdomain-Based Routing ✅ (Completed July 13, 2026)
+- ✅ **Subdomain Detection** - `tenantUtils.js` extracts subdomain from URL automatically
+- ✅ **Tenant Lookup API** - `GET /api/auth/tenant-by-subdomain/{subdomain}` returns tenant info
+- ✅ **Scoped Login** - Login accepts optional `subdomain` parameter for strict tenant isolation
+- ✅ **Dynamic Login Page** - Shows tenant name when in subdomain context
+- ✅ **Dev Testing Tool** - `TenantSwitcher` component for testing subdomain routing in dev/preview
+- ✅ **Production Nginx Config** - `nginx.conf.example` with wildcard subdomain routing
+- ✅ **Tenant Status Check** - Suspended/inactive tenants blocked at login
+- ✅ **Files Created/Updated**:
+  - `/app/frontend/src/utils/tenantUtils.js` - Subdomain detection utilities
+  - `/app/frontend/src/components/dev/TenantSwitcher.js` - Dev testing component
+  - `/app/frontend/src/context/AuthContext.js` - Added tenant state and subdomain login
+  - `/app/frontend/src/pages/LoginPage.js` - Dynamic tenant display
+  - `/app/backend/routes/auth_routes.py` - Subdomain lookup and scoped login
+  - `/app/backend/models.py` - Added subdomain to UserLogin model
+  - `/app/nginx.conf.example` - Production nginx config template
+
+### Production Deployment Notes (Phase 6)
+1. Configure wildcard DNS: `*.bcstaffing.com` → Server IP
+2. Obtain wildcard SSL certificate (Let's Encrypt with DNS-01 challenge recommended)
+3. Deploy `/app/nginx.conf.example` to production nginx
+4. Each tenant accesses via: `{subdomain}.bcstaffing.com`
+
+### Phase 7: Future Enhancements - PENDING
+- ⏳ Custom branding per tenant (logos, colors)
+- ⏳ Tenant billing/subscription management
+- ⏳ Tenant data export/backup
 
 ### Files Created
 - `/app/backend/tenant_models.py` - Tenant Pydantic models
@@ -537,5 +561,5 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 2. ~~Add tenant_id to new record creation~~ ✅ DONE
 3. ~~Tenant Onboarding Wizard with templates~~ ✅ DONE
 4. ~~Scope WebSocket connections by tenant~~ ✅ DONE (Phase 5)
-5. Add subdomain routing in production nginx config
-6. Test data isolation between tenants
+5. ~~Add subdomain routing in production nginx config~~ ✅ DONE (Phase 6)
+6. Test data isolation between tenants ✅ DONE (verified via API tests)

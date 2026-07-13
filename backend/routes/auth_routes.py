@@ -17,14 +17,68 @@ from auth import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+@router.get("/tenant-by-subdomain/{subdomain}")
+async def get_tenant_by_subdomain(subdomain: str):
+    """
+    Lookup tenant by subdomain for pre-login tenant detection.
+    Returns tenant info without requiring authentication.
+    """
+    # Normalize subdomain
+    subdomain = subdomain.lower().strip()
+    
+    tenant = await db.tenants.find_one(
+        {"subdomain": subdomain, "is_active": True},
+        {"_id": 0, "id": 1, "name": 1, "subdomain": 1, "settings": 1}
+    )
+    
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return {
+        "id": tenant["id"],
+        "name": tenant["name"],
+        "subdomain": tenant["subdomain"],
+        "settings": tenant.get("settings", {})
+    }
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
-    # First try to find user by payroll number
-    user = await db.users.find_one({"payroll_number": credentials.payroll_number}, {"_id": 0})
+    """
+    Login with optional subdomain-based tenant routing.
     
-    # If not found, try to find volunteer by email
+    If subdomain is provided:
+    - Lookup tenant by subdomain first
+    - Only search for users within that tenant
+    - Provides strict tenant isolation
+    
+    If subdomain is not provided (legacy/super admin):
+    - Search for user across all tenants
+    - First match wins (existing behavior)
+    """
+    tenant_filter = {}
+    
+    # If subdomain provided, enforce tenant scoping
+    if credentials.subdomain:
+        subdomain = credentials.subdomain.lower().strip()
+        tenant = await db.tenants.find_one(
+            {"subdomain": subdomain, "is_active": True},
+            {"_id": 0, "id": 1}
+        )
+        
+        if not tenant:
+            raise HTTPException(status_code=401, detail="Invalid tenant")
+        
+        tenant_filter = {"tenant_id": tenant["id"]}
+    
+    # Build user query with optional tenant filter
+    user_query = {"payroll_number": credentials.payroll_number, **tenant_filter}
+    user = await db.users.find_one(user_query, {"_id": 0})
+    
+    # If not found by payroll, try email (for volunteers)
     if not user:
-        user = await db.users.find_one({"email": credentials.payroll_number, "role": UserRole.VOLUNTEER}, {"_id": 0})
+        user_query = {"email": credentials.payroll_number, "role": UserRole.VOLUNTEER, **tenant_filter}
+        user = await db.users.find_one(user_query, {"_id": 0})
     
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -34,6 +88,16 @@ async def login(credentials: UserLogin):
     
     if not user.get("is_active", True):
         raise HTTPException(status_code=401, detail="Account disabled")
+    
+    # Verify tenant is active (if user has a tenant)
+    user_tenant_id = user.get("tenant_id")
+    if user_tenant_id:
+        tenant = await db.tenants.find_one(
+            {"id": user_tenant_id},
+            {"_id": 0, "is_active": 1, "status": 1}
+        )
+        if tenant and (not tenant.get("is_active", True) or tenant.get("status") == "suspended"):
+            raise HTTPException(status_code=401, detail="Tenant account suspended")
     
     # Create token with tenant_id for multi-tenant support
     tenant_id = user.get("tenant_id")
