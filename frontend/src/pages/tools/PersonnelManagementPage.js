@@ -9,10 +9,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
 
 const RANKS = [
   'Fire Chief', 
@@ -42,8 +43,10 @@ const PersonnelFormDialog = memo(({
   initialData, 
   stations, 
   isEdit, 
-  loading 
+  loading,
+  availableUsers = []
 }) => {
+  const [selectedUserId, setSelectedUserId] = useState('');
   const [payrollNumber, setPayrollNumber] = useState('');
   const [name, setName] = useState('');
   const [rank, setRank] = useState('Firefighter');
@@ -53,6 +56,7 @@ const PersonnelFormDialog = memo(({
   const [contactEmail, setContactEmail] = useState('');
   const [certifications, setCertifications] = useState([]);
   const [certInput, setCertInput] = useState('');
+  const [userSearchTerm, setUserSearchTerm] = useState('');
 
   // Reset form when dialog opens with new data
   useEffect(() => {
@@ -65,6 +69,7 @@ const PersonnelFormDialog = memo(({
       setContactPhone(initialData.contact_phone || '');
       setContactEmail(initialData.contact_email || '');
       setCertifications(initialData.certifications || []);
+      setSelectedUserId('');
     } else if (isOpen && !initialData) {
       // Reset for add mode
       setPayrollNumber('');
@@ -75,9 +80,33 @@ const PersonnelFormDialog = memo(({
       setContactPhone('');
       setContactEmail('');
       setCertifications([]);
+      setSelectedUserId('');
     }
     setCertInput('');
+    setUserSearchTerm('');
   }, [isOpen, initialData]);
+
+  // Handle user selection - populate fields from selected user
+  const handleSelectUser = (userId) => {
+    const user = availableUsers.find(u => u.id === userId);
+    if (user) {
+      setSelectedUserId(userId);
+      setPayrollNumber(user.payroll_number || '');
+      setName(user.name || '');
+      setRank(user.rank || 'Firefighter');
+      setStationId(user.station_id || '');
+      setShift(user.shift || 'A');
+      setContactPhone(user.phone_number || '');
+      setContactEmail(user.email || '');
+    }
+  };
+
+  // Filter users based on search
+  const filteredUsers = availableUsers.filter(user => {
+    const searchLower = userSearchTerm.toLowerCase();
+    return user.name.toLowerCase().includes(searchLower) || 
+           user.payroll_number.includes(searchLower);
+  });
 
   const addCertification = (cert) => {
     if (cert && !certifications.includes(cert)) {
@@ -99,7 +128,8 @@ const PersonnelFormDialog = memo(({
       shift,
       contact_phone: contactPhone,
       contact_email: contactEmail,
-      certifications
+      certifications,
+      user_id: selectedUserId || null  // Link to user if selected
     });
   };
 
@@ -114,6 +144,55 @@ const PersonnelFormDialog = memo(({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {/* User Selection - Only show for Add mode */}
+          {!isEdit && availableUsers.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Select from Users
+              </Label>
+              <Select value={selectedUserId} onValueChange={handleSelectUser}>
+                <SelectTrigger data-testid="user-select">
+                  <SelectValue placeholder="Search and select a user..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="p-2">
+                    <Input
+                      placeholder="Search by name or employee #..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="mb-2"
+                      data-testid="user-search-input"
+                    />
+                  </div>
+                  {filteredUsers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      No matching users found
+                    </div>
+                  ) : (
+                    filteredUsers.map(user => (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{user.name}</span>
+                          <span className="text-xs text-muted-foreground">#{user.payroll_number}</span>
+                          <Badge variant="outline" className="text-xs">{user.rank}</Badge>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {selectedUserId && (
+                <p className="text-xs text-green-600">
+                  User selected - demographics auto-filled below
+                </p>
+              )}
+              <div className="border-t pt-2 mt-2">
+                <p className="text-xs text-muted-foreground">Or enter details manually:</p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Employee Number *</Label>
             <Input
@@ -121,6 +200,7 @@ const PersonnelFormDialog = memo(({
               onChange={(e) => setPayrollNumber(e.target.value)}
               placeholder="Enter employee number"
               data-testid="payroll-input"
+              disabled={!!selectedUserId}
             />
           </div>
 
@@ -131,12 +211,13 @@ const PersonnelFormDialog = memo(({
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter full name"
               data-testid="name-input"
+              disabled={!!selectedUserId}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Rank *</Label>
-            <Select value={rank} onValueChange={setRank}>
+            <Select value={rank} onValueChange={setRank} disabled={!!selectedUserId}>
               <SelectTrigger data-testid="rank-select">
                 <SelectValue />
               </SelectTrigger>
@@ -247,13 +328,22 @@ const PersonnelFormDialog = memo(({
             </div>
           </div>
 
-          {!isEdit && (
+          {!isEdit && !selectedUserId && (
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
               <p className="font-medium text-blue-600 dark:text-blue-400">Note:</p>
               <p className="text-muted-foreground">
                 A user account will be automatically created with default password: <code className="bg-muted px-1 rounded">changeme123</code>
               </p>
               <p className="text-muted-foreground">User will be prompted to change password on first login.</p>
+            </div>
+          )}
+
+          {!isEdit && selectedUserId && (
+            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm">
+              <p className="font-medium text-green-600 dark:text-green-400">Linked to User</p>
+              <p className="text-muted-foreground">
+                This personnel record will be linked to the selected user account.
+              </p>
             </div>
           )}
 
@@ -286,10 +376,61 @@ export const PersonnelManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterShift, setFilterShift] = useState('all');
   const [filterStation, setFilterStation] = useState('all');
+  const [availableUsers, setAvailableUsers] = useState([]);
+
+  // Define rank order for sorting
+  const rankOrder = {
+    'Fire Chief': 1,
+    'Asst. Chief': 2,
+    'Deputy Chief': 3,
+    'Battalion Chief': 4,
+    'Captain': 5,
+    'Lieutenant': 6,
+    'Driver Operator': 7,
+    'Engineer': 8,
+    'Paramedic': 9,
+    'Firefighter': 10,
+    'Volunteer Firefighter': 11
+  };
+
+  // Helper to extract last name
+  const getLastName = (fullName) => {
+    if (!fullName) return '';
+    const parts = fullName.trim().split(' ');
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  };
 
   useEffect(() => {
     fetchAllData();
   }, [selectedBattalion]);
+
+  // Fetch users who don't have personnel records yet
+  const fetchAvailableUsers = async () => {
+    try {
+      const [usersResponse] = await Promise.all([
+        api.get('/users')
+      ]);
+      
+      const users = usersResponse.data;
+      const personnelPayrolls = new Set(personnel.map(p => p.payroll_number));
+      
+      // Filter to users who don't have a personnel record yet
+      const usersWithoutPersonnel = users.filter(u => 
+        u.is_active && !personnelPayrolls.has(u.payroll_number)
+      );
+      
+      setAvailableUsers(usersWithoutPersonnel);
+    } catch (error) {
+      console.error('Error fetching available users:', error);
+    }
+  };
+
+  // Fetch available users when opening add dialog
+  useEffect(() => {
+    if (showAddDialog) {
+      fetchAvailableUsers();
+    }
+  }, [showAddDialog, personnel]);
 
   const handleAddPersonnel = useCallback(async (formData) => {
     if (!formData.payroll_number || !formData.name || !formData.station_id) {
@@ -389,13 +530,25 @@ export const PersonnelManagementPage = () => {
     }
   }, [api, passwordPerson, tempPassword]);
 
-  const filteredPersonnel = personnel.filter(person => {
-    const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         person.payroll_number.includes(searchTerm);
-    const matchesShift = filterShift === 'all' || person.shift === filterShift;
-    const matchesStation = filterStation === 'all' || person.station_id === filterStation;
-    return matchesSearch && matchesShift && matchesStation;
-  });
+  const filteredPersonnel = personnel
+    .filter(person => {
+      const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           person.payroll_number.includes(searchTerm);
+      const matchesShift = filterShift === 'all' || person.shift === filterShift;
+      const matchesStation = filterStation === 'all' || person.station_id === filterStation;
+      return matchesSearch && matchesShift && matchesStation;
+    })
+    .sort((a, b) => {
+      // First sort by rank
+      const rankA = rankOrder[a.rank] || 999;
+      const rankB = rankOrder[b.rank] || 999;
+      if (rankA !== rankB) return rankA - rankB;
+      
+      // Then sort alphabetically by last name
+      const lastNameA = getLastName(a.name).toLowerCase();
+      const lastNameB = getLastName(b.name).toLowerCase();
+      return lastNameA.localeCompare(lastNameB);
+    });
 
   // Group personnel by station and shift
   const groupedPersonnel = filteredPersonnel.reduce((acc, person) => {
@@ -486,6 +639,7 @@ export const PersonnelManagementPage = () => {
           stations={stations}
           isEdit={false}
           loading={loading}
+          availableUsers={availableUsers}
         />
 
         {/* Edit Dialog */}
@@ -497,6 +651,7 @@ export const PersonnelManagementPage = () => {
           stations={stations}
           isEdit={true}
           loading={loading}
+          availableUsers={[]}
         />
 
         {/* Set Password Dialog */}

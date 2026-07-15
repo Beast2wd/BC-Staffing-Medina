@@ -32,7 +32,8 @@ export const UserManagementPage = () => {
   const [formData, setFormData] = useState({
     payroll_number: '',
     password: '',
-    name: '',
+    first_name: '',
+    last_name: '',
     rank: 'Firefighter',
     role: 'firefighter',
     station_id: '',
@@ -41,7 +42,8 @@ export const UserManagementPage = () => {
     phone_number: ''
   });
   const [editFormData, setEditFormData] = useState({
-    name: '',
+    first_name: '',
+    last_name: '',
     rank: '',
     role: '',
     station_id: '',
@@ -60,6 +62,28 @@ export const UserManagementPage = () => {
   ];
 
   const ranks = ['Fire Chief', 'Asst. Chief', 'Deputy Chief', 'Battalion Chief', 'Captain', 'Lieutenant', 'Firefighter', 'Engineer', 'Paramedic'];
+  
+  // Define rank order for sorting (lower number = higher rank)
+  const rankOrder = {
+    'Fire Chief': 1,
+    'Asst. Chief': 2,
+    'Deputy Chief': 3,
+    'Battalion Chief': 4,
+    'Captain': 5,
+    'Lieutenant': 6,
+    'Engineer': 7,
+    'Driver Operator': 8,
+    'Paramedic': 9,
+    'Firefighter': 10,
+    'Volunteer Firefighter': 11
+  };
+
+  // Helper to extract last name from full name
+  const getLastName = (fullName) => {
+    if (!fullName) return '';
+    const parts = fullName.trim().split(' ');
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  };
 
   useEffect(() => {
     fetchAllData();
@@ -76,23 +100,34 @@ export const UserManagementPage = () => {
   };
 
   const handleAddUser = async () => {
-    if (!formData.payroll_number || !formData.password || !formData.name) {
+    if (!formData.payroll_number || !formData.password || !formData.first_name || !formData.last_name) {
       toast.error('Please fill in all required fields');
       return;
     }
     
     setLoading(true);
     try {
+      // Combine first and last name for storage (Last Name, First Name format for sorting)
+      const fullName = `${formData.first_name} ${formData.last_name}`;
+      
       // Use the new /users endpoint which also creates a personnel record
       await api.post('/users', {
-        ...formData,
+        payroll_number: formData.payroll_number,
+        password: formData.password,
+        name: fullName,
+        rank: formData.rank,
+        role: formData.role,
+        station_id: formData.station_id,
+        shift: formData.shift,
+        email: formData.email,
+        phone_number: formData.phone_number,
         must_change_password: true  // Force password change on first login
       });
       toast.success('User created successfully. They will be prompted to change password on first login.');
       setShowAddDialog(false);
       setShowPassword(false);
       fetchUsers();
-      setFormData({ payroll_number: '', password: '', name: '', rank: 'Firefighter', role: 'firefighter', station_id: '', shift: 'A', email: '', phone_number: '' });
+      setFormData({ payroll_number: '', password: '', first_name: '', last_name: '', rank: 'Firefighter', role: 'firefighter', station_id: '', shift: 'A', email: '', phone_number: '' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
     } finally {
@@ -114,8 +149,14 @@ export const UserManagementPage = () => {
 
   const handleOpenEdit = (user) => {
     setEditingUser(user);
+    // Parse full name into first and last name
+    const nameParts = (user.name || '').trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
     setEditFormData({
-      name: user.name,
+      first_name: firstName,
+      last_name: lastName,
       rank: user.rank || 'Firefighter',
       role: user.role,
       station_id: user.station_id || '',
@@ -132,7 +173,19 @@ export const UserManagementPage = () => {
     
     setLoading(true);
     try {
-      await api.put(`/users/${editingUser.id}`, editFormData);
+      // Combine first and last name
+      const fullName = `${editFormData.first_name} ${editFormData.last_name}`.trim();
+      
+      await api.put(`/users/${editingUser.id}`, {
+        name: fullName,
+        rank: editFormData.rank,
+        role: editFormData.role,
+        station_id: editFormData.station_id,
+        shift: editFormData.shift,
+        is_active: editFormData.is_active,
+        email: editFormData.email,
+        phone_number: editFormData.phone_number
+      });
       toast.success('User updated');
       setShowEditDialog(false);
       setEditingUser(null);
@@ -180,12 +233,24 @@ export const UserManagementPage = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.payroll_number.includes(searchTerm);
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = users
+    .filter(user => {
+      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.payroll_number.includes(searchTerm);
+      const matchesRole = filterRole === 'all' || user.role === filterRole;
+      return matchesSearch && matchesRole;
+    })
+    .sort((a, b) => {
+      // First sort by rank
+      const rankA = rankOrder[a.rank] || 999;
+      const rankB = rankOrder[b.rank] || 999;
+      if (rankA !== rankB) return rankA - rankB;
+      
+      // Then sort alphabetically by last name
+      const lastNameA = getLastName(a.name).toLowerCase();
+      const lastNameB = getLastName(b.name).toLowerCase();
+      return lastNameA.localeCompare(lastNameB);
+    });
 
   const getStationName = (stationId) => {
     if (!stationId) return '-';
@@ -268,14 +333,25 @@ export const UserManagementPage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Full Name *</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Enter full name"
-                    data-testid="name-input"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>First Name *</Label>
+                    <Input
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                      placeholder="First name"
+                      data-testid="first-name-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name *</Label>
+                    <Input
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                      placeholder="Last name"
+                      data-testid="last-name-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -545,14 +621,25 @@ export const UserManagementPage = () => {
                   <p className="text-sm font-medium">Employee #: {editingUser.payroll_number}</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Full Name</Label>
-                  <Input
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                    placeholder="Enter full name"
-                    data-testid="edit-name-input"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>First Name</Label>
+                    <Input
+                      value={editFormData.first_name}
+                      onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
+                      placeholder="First name"
+                      data-testid="edit-first-name-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name</Label>
+                    <Input
+                      value={editFormData.last_name}
+                      onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
+                      placeholder="Last name"
+                      data-testid="edit-last-name-input"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -691,7 +778,7 @@ export const UserManagementPage = () => {
 
                 <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                   <p className="text-sm text-yellow-500">
-                    <strong>Note:</strong> This will reset the user's password. They will need to use the new password to log in.
+                    <strong>Note:</strong> This will reset the user&apos;s password. They will need to use the new password to log in.
                   </p>
                 </div>
 
