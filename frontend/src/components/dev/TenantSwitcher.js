@@ -13,15 +13,19 @@ import {
 import { toast } from 'sonner';
 import { Building2, Settings, Trash2 } from 'lucide-react';
 import { setManualSubdomain, clearManualSubdomain, getSubdomain } from '../../utils/tenantUtils';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Development helper for testing subdomain-based tenant routing
  * This component allows manually setting a subdomain in development/preview environments
  * where actual subdomain routing is not available.
  * 
+ * VISIBILITY: Only shown to Super Admins in dev/preview environments
+ * 
  * Usage: Add <TenantSwitcher /> to your app for dev testing
  */
 export const TenantSwitcher = () => {
+  const { user, isSuperAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [subdomain, setSubdomain] = useState('');
   const [currentSubdomain, setCurrentSubdomain] = useState(getSubdomain());
@@ -53,11 +57,12 @@ export const TenantSwitcher = () => {
     window.location.reload();
   };
 
-  // Only show in development/preview environments
+  // Only show in development/preview environments AND only for super admins
   const isDev = window.location.hostname.includes('localhost') || 
                 window.location.hostname.includes('emergentagent.com');
   
-  if (!isDev) return null;
+  // Hide from regular users - only super admins can see this dev tool
+  if (!isDev || !isSuperAdmin) return null;
 
   return (
     <>
