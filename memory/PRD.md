@@ -563,3 +563,9 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 4. ~~Scope WebSocket connections by tenant~~ ✅ DONE (Phase 5)
 5. ~~Add subdomain routing in production nginx config~~ ✅ DONE (Phase 6)
 6. Test data isolation between tenants ✅ DONE (verified via API tests)
+
+### User & Personnel Management Enhancements (July 15, 2026)
+- ✅ **Rank-Based Sorting** - Users and personnel are now sorted by rank hierarchy first (Fire Chief → Captain → Lieutenant → Firefighter), then alphabetically by last name within each rank
+- ✅ **First/Last Name Fields** - User creation form now has separate "First Name" and "Last Name" fields instead of a single "Full Name" field
+- ✅ **User Selection in Personnel Management** - When adding personnel, users can select from a dropdown of existing user accounts to auto-populate demographics
+- ✅ **Unified Rank Order** - Both User Management and Personnel Management use the same rank hierarchy including all variants (Chief, Part-Time, Volunteer)

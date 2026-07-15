@@ -378,19 +378,27 @@ export const PersonnelManagementPage = () => {
   const [filterStation, setFilterStation] = useState('all');
   const [availableUsers, setAvailableUsers] = useState([]);
 
-  // Define rank order for sorting
+  // Define rank order for sorting (lower number = higher rank)
+  // Includes common aliases to ensure consistent sorting
   const rankOrder = {
     'Fire Chief': 1,
+    'Chief': 1,
     'Asst. Chief': 2,
+    'Assistant Chief': 2,
     'Deputy Chief': 3,
     'Battalion Chief': 4,
     'Captain': 5,
     'Lieutenant': 6,
+    'Engineer': 7,
     'Driver Operator': 7,
-    'Engineer': 8,
-    'Paramedic': 9,
-    'Firefighter': 10,
-    'Volunteer Firefighter': 11
+    'Paramedic': 8,
+    'Firefighter': 9,
+    'Firefighter/Paramedic': 9,
+    'Part-Time Firefighter': 10,
+    'Part-Time Paramedic': 10,
+    'Volunteer Firefighter': 11,
+    'Volunteer': 11,
+    'Admin': 12
   };
 
   // Helper to extract last name
