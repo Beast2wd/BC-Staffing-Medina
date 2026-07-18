@@ -151,20 +151,21 @@ const PersonnelFormDialog = memo(({
                 <UserPlus className="h-4 w-4" />
                 Select from Users
               </Label>
+              
+              {/* Search input OUTSIDE the Select to prevent focus issues */}
+              <Input
+                placeholder="Search by name or employee #..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="mb-2"
+                data-testid="user-search-input"
+              />
+              
               <Select value={selectedUserId} onValueChange={handleSelectUser}>
                 <SelectTrigger data-testid="user-select">
-                  <SelectValue placeholder="Search and select a user..." />
+                  <SelectValue placeholder="Select a user..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <div className="p-2">
-                    <Input
-                      placeholder="Search by name or employee #..."
-                      value={userSearchTerm}
-                      onChange={(e) => setUserSearchTerm(e.target.value)}
-                      className="mb-2"
-                      data-testid="user-search-input"
-                    />
-                  </div>
+                <SelectContent className="max-h-60">
                   {filteredUsers.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       No matching users found
@@ -412,22 +413,16 @@ export const PersonnelManagementPage = () => {
     fetchAllData();
   }, [selectedBattalion]);
 
-  // Fetch users who don't have personnel records yet
+  // Fetch all active users for the dropdown
   const fetchAvailableUsers = async () => {
     try {
-      const [usersResponse] = await Promise.all([
-        api.get('/users')
-      ]);
-      
+      const usersResponse = await api.get('/users');
       const users = usersResponse.data;
-      const personnelPayrolls = new Set(personnel.map(p => p.payroll_number));
       
-      // Filter to users who don't have a personnel record yet
-      const usersWithoutPersonnel = users.filter(u => 
-        u.is_active && !personnelPayrolls.has(u.payroll_number)
-      );
+      // Show ALL active users (not just those without personnel records)
+      const activeUsers = users.filter(u => u.is_active);
       
-      setAvailableUsers(usersWithoutPersonnel);
+      setAvailableUsers(activeUsers);
     } catch (error) {
       console.error('Error fetching available users:', error);
     }
@@ -438,7 +433,7 @@ export const PersonnelManagementPage = () => {
     if (showAddDialog) {
       fetchAvailableUsers();
     }
-  }, [showAddDialog, personnel]);
+  }, [showAddDialog]);
 
   const handleAddPersonnel = useCallback(async (formData) => {
     if (!formData.payroll_number || !formData.name || !formData.station_id) {
