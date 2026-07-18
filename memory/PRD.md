@@ -569,3 +569,25 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **First/Last Name Fields** - User creation form now has separate "First Name" and "Last Name" fields instead of a single "Full Name" field
 - ✅ **User Selection in Personnel Management** - When adding personnel, users can select from a dropdown of existing user accounts to auto-populate demographics
 - ✅ **Unified Rank Order** - Both User Management and Personnel Management use the same rank hierarchy including all variants (Chief, Part-Time, Volunteer)
+
+### P3: Custom Tenant Branding ✅ (Completed July 18, 2026)
+- ✅ **Branding Settings Page** - New page at `/tools/branding` accessible from Tools menu
+- ✅ **Department Logo Upload** - Upload PNG, JPG, SVG, or WebP logos (max 2MB, stored as base64)
+- ✅ **Color Customization** - Primary, Secondary, and Accent color pickers with hex input
+- ✅ **Quick Presets** - 6 pre-designed color schemes:
+  - Fire Red (default): #dc2626 / #1e3a5f / #f59e0b
+  - Navy Blue: #1e40af / #0f172a / #3b82f6
+  - Forest Green: #166534 / #14532d / #22c55e
+  - Royal Purple: #7c3aed / #4c1d95 / #a78bfa
+  - Slate Gray: #475569 / #1e293b / #94a3b8
+  - Sunset Orange: #ea580c / #7c2d12 / #fb923c
+- ✅ **Live Preview** - Real-time preview of how branding will look
+- ✅ **Reset to Defaults** - One-click reset all branding to defaults
+- ✅ **Backend Endpoints**:
+  - `GET /api/tenants/branding` - Get current tenant branding
+  - `PUT /api/tenants/branding` - Update branding settings
+  - `POST /api/tenants/branding/reset` - Reset to defaults
+- ✅ **Files Created**:
+  - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Full branding UI
+  - Updated `/app/backend/routes/tenant_routes.py` - Branding endpoints
+  - Updated `/app/backend/tenant_models.py` - TenantBrandingUpdate schema

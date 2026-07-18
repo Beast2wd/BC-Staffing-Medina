@@ -140,9 +140,9 @@ async def get_current_tenant_branding(current_user: dict = Depends(get_current_u
     return {
         "custom_branding": settings.get("custom_branding", False),
         "logo_url": settings.get("logo_url"),
-        "primary_color": settings.get("primary_color", "#dc2626"),
-        "secondary_color": settings.get("secondary_color", "#1e3a5f"),
-        "accent_color": settings.get("accent_color", "#f59e0b"),
+        "primary_color": settings.get("primary_color") or "#dc2626",
+        "secondary_color": settings.get("secondary_color") or "#1e3a5f",
+        "accent_color": settings.get("accent_color") or "#f59e0b",
         "tenant_name": tenant.get("name", "BC Staffing")
     }
 
