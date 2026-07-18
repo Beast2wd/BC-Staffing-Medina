@@ -35,12 +35,31 @@ import {
   Ambulance,
   ChevronRight,
   History,
-  Shield
+  Shield,
+  Palette
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
 
 const LOGO_URL = '/medina-logo.png';
+
+// NavLink component defined outside to prevent re-renders
+const NavLink = ({ to, children, active, disabled }) => (
+  <Link
+    to={disabled ? '#' : to}
+    className={`px-3 py-2 font-heading text-sm uppercase tracking-wider transition-colors whitespace-nowrap ${
+      active 
+        ? 'text-red-500 border-b-2 border-red-500' 
+        : disabled
+          ? 'text-muted-foreground/50 cursor-not-allowed'
+          : 'text-foreground/80 hover:text-red-500'
+    }`}
+    onClick={(e) => disabled && e.preventDefault()}
+    data-testid={`nav-link-${to.replace('/', '') || 'home'}`}
+  >
+    {children}
+  </Link>
+);
 
 export const Navbar = () => {
   const { user, logout, isAdmin, isFirefighter, isVolunteer, isSuperAdmin } = useAuth();
@@ -59,23 +78,6 @@ export const Navbar = () => {
 
   // Check if user can view/access a menu item (all roles except firefighters and volunteers for most items)
   const canAccessFullMenu = !isFirefighter && !isVolunteer;
-
-  const NavLink = ({ to, children, active, disabled }) => (
-    <Link
-      to={disabled ? '#' : to}
-      className={`px-3 py-2 font-heading text-sm uppercase tracking-wider transition-colors whitespace-nowrap ${
-        active 
-          ? 'text-red-500 border-b-2 border-red-500' 
-          : disabled
-            ? 'text-muted-foreground/50 cursor-not-allowed'
-            : 'text-foreground/80 hover:text-red-500'
-      }`}
-      onClick={(e) => disabled && e.preventDefault()}
-      data-testid={`nav-link-${to.replace('/', '') || 'home'}`}
-    >
-      {children}
-    </Link>
-  );
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -297,6 +299,12 @@ export const Navbar = () => {
                     <UserPlus className="h-4 w-4" /> Volunteer Management
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/tools/branding" className="flex items-center gap-2" data-testid="nav-branding">
+                    <Palette className="h-4 w-4" /> Branding Settings
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -512,6 +520,9 @@ export const Navbar = () => {
                 </Link>
                 <Link to="/tools/volunteers" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Hand className="h-4 w-4 inline mr-2" /> Volunteer Management
+                </Link>
+                <Link to="/tools/branding" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Palette className="h-4 w-4 inline mr-2" /> Branding Settings
                 </Link>
               </>
             )}

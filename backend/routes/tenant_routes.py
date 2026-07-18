@@ -9,7 +9,8 @@ import uuid
 
 from database import db
 from tenant_models import (
-    Tenant, TenantCreate, TenantUpdate, TenantResponse, TenantStatus, TenantSettings
+    Tenant, TenantCreate, TenantUpdate, TenantResponse, TenantStatus, TenantSettings,
+    TenantBrandingUpdate
 )
 from auth import get_current_user, require_super_admin, hash_password
 from tenant_templates import (
@@ -109,6 +110,152 @@ async def get_template_details(template_id: str, current_user: dict = Depends(re
             "apparatus_types": DEFAULT_APPARATUS_TYPES
         }
     }
+
+
+# ===================== BRANDING ROUTES =====================
+# IMPORTANT: These routes MUST be defined BEFORE /{tenant_id} routes
+# Otherwise FastAPI will interpret "branding" as a tenant_id
+
+@router.get("/branding")
+async def get_current_tenant_branding(current_user: dict = Depends(get_current_user)):
+    """Get branding settings for the current user's tenant"""
+    tenant_id = current_user.get("tenant_id")
+    
+    if not tenant_id:
+        # Return default branding for users without a tenant
+        return {
+            "custom_branding": False,
+            "logo_url": None,
+            "primary_color": "#dc2626",
+            "secondary_color": "#1e3a5f",
+            "accent_color": "#f59e0b",
+            "tenant_name": "BC Staffing"
+        }
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    settings = tenant.get("settings", {})
+    return {
+        "custom_branding": settings.get("custom_branding", False),
+        "logo_url": settings.get("logo_url"),
+        "primary_color": settings.get("primary_color", "#dc2626"),
+        "secondary_color": settings.get("secondary_color", "#1e3a5f"),
+        "accent_color": settings.get("accent_color", "#f59e0b"),
+        "tenant_name": tenant.get("name", "BC Staffing")
+    }
+
+
+@router.put("/branding")
+async def update_tenant_branding(
+    branding: TenantBrandingUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update branding settings for the current user's tenant (Admin only)"""
+    # Check if user is admin
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can update branding")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Build the update document
+    update_fields = {
+        "settings.custom_branding": branding.custom_branding,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if branding.logo_url is not None:
+        update_fields["settings.logo_url"] = branding.logo_url
+    if branding.primary_color is not None:
+        update_fields["settings.primary_color"] = branding.primary_color
+    if branding.secondary_color is not None:
+        update_fields["settings.secondary_color"] = branding.secondary_color
+    if branding.accent_color is not None:
+        update_fields["settings.accent_color"] = branding.accent_color
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": update_fields}
+    )
+    
+    return {"message": "Branding updated successfully"}
+
+
+@router.post("/branding/logo")
+async def upload_tenant_logo(current_user: dict = Depends(get_current_user)):
+    """
+    Get a pre-signed URL or instructions for logo upload.
+    For simplicity, we accept base64 encoded images directly in the branding update.
+    """
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can upload logos")
+    
+    return {
+        "message": "To upload a logo, use the PUT /api/tenants/branding endpoint with logo_url field",
+        "instructions": [
+            "Convert your logo image to base64 format",
+            "Or host the image on an external service and provide the URL",
+            "Recommended size: 200x200 pixels",
+            "Supported formats: PNG, JPG, SVG"
+        ]
+    }
+
+
+@router.delete("/branding/logo")
+async def delete_tenant_logo(current_user: dict = Depends(get_current_user)):
+    """Remove the custom logo and revert to default"""
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can delete logos")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {
+            "$set": {
+                "settings.logo_url": None,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Logo removed successfully"}
+
+
+@router.post("/branding/reset")
+async def reset_tenant_branding(current_user: dict = Depends(get_current_user)):
+    """Reset all branding to defaults"""
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can reset branding")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {
+            "$set": {
+                "settings.custom_branding": False,
+                "settings.logo_url": None,
+                "settings.primary_color": "#dc2626",
+                "settings.secondary_color": "#1e3a5f",
+                "settings.accent_color": "#f59e0b",
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Branding reset to defaults"}
 
 
 @router.get("/copy-source/{tenant_id}")

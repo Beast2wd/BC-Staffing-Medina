@@ -26,6 +26,7 @@ import { UserManagementPage } from "./pages/tools/UserManagementPage";
 import { StationManagementPage } from "./pages/tools/StationManagementPage";
 import { VolunteerManagementPage } from "./pages/tools/VolunteerManagementPage";
 import { PartTimeManagementPage } from "./pages/tools/PartTimeManagementPage";
+import { BrandingSettingsPage } from "./pages/tools/BrandingSettingsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { OvertimeAvailabilityPage } from "./pages/OvertimeAvailabilityPage";
 import { VolunteerAvailabilityPage } from "./pages/VolunteerAvailabilityPage";
@@ -154,6 +155,9 @@ const AppContent = () => {
           } />
           <Route path="/tools/volunteers" element={
             <ProtectedRoute adminOnly><VolunteerManagementPage /></ProtectedRoute>
+          } />
+          <Route path="/tools/branding" element={
+            <ProtectedRoute adminOnly><BrandingSettingsPage /></ProtectedRoute>
           } />
           
           {/* Reports */}
