@@ -186,7 +186,8 @@ async def update_user(
 
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+async def deactivate_user(user_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+    """Deactivate a user (soft delete) - sets is_active to False"""
     tenant_id = get_tenant_id(current_user)
     
     query = {"id": user_id}
@@ -209,6 +210,42 @@ async def delete_user(user_id: str, current_user: dict = Depends(require_role([U
     await db.personnel.update_one(personnel_query, {"$set": {"is_active": False}})
     
     return {"message": "User deactivated"}
+
+
+@router.delete("/{user_id}/permanent")
+async def permanently_delete_user(user_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+    """Permanently delete a user from the system - cannot be undone"""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {"id": user_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    # Get user to find their payroll_number
+    user = await db.users.find_one(query, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting super admins
+    if user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="Cannot delete super admin users")
+    
+    # Prevent self-deletion
+    if user_id == current_user.get("id"):
+        raise HTTPException(status_code=403, detail="Cannot delete your own account")
+    
+    # Permanently delete the user
+    result = await db.users.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Also permanently delete the corresponding personnel record within tenant
+    personnel_query = {"payroll_number": user["payroll_number"]}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    await db.personnel.delete_one(personnel_query)
+    
+    return {"message": "User permanently deleted"}
 
 
 @router.post("/{user_id}/reset-password")

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, Key, Phone, Mail, Eye, EyeOff } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, Key, Phone, Mail, Eye, EyeOff, UserX, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
@@ -143,15 +143,32 @@ export const UserManagementPage = () => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to deactivate this user?')) return;
+  const handleDeactivateUser = async (userId) => {
+    if (!confirm('Are you sure you want to deactivate this user? They will no longer be able to log in, but their data will be preserved.')) return;
     
     try {
       await api.delete(`/users/${userId}`);
       toast.success('User deactivated');
       fetchUsers();
     } catch (error) {
-      toast.error('Failed to deactivate user');
+      toast.error(error.response?.data?.detail || 'Failed to deactivate user');
+    }
+  };
+
+  const handlePermanentDeleteUser = async (userId, userName) => {
+    // Double confirmation for permanent delete
+    const firstConfirm = confirm(`⚠️ WARNING: You are about to PERMANENTLY DELETE "${userName}".\n\nThis action CANNOT be undone. All user data will be removed from the system.\n\nAre you sure you want to continue?`);
+    if (!firstConfirm) return;
+    
+    const secondConfirm = confirm(`Final confirmation: Type "DELETE" mentally and click OK to permanently remove "${userName}" from the system.`);
+    if (!secondConfirm) return;
+    
+    try {
+      await api.delete(`/users/${userId}/permanent`);
+      toast.success('User permanently deleted');
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete user');
     }
   };
 
@@ -597,12 +614,24 @@ export const UserManagementPage = () => {
                           >
                             <Key className="h-4 w-4" />
                           </Button>
+                          {user.is_active ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-yellow-600"
+                              onClick={() => handleDeactivateUser(user.id)}
+                              title="Deactivate User"
+                              data-testid={`deactivate-${user.id}`}
+                            >
+                              <UserX className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             className="text-red-500"
-                            onClick={() => handleDeleteUser(user.id)}
-                            title="Deactivate User"
+                            onClick={() => handlePermanentDeleteUser(user.id, user.name)}
+                            title="Permanently Delete User"
                             data-testid={`delete-${user.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
