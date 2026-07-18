@@ -199,6 +199,14 @@ async def deactivate_user(user_id: str, current_user: dict = Depends(require_rol
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Prevent deactivating super admins
+    if user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="Cannot deactivate super admin users")
+    
+    # Prevent self-deactivation
+    if user_id == current_user.get("id"):
+        raise HTTPException(status_code=403, detail="Cannot deactivate your own account")
+    
     result = await db.users.update_one(query, {"$set": {"is_active": False}})
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
