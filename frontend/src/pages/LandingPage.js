@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight } from 'lucide-react';
 
-// BC Staffing Logo URL (Medina County Fire/EMS badge)
-const LOGO_URL = "https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png";
+// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
+const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 export const LandingPage = () => {
   const { user, loading } = useAuth();
@@ -73,21 +73,19 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
+              <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-lg overflow-hidden bg-white">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
                   className="w-full h-full object-contain"
-                  style={{ mixBlendMode: 'multiply', filter: 'brightness(1.1) contrast(1.05)' }}
+                  style={{ mixBlendMode: 'multiply' }}
                 />
-                {/* Fallback background removal overlay */}
-                <div className="absolute inset-0 -z-10 bg-white rounded-lg"></div>
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   BC STAFFING
                 </h1>
-                <p className="text-xs text-slate-400 hidden sm:block">Emergency Services Solutions</p>
+                <p className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Solutions</p>
               </div>
             </div>
 
@@ -116,16 +114,14 @@ export const LandingPage = () => {
           <div className="text-center">
             {/* Logo Badge */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="relative w-28 h-28 sm:w-36 sm:h-36">
+              <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-2xl overflow-hidden bg-white shadow-2xl">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-full h-full object-contain drop-shadow-2xl"
-                  style={{ mixBlendMode: 'multiply', filter: 'brightness(1.1) contrast(1.05)' }}
+                  className="w-full h-full object-contain p-2"
+                  style={{ mixBlendMode: 'multiply' }}
                   data-testid="hero-logo"
                 />
-                {/* White background container for mix-blend-mode to work */}
-                <div className="absolute inset-0 -z-10 bg-white rounded-xl shadow-lg"></div>
               </div>
             </div>
 
@@ -236,14 +232,13 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10">
+            <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
                 className="w-full h-full object-contain"
-                style={{ mixBlendMode: 'multiply', filter: 'brightness(1.1) contrast(1.05)' }}
+                style={{ mixBlendMode: 'multiply' }}
               />
-              <div className="absolute inset-0 -z-10 bg-white rounded-lg"></div>
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>
           </div>
