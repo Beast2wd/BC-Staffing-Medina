@@ -11,6 +11,7 @@ import ImpersonationBanner from "./components/layout/ImpersonationBanner";
 import TenantSwitcher from "./components/dev/TenantSwitcher";
 
 // Pages
+import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
@@ -94,6 +95,7 @@ const AppContent = () => {
         )}
         <Routes>
           {/* Public Routes */}
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
           
           {/* Protected Routes */}
@@ -215,7 +217,6 @@ const AppContent = () => {
           } />
           
           {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </WebSocketProvider>

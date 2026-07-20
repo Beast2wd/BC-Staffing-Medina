@@ -591,3 +591,16 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Full branding UI
   - Updated `/app/backend/routes/tenant_routes.py` - Branding endpoints
   - Updated `/app/backend/tenant_models.py` - TenantBrandingUpdate schema
+
+
+### Public Landing Page ✅ (Completed July 20, 2026)
+- ✅ **Landing Page Component** - New page at `/` for unauthenticated visitors
+- ✅ **BC Staffing Branding** - Displays company logo with white background removed using CSS `mix-blend-mode`
+- ✅ **Service Description** - Data-driven solutions for Fire Departments, EMS, and Government Agencies
+- ✅ **Feature Showcase** - 6 feature cards: Staffing Management, Overtime Tracking, Deployment Accountability, Reporting & Analytics, Role-Based Access, Real-Time Notifications
+- ✅ **Login Navigation** - Multiple "Login" buttons (header, hero, CTA section) navigate to `/login`
+- ✅ **Responsive Design** - Mobile-friendly layout with dark slate theme
+- ✅ **Route Protection** - Authenticated users automatically redirected to `/dashboard`
+- ✅ **Files Created**:
+  - `/app/frontend/src/pages/LandingPage.js` - Full landing page component
+  - Updated `/app/frontend/src/App.js` - Added root route for landing page
