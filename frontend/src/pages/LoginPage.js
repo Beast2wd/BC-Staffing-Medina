@@ -31,8 +31,11 @@ export const LoginPage = () => {
     
     if (result.success) {
       toast.success('Login successful');
-      // Redirect volunteers to on-duty page, others to dashboard
-      if (result.user?.role === 'volunteer') {
+      // Redirect based on user role
+      if (result.user?.is_super_admin) {
+        // Super Admins go to landing page to access tenant switcher
+        navigate('/');
+      } else if (result.user?.role === 'volunteer') {
         navigate('/on-duty');
       } else {
         navigate('/dashboard');

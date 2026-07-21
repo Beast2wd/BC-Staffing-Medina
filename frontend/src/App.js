@@ -97,7 +97,9 @@ const AppContent = () => {
           <Route path="/" element={
             user && !user.is_super_admin ? <Navigate to="/dashboard" replace /> : <LandingPage />
           } />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+          <Route path="/login" element={
+            user ? (user.is_super_admin ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />) : <LoginPage />
+          } />
           
           {/* Protected Routes */}
           <Route path="/dashboard" element={
