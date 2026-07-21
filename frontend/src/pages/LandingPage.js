@@ -105,7 +105,7 @@ export const LandingPage = () => {
                 <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   BC STAFFING
                 </h1>
-                <p className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Solutions</p>
+                <p className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Staffing Solutions</p>
               </div>
             </a>
 
@@ -299,7 +299,7 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-            <div className="w-10 h-10">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
@@ -307,8 +307,8 @@ export const LandingPage = () => {
               />
             </div>
             <div>
-              <span className="text-lg font-bold text-white block">BC STAFFING</span>
-              <span className="text-xs text-slate-400">Fire &amp; EMS Solutions</span>
+              <span className="text-xl sm:text-2xl font-bold text-white block tracking-tight">BC STAFFING</span>
+              <span className="text-xs text-slate-400">Fire &amp; EMS Staffing Solutions</span>
             </div>
           </a>
           <p className="text-slate-500 text-sm">

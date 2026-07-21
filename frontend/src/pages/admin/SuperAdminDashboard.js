@@ -205,7 +205,7 @@ const SuperAdminDashboard = () => {
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-white">BC STAFFING</h1>
-                  <p className="text-xs text-slate-400">Super Admin Portal</p>
+                  <p className="text-xs text-slate-400">Fire &amp; EMS Staffing Solutions</p>
                 </div>
               </a>
             </div>
