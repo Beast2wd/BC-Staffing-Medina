@@ -56,8 +56,8 @@ import { useAuth } from '../../context/AuthContext';
 import TenantOnboardingWizard from '../../components/admin/TenantOnboardingWizard';
 import { clearManualSubdomain } from '../../utils/tenantUtils';
 
-// BC Staffing Logo - Original JPEG
-const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
+// BC Staffing Logo - Dark background version
+const BC_STAFFING_LOGO = "https://static.prod-images.emergentagent.com/jobs/d18b2c49-9504-43b5-8217-508d80db16bb/images/9f780126d6ba8f80b79e7ee69875a12fdb7babce775a898ff9bf1bf43fcc3e36.jpeg";
 
 const SuperAdminDashboard = () => {
   const { api, login, user, logout } = useAuth();
