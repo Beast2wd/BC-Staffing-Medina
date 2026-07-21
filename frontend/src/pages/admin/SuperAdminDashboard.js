@@ -132,11 +132,14 @@ const SuperAdminDashboard = () => {
       // Set the new impersonation token
       localStorage.setItem('token', response.data.access_token);
       
+      // Set the tenant subdomain for routing context
+      localStorage.setItem('tenant_subdomain', selectedTenant.subdomain);
+      
       toast.success(`Now ${impersonationMode === 'view' ? 'viewing' : 'impersonating'} ${selectedTenant.name}`);
       setShowImpersonateDialog(false);
       
-      // Redirect to dashboard
-      window.location.href = '/';
+      // Redirect to dashboard (tenant context is now set)
+      window.location.href = '/dashboard';
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to impersonate tenant');
     }

@@ -8,6 +8,7 @@ import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 import ImpersonationBanner from "./components/layout/ImpersonationBanner";
+import { getSubdomain } from "./utils/tenantUtils";
 
 // Pages
 import { LandingPage } from "./pages/LandingPage";
@@ -69,6 +70,13 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 // App Content with Routing
 const AppContent = () => {
   const { user, loading, mustChangePassword } = useAuth();
+  
+  // Check if there's a tenant context (subdomain or impersonation)
+  const hasTenantContext = () => {
+    const subdomain = getSubdomain();
+    const impersonationInfo = localStorage.getItem('impersonation_info');
+    return subdomain !== null || impersonationInfo !== null;
+  };
 
   if (loading) {
     return (
@@ -77,6 +85,11 @@ const AppContent = () => {
       </div>
     );
   }
+
+  // Determine where Super Admin should go:
+  // - If they have a tenant context (subdomain set or impersonating), allow dashboard access
+  // - If no tenant context, show landing page for tenant selection
+  const shouldSuperAdminSeeLanding = user?.is_super_admin && !hasTenantContext();
 
   return (
     <StaffingProvider>
@@ -95,10 +108,14 @@ const AppContent = () => {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={
-            user && !user.is_super_admin ? <Navigate to="/dashboard" replace /> : <LandingPage />
+            !user ? <LandingPage /> :
+            shouldSuperAdminSeeLanding ? <LandingPage /> :
+            <Navigate to="/dashboard" replace />
           } />
           <Route path="/login" element={
-            user ? (user.is_super_admin ? <Navigate to="/" replace /> : <Navigate to="/dashboard" replace />) : <LoginPage />
+            !user ? <LoginPage /> :
+            shouldSuperAdminSeeLanding ? <Navigate to="/" replace /> :
+            <Navigate to="/dashboard" replace />
           } />
           
           {/* Protected Routes */}
