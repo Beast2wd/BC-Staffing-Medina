@@ -196,12 +196,11 @@ const SuperAdminDashboard = () => {
               </Button>
               <div className="h-8 w-px bg-slate-600" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-lg overflow-hidden flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-md">
                   <img
                     src={BC_STAFFING_LOGO}
                     alt="BC Staffing"
-                    className="w-full h-full object-contain"
-                    style={{ mixBlendMode: 'multiply' }}
+                    className="w-full h-full object-cover"
                   />
                 </div>
                 <div>

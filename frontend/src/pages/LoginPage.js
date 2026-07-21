@@ -62,12 +62,11 @@ export const LoginPage = () => {
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32 bg-white rounded-xl p-1'} flex items-center justify-center`}>
+            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32 rounded-full overflow-hidden bg-white/90 shadow-lg border border-gray-200 p-2'} flex items-center justify-center`}>
               <img 
                 src={logoUrl} 
                 alt={displayName} 
-                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain'} drop-shadow-2xl`}
-                style={!isSubdomainContext ? { mixBlendMode: 'multiply' } : {}}
+                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain rounded-full'}`}
                 data-testid="login-logo"
               />
             </div>

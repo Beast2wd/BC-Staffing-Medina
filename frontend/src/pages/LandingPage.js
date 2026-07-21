@@ -94,12 +94,11 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-lg overflow-hidden bg-white">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-full overflow-hidden bg-white shadow-md">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
-                  className="w-full h-full object-contain"
-                  style={{ mixBlendMode: 'multiply' }}
+                  className="w-full h-full object-cover"
                 />
               </div>
               <div>
@@ -181,14 +180,13 @@ export const LandingPage = () => {
 
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center">
-            {/* Logo Badge */}
+            {/* Logo Badge - Circular with transparent effect */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-white shadow-2xl flex items-center justify-center">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-white/10 backdrop-blur-sm border-2 border-white/20 shadow-2xl p-2">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-[108%] h-[108%] object-contain"
-                  style={{ mixBlendMode: 'multiply', transform: 'translate(1%, 0%)' }}
+                  className="w-full h-full object-contain rounded-full"
                   data-testid="hero-logo"
                 />
               </div>
@@ -301,12 +299,11 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-md">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
-                className="w-full h-full object-contain"
-                style={{ mixBlendMode: 'multiply' }}
+                className="w-full h-full object-cover"
               />
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>
