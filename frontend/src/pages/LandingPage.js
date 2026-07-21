@@ -6,8 +6,8 @@ import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRig
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
-const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
+// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet (Transparent PNG)
+const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/ye8dmbi9_BC%20Staffing%20Logo%20wo%20Background.png";
 
 export const LandingPage = () => {
   const { user, loading, isSuperAdmin, logout } = useAuth();
@@ -94,11 +94,11 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-full overflow-hidden bg-white shadow-md">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain drop-shadow-lg"
                 />
               </div>
               <div>
@@ -186,8 +186,7 @@ export const LandingPage = () => {
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-[85%] h-[85%] object-contain"
-                  style={{ mixBlendMode: 'multiply' }}
+                  className="w-[90%] h-[90%] object-contain drop-shadow-lg"
                   data-testid="hero-logo"
                 />
               </div>
@@ -300,11 +299,11 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-md">
+            <div className="w-10 h-10">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain drop-shadow-lg"
               />
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>
