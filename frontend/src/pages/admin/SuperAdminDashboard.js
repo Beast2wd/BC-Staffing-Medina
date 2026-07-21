@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -48,14 +47,20 @@ import {
   AlertTriangle,
   Database,
   Calendar,
-  Clock
+  Clock,
+  LogOut,
+  Home
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import TenantOnboardingWizard from '../../components/admin/TenantOnboardingWizard';
+import { clearManualSubdomain } from '../../utils/tenantUtils';
+
+// BC Staffing Logo
+const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 const SuperAdminDashboard = () => {
-  const { api, login } = useAuth();
+  const { api, login, user, logout } = useAuth();
   const navigate = useNavigate();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -165,66 +170,130 @@ const SuperAdminDashboard = () => {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    clearManualSubdomain();
+    localStorage.removeItem('impersonation_info');
+    navigate('/');
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
-              <p className="text-muted-foreground">Manage all tenants across the platform</p>
+    <div className="min-h-screen bg-slate-900">
+      {/* Custom BC Staffing Header for Super Admin */}
+      <header className="bg-slate-800 border-b border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo and Brand */}
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/')}
+                className="text-slate-400 hover:text-white"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Back to Home
+              </Button>
+              <div className="h-8 w-px bg-slate-600" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-lg overflow-hidden flex items-center justify-center">
+                  <img
+                    src={BC_STAFFING_LOGO}
+                    alt="BC Staffing"
+                    className="w-full h-full object-contain"
+                    style={{ mixBlendMode: 'multiply' }}
+                  />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-white">BC STAFFING</h1>
+                  <p className="text-xs text-slate-400">Super Admin Portal</p>
+                </div>
+              </div>
+            </div>
+
+            {/* User Info and Logout */}
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-white">{user?.first_name} {user?.last_name}</p>
+                <p className="text-xs text-slate-400">Super Administrator</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
             </div>
           </div>
-          <Button onClick={() => setShowOnboardingWizard(true)} data-testid="add-tenant-btn">
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl">
+              <Shield className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Super Admin Dashboard</h1>
+              <p className="text-slate-400">Manage all tenants across the platform</p>
+            </div>
+          </div>
+          <Button 
+            onClick={() => setShowOnboardingWizard(true)} 
+            data-testid="add-tenant-btn"
+            className="bg-purple-600 hover:bg-purple-700"
+          >
             <Plus className="h-4 w-4 mr-2" /> New Tenant
           </Button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <Building2 className="h-8 w-8 text-blue-500" />
+                <Building2 className="h-8 w-8 text-blue-400" />
                 <div>
-                  <p className="text-2xl font-bold">{tenants.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Tenants</p>
+                  <p className="text-2xl font-bold text-white">{tenants.length}</p>
+                  <p className="text-sm text-slate-400">Total Tenants</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <Power className="h-8 w-8 text-green-500" />
+                <Power className="h-8 w-8 text-green-400" />
                 <div>
-                  <p className="text-2xl font-bold">{tenants.filter(t => t.is_active).length}</p>
-                  <p className="text-sm text-muted-foreground">Active Tenants</p>
+                  <p className="text-2xl font-bold text-white">{tenants.filter(t => t.is_active).length}</p>
+                  <p className="text-sm text-slate-400">Active Tenants</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <Users className="h-8 w-8 text-purple-500" />
+                <Users className="h-8 w-8 text-purple-400" />
                 <div>
-                  <p className="text-2xl font-bold">{tenants.reduce((acc, t) => acc + (t.user_count || 0), 0)}</p>
-                  <p className="text-sm text-muted-foreground">Total Users</p>
+                  <p className="text-2xl font-bold text-white">{tenants.reduce((acc, t) => acc + (t.user_count || 0), 0)}</p>
+                  <p className="text-sm text-slate-400">Total Users</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <Building className="h-8 w-8 text-orange-500" />
+                <Building className="h-8 w-8 text-orange-400" />
                 <div>
-                  <p className="text-2xl font-bold">{tenants.reduce((acc, t) => acc + (t.station_count || 0), 0)}</p>
-                  <p className="text-sm text-muted-foreground">Total Stations</p>
+                  <p className="text-2xl font-bold text-white">{tenants.reduce((acc, t) => acc + (t.station_count || 0), 0)}</p>
+                  <p className="text-sm text-slate-400">Total Stations</p>
                 </div>
               </div>
             </CardContent>
@@ -232,45 +301,45 @@ const SuperAdminDashboard = () => {
         </div>
 
         {/* Tenants Table */}
-        <Card>
+        <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle>All Tenants</CardTitle>
-            <CardDescription>Manage fire departments using the platform</CardDescription>
+            <CardTitle className="text-white">All Tenants</CardTitle>
+            <CardDescription className="text-slate-400">Manage fire departments using the platform</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
               </div>
             ) : tenants.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-slate-400">
                 <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No tenants yet. Create your first tenant to get started.</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Subdomain</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Users</TableHead>
-                    <TableHead>Stations</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                  <TableRow className="border-slate-700 hover:bg-slate-700/50">
+                    <TableHead className="text-slate-300">Organization</TableHead>
+                    <TableHead className="text-slate-300">Subdomain</TableHead>
+                    <TableHead className="text-slate-300">Status</TableHead>
+                    <TableHead className="text-slate-300">Users</TableHead>
+                    <TableHead className="text-slate-300">Stations</TableHead>
+                    <TableHead className="text-slate-300">Created</TableHead>
+                    <TableHead className="text-right text-slate-300">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tenants.map((tenant) => (
-                    <TableRow key={tenant.id}>
+                    <TableRow key={tenant.id} className="border-slate-700 hover:bg-slate-700/50">
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{tenant.name}</span>
+                          <Building2 className="h-4 w-4 text-slate-400" />
+                          <span className="font-medium text-white">{tenant.name}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
+                        <div className="flex items-center gap-1 text-slate-400">
                           <Globe className="h-3 w-3" />
                           <span>{tenant.subdomain}.app.com</span>
                         </div>
@@ -278,9 +347,9 @@ const SuperAdminDashboard = () => {
                       <TableCell>
                         {getStatusBadge(tenant.status, tenant.is_active)}
                       </TableCell>
-                      <TableCell>{tenant.user_count || 0}</TableCell>
-                      <TableCell>{tenant.station_count || 0}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="text-white">{tenant.user_count || 0}</TableCell>
+                      <TableCell className="text-white">{tenant.station_count || 0}</TableCell>
+                      <TableCell className="text-slate-400">
                         {new Date(tenant.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
@@ -293,6 +362,7 @@ const SuperAdminDashboard = () => {
                               fetchTenantStats(tenant.id);
                             }}
                             title="View Statistics"
+                            className="text-slate-400 hover:text-white hover:bg-slate-600"
                           >
                             <BarChart3 className="h-4 w-4" />
                           </Button>
@@ -305,6 +375,7 @@ const SuperAdminDashboard = () => {
                             }}
                             title="View Data Preview"
                             disabled={!tenant.is_active}
+                            className="text-slate-400 hover:text-white hover:bg-slate-600"
                           >
                             <Database className="h-4 w-4" />
                           </Button>
@@ -315,9 +386,9 @@ const SuperAdminDashboard = () => {
                               setSelectedTenant(tenant);
                               setShowImpersonateDialog(true);
                             }}
-                            title="Access Tenant"
+                            title="Access Tenant Portal"
                             disabled={!tenant.is_active}
-                            className="text-blue-600 hover:text-blue-700"
+                            className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30"
                           >
                             <LogIn className="h-4 w-4" />
                           </Button>
@@ -325,7 +396,7 @@ const SuperAdminDashboard = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleTenant(tenant)}
-                            className={tenant.is_active ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-600'}
+                            className={tenant.is_active ? 'text-red-400 hover:text-red-300 hover:bg-red-900/30' : 'text-green-400 hover:text-green-300 hover:bg-green-900/30'}
                             title={tenant.is_active ? 'Deactivate' : 'Activate'}
                           >
                             {tenant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
