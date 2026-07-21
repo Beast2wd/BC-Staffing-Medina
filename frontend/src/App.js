@@ -8,7 +8,6 @@ import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
 import ImpersonationBanner from "./components/layout/ImpersonationBanner";
-import TenantSwitcher from "./components/dev/TenantSwitcher";
 
 // Pages
 import { LandingPage } from "./pages/LandingPage";
@@ -95,7 +94,9 @@ const AppContent = () => {
         )}
         <Routes>
           {/* Public Routes */}
-          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+          <Route path="/" element={
+            user && !user.is_super_admin ? <Navigate to="/dashboard" replace /> : <LandingPage />
+          } />
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
           
           {/* Protected Routes */}
@@ -232,8 +233,6 @@ function App() {
           <BrowserRouter>
             <AppContent />
             <Toaster position="top-center" richColors expand={true} />
-            {/* Dev tool for testing subdomain routing - only visible in dev/preview */}
-            <TenantSwitcher />
           </BrowserRouter>
         </AuthProvider>
       </SettingsProvider>

@@ -1,22 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
-import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight } from 'lucide-react';
+import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut } from 'lucide-react';
+import TenantSwitcher from '../components/dev/TenantSwitcher';
 
 // BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
 const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 export const LandingPage = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect authenticated users to dashboard
+  // Redirect authenticated NON-super-admin users to dashboard
+  // Super admins can stay on landing page to use tenant switcher
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !isSuperAdmin) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, isSuperAdmin, navigate]);
 
   if (loading) {
     return (
@@ -25,6 +27,11 @@ export const LandingPage = () => {
       </div>
     );
   }
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   const features = [
     {
@@ -89,21 +96,69 @@ export const LandingPage = () => {
               </div>
             </div>
 
-            {/* Login Button */}
-            <Button 
-              onClick={() => navigate('/login')}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
-              data-testid="header-login-btn"
-            >
-              Login
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            {/* Login/Logout Button */}
+            {isSuperAdmin && user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-400 hidden sm:block">
+                  Super Admin: <span className="text-white font-medium">{user.first_name} {user.last_name}</span>
+                </span>
+                <Button 
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500"
+                  data-testid="header-logout-btn"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                onClick={() => navigate('/login')}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
+                data-testid="header-login-btn"
+              >
+                Login
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
+      {/* Super Admin Tenant Selection Panel */}
+      {isSuperAdmin && user && (
+        <div className="fixed top-20 left-0 right-0 z-40 bg-gradient-to-r from-purple-900/95 to-indigo-900/95 backdrop-blur-md border-b border-purple-500/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Building2 className="h-6 w-6 text-purple-300" />
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Super Admin Portal</h3>
+                  <p className="text-sm text-purple-300">Select a tenant to access their portal</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => navigate('/super-admin')}
+                  variant="outline"
+                  className="border-purple-400 text-purple-200 hover:bg-purple-800/50"
+                  data-testid="super-admin-dashboard-btn"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin Dashboard
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tenant Switcher for Super Admins */}
+      {isSuperAdmin && user && <TenantSwitcher />}
+
       {/* Hero Section */}
-      <section className="relative pt-32 sm:pt-40 pb-20 sm:pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className={`relative ${isSuperAdmin && user ? 'pt-48 sm:pt-56' : 'pt-32 sm:pt-40'} pb-20 sm:pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden`}>
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-600/10 rounded-full blur-3xl"></div>
