@@ -195,7 +195,7 @@ const SuperAdminDashboard = () => {
                 Back to Home
               </Button>
               <div className="h-8 w-px bg-slate-600" />
-              <div className="flex items-center gap-3">
+              <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
                 <div className="w-10 h-10">
                   <img
                     src={BC_STAFFING_LOGO}
@@ -207,7 +207,7 @@ const SuperAdminDashboard = () => {
                   <h1 className="text-lg font-bold text-white">BC STAFFING</h1>
                   <p className="text-xs text-slate-400">Super Admin Portal</p>
                 </div>
-              </div>
+              </a>
             </div>
 
             {/* User Info and Logout */}

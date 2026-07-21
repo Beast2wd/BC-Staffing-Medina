@@ -92,8 +92,8 @@ export const LandingPage = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
-            {/* Logo and Brand */}
-            <div className="flex items-center gap-3">
+            {/* Logo and Brand - Clickable to go to landing page */}
+            <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
               <div className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
                 <img
                   src={LOGO_URL}
@@ -107,7 +107,7 @@ export const LandingPage = () => {
                 </h1>
                 <p className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Solutions</p>
               </div>
-            </div>
+            </a>
 
             {/* Login/Logout Button */}
             {isSuperAdmin && user ? (
@@ -298,7 +298,7 @@ export const LandingPage = () => {
       {/* Footer */}
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
             <div className="w-10 h-10">
               <img
                 src={LOGO_URL}
@@ -306,8 +306,11 @@ export const LandingPage = () => {
                 className="w-full h-full object-contain rounded-lg"
               />
             </div>
-            <span className="text-lg font-bold text-white">BC STAFFING</span>
-          </div>
+            <div>
+              <span className="text-lg font-bold text-white block">BC STAFFING</span>
+              <span className="text-xs text-slate-400">Fire &amp; EMS Solutions</span>
+            </div>
+          </a>
           <p className="text-slate-500 text-sm">
             &copy; {new Date().getFullYear()} BC Staffing. All rights reserved.
           </p>
