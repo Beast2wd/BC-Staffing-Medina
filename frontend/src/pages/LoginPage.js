@@ -9,7 +9,10 @@ import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 
-const LOGO_URL = '/medina-logo.png';
+// BC Staffing main logo (used when no tenant context)
+const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
+// Tenant-specific logo fallback
+const TENANT_LOGO = '/medina-logo.png';
 
 export const LoginPage = () => {
   const [payrollNumber, setPayrollNumber] = useState('');
@@ -20,8 +23,13 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   
   const subdomain = getSubdomain();
-  const displayName = tenant?.name || 'BC Staffing';
   const isSubdomainContext = subdomain !== null;
+  const displayName = isSubdomainContext && tenant ? tenant.name : 'BC Staffing';
+  
+  // Use BC Staffing logo for main platform, tenant logo for tenant-specific login
+  const logoUrl = isSubdomainContext && tenant?.settings?.logo_url 
+    ? tenant.settings.logo_url 
+    : (isSubdomainContext ? TENANT_LOGO : BC_STAFFING_LOGO);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,12 +62,15 @@ export const LoginPage = () => {
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img 
-              src={LOGO_URL} 
-              alt="BC Staffing" 
-              className="h-28 w-auto drop-shadow-2xl"
-              data-testid="login-logo"
-            />
+            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32 bg-white rounded-xl p-1'} flex items-center justify-center`}>
+              <img 
+                src={logoUrl} 
+                alt={displayName} 
+                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain'} drop-shadow-2xl`}
+                style={!isSubdomainContext ? { mixBlendMode: 'multiply' } : {}}
+                data-testid="login-logo"
+              />
+            </div>
           </div>
           <div>
             {tenantLoading && isSubdomainContext ? (

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut } from 'lucide-react';
 import TenantSwitcher from '../components/dev/TenantSwitcher';
+import { clearManualSubdomain } from '../utils/tenantUtils';
 
 // BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
 const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
@@ -11,6 +12,16 @@ const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-
 export const LandingPage = () => {
   const { user, loading, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Clear tenant context when landing on this page (for fresh login)
+  useEffect(() => {
+    if (!user) {
+      // Clear any previous tenant context so login shows generic BC Staffing
+      clearManualSubdomain();
+      // Also clear impersonation info
+      localStorage.removeItem('impersonation_info');
+    }
+  }, [user]);
 
   // Redirect authenticated NON-super-admin users to dashboard
   // Super admins can stay on landing page to use tenant switcher
@@ -30,6 +41,9 @@ export const LandingPage = () => {
 
   const handleLogout = () => {
     logout();
+    // Clear tenant context on logout
+    clearManualSubdomain();
+    localStorage.removeItem('impersonation_info');
     navigate('/');
   };
 
