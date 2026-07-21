@@ -6,8 +6,8 @@ import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRig
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet (Transparent PNG)
-const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/ye8dmbi9_BC%20Staffing%20Logo%20wo%20Background.png";
+// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
+const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 export const LandingPage = () => {
   const { user, loading, isSuperAdmin, logout } = useAuth();
@@ -94,11 +94,11 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-full bg-white p-1 shadow-md">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
-                  className="w-full h-full object-contain drop-shadow-lg"
+                  className="w-full h-full object-contain"
                 />
               </div>
               <div>
@@ -180,13 +180,13 @@ export const LandingPage = () => {
 
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center">
-            {/* Logo Badge - Circular with transparent effect */}
+            {/* Logo Badge - Clean circular design */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-slate-700/50 backdrop-blur-sm border-2 border-white/20 shadow-2xl flex items-center justify-center">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-white shadow-2xl flex items-center justify-center p-3">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-[90%] h-[90%] object-contain drop-shadow-lg"
+                  className="w-full h-full object-contain"
                   data-testid="hero-logo"
                 />
               </div>
@@ -299,11 +299,11 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10">
+            <div className="w-10 h-10 rounded-full bg-white p-1 shadow-md">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
-                className="w-full h-full object-contain drop-shadow-lg"
+                className="w-full h-full object-contain"
               />
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>

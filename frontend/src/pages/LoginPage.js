@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing main logo (used when no tenant context) - Transparent PNG
-const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/ye8dmbi9_BC%20Staffing%20Logo%20wo%20Background.png";
+// BC Staffing main logo (used when no tenant context)
+const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 // Tenant-specific logo fallback
 const TENANT_LOGO = '/medina-logo.png';
 
@@ -62,11 +62,11 @@ export const LoginPage = () => {
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32'} flex items-center justify-center`}>
+            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32 rounded-full bg-white p-3 shadow-lg'} flex items-center justify-center`}>
               <img 
                 src={logoUrl} 
                 alt={displayName} 
-                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain'} drop-shadow-lg`}
+                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain'}`}
                 data-testid="login-logo"
               />
             </div>

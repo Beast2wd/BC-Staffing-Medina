@@ -56,8 +56,8 @@ import { useAuth } from '../../context/AuthContext';
 import TenantOnboardingWizard from '../../components/admin/TenantOnboardingWizard';
 import { clearManualSubdomain } from '../../utils/tenantUtils';
 
-// BC Staffing Logo - Transparent PNG
-const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/ye8dmbi9_BC%20Staffing%20Logo%20wo%20Background.png";
+// BC Staffing Logo
+const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 const SuperAdminDashboard = () => {
   const { api, login, user, logout } = useAuth();
@@ -196,11 +196,11 @@ const SuperAdminDashboard = () => {
               </Button>
               <div className="h-8 w-px bg-slate-600" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10">
+                <div className="w-10 h-10 rounded-full bg-white p-1 shadow-md">
                   <img
                     src={BC_STAFFING_LOGO}
                     alt="BC Staffing"
-                    className="w-full h-full object-contain drop-shadow-lg"
+                    className="w-full h-full object-contain"
                   />
                 </div>
                 <div>
