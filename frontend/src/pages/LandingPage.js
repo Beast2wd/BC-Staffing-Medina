@@ -182,11 +182,12 @@ export const LandingPage = () => {
           <div className="text-center">
             {/* Logo Badge - Circular with transparent effect */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-white/10 backdrop-blur-sm border-2 border-white/20 shadow-2xl p-2">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-slate-700/50 backdrop-blur-sm border-2 border-white/20 shadow-2xl flex items-center justify-center">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-full h-full object-contain rounded-full"
+                  className="w-[85%] h-[85%] object-contain"
+                  style={{ mixBlendMode: 'multiply' }}
                   data-testid="hero-logo"
                 />
               </div>
