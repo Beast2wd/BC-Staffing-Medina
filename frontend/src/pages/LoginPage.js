@@ -62,11 +62,11 @@ export const LoginPage = () => {
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className={`${isSubdomainContext ? 'h-28' : 'h-32 w-32 rounded-full bg-white p-3 shadow-lg'} flex items-center justify-center`}>
+            <div className="h-32 w-32 flex items-center justify-center">
               <img 
                 src={logoUrl} 
                 alt={displayName} 
-                className={`${isSubdomainContext ? 'h-28 w-auto' : 'w-full h-full object-contain'}`}
+                className="w-full h-full object-contain"
                 data-testid="login-logo"
               />
             </div>

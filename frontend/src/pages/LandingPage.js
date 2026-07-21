@@ -94,11 +94,12 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-full bg-white p-1 shadow-md">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
                   className="w-full h-full object-contain"
+                  style={{ mixBlendMode: 'screen' }}
                 />
               </div>
               <div>
@@ -180,13 +181,14 @@ export const LandingPage = () => {
 
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center">
-            {/* Logo Badge - Clean circular design */}
+            {/* Logo Badge - Clean design with blend mode */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden bg-white shadow-2xl flex items-center justify-center p-3">
+              <div className="w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
                   className="w-full h-full object-contain"
+                  style={{ mixBlendMode: 'screen' }}
                   data-testid="hero-logo"
                 />
               </div>
@@ -299,11 +301,12 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white p-1 shadow-md">
+            <div className="w-10 h-10">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
                 className="w-full h-full object-contain"
+                style={{ mixBlendMode: 'screen' }}
               />
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>
