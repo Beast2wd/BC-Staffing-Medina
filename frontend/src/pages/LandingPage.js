@@ -6,7 +6,7 @@ import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRig
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing Logo URL - Maltese Cross with Firefighter Helmet
+// BC Staffing Logo URL - Original JPEG
 const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 export const LandingPage = () => {
@@ -98,8 +98,7 @@ export const LandingPage = () => {
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
-                  className="w-full h-full object-contain"
-                  style={{ mixBlendMode: 'screen' }}
+                  className="w-full h-full object-contain rounded-lg"
                 />
               </div>
               <div>
@@ -181,14 +180,13 @@ export const LandingPage = () => {
 
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center">
-            {/* Logo Badge - Clean design with blend mode */}
+            {/* Logo Badge */}
             <div className="inline-flex items-center justify-center mb-8">
               <div className="w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
-                  className="w-full h-full object-contain"
-                  style={{ mixBlendMode: 'screen' }}
+                  className="w-full h-full object-contain rounded-2xl"
                   data-testid="hero-logo"
                 />
               </div>
@@ -305,8 +303,7 @@ export const LandingPage = () => {
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
-                className="w-full h-full object-contain"
-                style={{ mixBlendMode: 'screen' }}
+                className="w-full h-full object-contain rounded-lg"
               />
             </div>
             <span className="text-lg font-bold text-white">BC STAFFING</span>

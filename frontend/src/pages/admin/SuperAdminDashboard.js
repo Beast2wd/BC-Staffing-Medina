@@ -56,7 +56,7 @@ import { useAuth } from '../../context/AuthContext';
 import TenantOnboardingWizard from '../../components/admin/TenantOnboardingWizard';
 import { clearManualSubdomain } from '../../utils/tenantUtils';
 
-// BC Staffing Logo
+// BC Staffing Logo - Original JPEG
 const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 
 const SuperAdminDashboard = () => {
@@ -200,8 +200,7 @@ const SuperAdminDashboard = () => {
                   <img
                     src={BC_STAFFING_LOGO}
                     alt="BC Staffing"
-                    className="w-full h-full object-contain"
-                    style={{ mixBlendMode: 'screen' }}
+                    className="w-full h-full object-contain rounded-lg"
                   />
                 </div>
                 <div>

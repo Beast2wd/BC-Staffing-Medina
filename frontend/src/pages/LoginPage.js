@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing main logo (used when no tenant context)
+// BC Staffing main logo - Original JPEG
 const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
 // Tenant-specific logo fallback
 const TENANT_LOGO = '/medina-logo.png';
