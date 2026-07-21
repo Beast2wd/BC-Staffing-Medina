@@ -94,7 +94,7 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo and Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
