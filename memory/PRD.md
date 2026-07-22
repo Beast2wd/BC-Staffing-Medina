@@ -601,6 +601,7 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Login Navigation** - Multiple "Login" buttons (header, hero, CTA section) navigate to `/login`
 - ✅ **Responsive Design** - Mobile-friendly layout with dark slate theme
 - ✅ **Route Protection** - Authenticated users automatically redirected to `/dashboard`
+- ✅ **Hero Background Slideshow** - Cycling/fading background images (5 fire department photos) with 6-second intervals and smooth 1-second transitions (July 22, 2026)
 - ✅ **Files Created**:
   - `/app/frontend/src/pages/LandingPage.js` - Full landing page component
   - Updated `/app/frontend/src/App.js` - Added root route for landing page

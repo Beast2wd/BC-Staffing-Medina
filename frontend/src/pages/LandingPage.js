@@ -9,9 +9,33 @@ import { clearManualSubdomain } from '../utils/tenantUtils';
 // BC Staffing Logo URL - Dark background version
 const LOGO_URL = "https://static.prod-images.emergentagent.com/jobs/d18b2c49-9504-43b5-8217-508d80db16bb/images/9f780126d6ba8f80b79e7ee69875a12fdb7babce775a898ff9bf1bf43fcc3e36.jpeg";
 
+// Hero Background Images for slideshow
+const HERO_BACKGROUNDS = [
+  "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/cr3ip2ql_IMG_9576.jpeg",
+  "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/hqj9d35t_IMG_9577.jpeg",
+  "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/3q4ymzj2_IMG_9578.jpeg",
+  "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/cg52kviv_IMG_9581.jpeg",
+  "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/4iqph7i8_IMG_9582.jpeg"
+];
+
 export const LandingPage = () => {
   const { user, loading, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const [currentBgIndex, setCurrentBgIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Background image slideshow effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setCurrentBgIndex((prev) => (prev + 1) % HERO_BACKGROUNDS.length);
+        setIsTransitioning(false);
+      }, 1000); // Wait for fade out before changing image
+    }, 6000); // Change image every 6 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Clear tenant context when landing on this page (for fresh login)
   useEffect(() => {
@@ -172,13 +196,30 @@ export const LandingPage = () => {
 
       {/* Hero Section */}
       <section className={`relative ${isSuperAdmin && user ? 'pt-48 sm:pt-56' : 'pt-32 sm:pt-40'} pb-20 sm:pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden`}>
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden">
+        {/* Background Image Slideshow */}
+        <div className="absolute inset-0 z-0">
+          {HERO_BACKGROUNDS.map((bg, index) => (
+            <div
+              key={index}
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 ease-in-out"
+              style={{
+                backgroundImage: `url(${bg})`,
+                opacity: currentBgIndex === index && !isTransitioning ? 1 : 0,
+              }}
+              data-testid={`hero-bg-${index}`}
+            />
+          ))}
+          {/* Dark overlay for text readability */}
+          <div className="absolute inset-0 bg-slate-900/75 z-10"></div>
+        </div>
+
+        {/* Additional background decoration */}
+        <div className="absolute inset-0 overflow-hidden z-10 pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-red-600/10 rounded-full blur-3xl"></div>
           <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl"></div>
         </div>
 
-        <div className="relative max-w-7xl mx-auto">
+        <div className="relative max-w-7xl mx-auto z-20">
           <div className="text-center">
             {/* Logo Badge */}
             <div className="inline-flex items-center justify-center mb-8">
