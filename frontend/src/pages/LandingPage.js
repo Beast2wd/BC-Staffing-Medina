@@ -182,7 +182,7 @@ export const LandingPage = () => {
           <div className="text-center">
             {/* Logo Badge */}
             <div className="inline-flex items-center justify-center mb-8">
-              <div className="w-60 h-60 sm:w-72 sm:h-72 flex items-center justify-center">
+              <div className="w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
