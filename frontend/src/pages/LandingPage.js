@@ -6,8 +6,8 @@ import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRig
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing Logo URL - Dark background version
-const LOGO_URL = "https://static.prod-images.emergentagent.com/jobs/d18b2c49-9504-43b5-8217-508d80db16bb/images/9f780126d6ba8f80b79e7ee69875a12fdb7babce775a898ff9bf1bf43fcc3e36.jpeg";
+// BC Staffing Logo URL - Transparent background version
+const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
 
 // Hero Background Images for slideshow
 const HERO_BACKGROUNDS = [
