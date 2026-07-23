@@ -241,7 +241,7 @@ export const LandingPage = () => {
             </h2>
             
             <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto mb-8 leading-relaxed">
-              Integrated products that facilitate staffing, overtime and deployment accountability and tracking, 
+              Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, 
               data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, 
               personnel management, and emergency response.
             </p>
