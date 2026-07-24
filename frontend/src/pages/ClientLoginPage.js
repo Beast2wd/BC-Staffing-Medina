@@ -125,8 +125,8 @@ export const ClientLoginPage = () => {
       localStorage.setItem('token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
       
-      // Set manual subdomain for tenant context
-      localStorage.setItem('manual_subdomain', selectedTenant.subdomain);
+      // Set tenant subdomain for context (this persists after logout so user stays on tenant login)
+      localStorage.setItem('tenant_subdomain', selectedTenant.subdomain);
 
       toast.success(`Welcome back, ${userData.first_name}!`);
       
