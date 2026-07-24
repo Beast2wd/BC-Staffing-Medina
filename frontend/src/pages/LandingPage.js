@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
-import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut } from 'lucide-react';
+import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut, Settings } from 'lucide-react';
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
 
@@ -139,6 +139,15 @@ export const LandingPage = () => {
                 <span className="text-sm text-slate-400 hidden sm:block">
                   Super Admin: <span className="text-white font-medium">{user.first_name} {user.last_name}</span>
                 </span>
+                <Button 
+                  onClick={() => navigate('/platform-settings')}
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500"
+                  data-testid="header-platform-settings-btn"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Platform Settings
+                </Button>
                 <Button 
                   onClick={handleLogout}
                   variant="outline"
