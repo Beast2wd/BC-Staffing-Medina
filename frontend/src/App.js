@@ -15,6 +15,7 @@ import { getSubdomain } from "./utils/tenantUtils";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ClientLoginPage } from "./pages/ClientLoginPage";
+import { PlatformSettingsPage } from "./pages/PlatformSettingsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
 import { LeaveManagementPage } from "./pages/battalion-chief/LeaveManagementPage";
@@ -124,6 +125,11 @@ const AppContent = () => {
           <Route path="/client-login" element={
             !user ? <ClientLoginPage /> :
             <Navigate to="/dashboard" replace />
+          } />
+          
+          {/* Platform Settings - Super Admin only */}
+          <Route path="/platform-settings" element={
+            <PlatformSettingsPage />
           } />
           
           {/* Protected Routes */}
