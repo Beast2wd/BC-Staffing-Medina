@@ -247,7 +247,7 @@ export const ClientLoginPage = () => {
           <>
             <CardHeader className="text-center space-y-4">
               <div className="flex justify-center">
-                <div className="h-32 w-32 flex items-center justify-center">
+                <div className="h-40 w-40 flex items-center justify-center">
                   <img 
                     src={branding.logo} 
                     alt={branding.name} 
@@ -257,10 +257,10 @@ export const ClientLoginPage = () => {
                 </div>
               </div>
               <div>
-                <CardTitle className="text-3xl font-heading uppercase tracking-wider text-white">
+                <CardTitle className="text-4xl font-heading uppercase tracking-wider text-white">
                   {branding.name}
                 </CardTitle>
-                <CardDescription className="text-zinc-300 mt-2">
+                <CardDescription className="text-zinc-300 mt-2 text-base">
                   Sign in to your account
                 </CardDescription>
               </div>
