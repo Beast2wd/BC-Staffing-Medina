@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing main logo - Original with white background for light backgrounds
-const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/bllwfuej_IMG_9529.jpeg";
+// BC Staffing main logo - Transparent background version
+const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
 // Tenant-specific logo fallback
 const TENANT_LOGO = '/medina-logo.png';
 
