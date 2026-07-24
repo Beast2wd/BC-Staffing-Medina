@@ -140,69 +140,74 @@ export const LandingPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 sm:h-24">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-700/50">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 sm:h-24">
             {/* Logo and Brand - Clickable to go to landing page */}
-            <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0">
+            <a href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+              <div className="w-10 h-10 sm:w-20 sm:h-20 flex-shrink-0">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
                   className="w-full h-full object-contain rounded-lg"
                 />
               </div>
-              <div>
+              <div className="hidden sm:block">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   BC STAFFING
                 </h1>
-                <p className="text-sm text-slate-400 hidden sm:block">Fire &amp; EMS Staffing Solutions</p>
+                <p className="text-sm text-slate-400">Fire &amp; EMS Staffing Solutions</p>
               </div>
             </a>
 
             {/* Login/Logout Button */}
             {isSuperAdmin && user ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-400 hidden sm:block">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-sm text-slate-400 hidden lg:block">
                   Super Admin: <span className="text-white font-medium">{user.first_name} {user.last_name}</span>
                 </span>
                 <Button 
                   onClick={() => navigate('/platform-settings')}
                   variant="outline"
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500"
+                  size="sm"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 px-2 sm:px-4"
                   data-testid="header-platform-settings-btn"
                 >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Platform Settings
+                  <Settings className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Settings</span>
                 </Button>
                 <Button 
                   onClick={handleLogout}
                   variant="outline"
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500"
+                  size="sm"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 px-2 sm:px-4"
                   data-testid="header-logout-btn"
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
+                  <LogOut className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Logout</span>
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <Button 
                   onClick={() => navigate('/client-login')}
                   variant="outline"
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200"
+                  size="sm"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 font-medium px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all duration-200"
                   data-testid="header-client-portal-btn"
                 >
-                  <Building2 className="mr-2 h-4 w-4" />
-                  Client Portal
+                  <Building2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Client Portal</span>
                 </Button>
                 <Button 
                   onClick={() => navigate('/login')}
-                  className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
                   data-testid="header-login-btn"
                 >
-                  Staff Login
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <span className="hidden sm:inline">Staff Login</span>
+                  <span className="sm:hidden">Login</span>
+                  <ArrowRight className="ml-1 sm:ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}
@@ -212,25 +217,27 @@ export const LandingPage = () => {
 
       {/* Super Admin Tenant Selection Panel */}
       {isSuperAdmin && user && (
-        <div className="fixed top-20 left-0 right-0 z-40 bg-gradient-to-r from-purple-900/95 to-indigo-900/95 backdrop-blur-md border-b border-purple-500/30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Building2 className="h-6 w-6 text-purple-300" />
+        <div className="fixed top-16 sm:top-24 left-0 right-0 z-40 bg-gradient-to-r from-purple-900/95 to-indigo-900/95 backdrop-blur-md border-b border-purple-500/30">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-purple-300" />
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Super Admin Portal</h3>
-                  <p className="text-sm text-purple-300">Select a tenant to access their portal</p>
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Super Admin Portal</h3>
+                  <p className="text-xs sm:text-sm text-purple-300 hidden sm:block">Select a tenant to access their portal</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <Button
                   onClick={() => navigate('/super-admin')}
                   variant="outline"
+                  size="sm"
                   className="border-purple-400 text-purple-200 hover:bg-purple-800/50"
                   data-testid="super-admin-dashboard-btn"
                 >
-                  <Shield className="h-4 w-4 mr-2" />
-                  Admin Dashboard
+                  <Shield className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Admin Dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
                 </Button>
               </div>
             </div>
@@ -242,7 +249,7 @@ export const LandingPage = () => {
       {isSuperAdmin && user && <TenantSwitcher />}
 
       {/* Hero Section */}
-      <section className={`relative ${isSuperAdmin && user ? 'pt-48 sm:pt-56' : 'pt-32 sm:pt-40'} pb-20 sm:pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden`}>
+      <section className={`relative ${isSuperAdmin && user ? 'pt-36 sm:pt-56' : 'pt-24 sm:pt-40'} pb-16 sm:pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden`}>
         {/* Background Image Slideshow */}
         <div className="absolute inset-0 z-0">
           {HERO_BACKGROUNDS.map((bg, index) => (
@@ -269,8 +276,8 @@ export const LandingPage = () => {
         <div className="relative max-w-7xl mx-auto z-20">
           <div className="text-center">
             {/* Logo Badge */}
-            <div className="inline-flex items-center justify-center mb-8">
-              <div className="w-80 h-80 sm:w-96 sm:h-96 flex items-center justify-center">
+            <div className="inline-flex items-center justify-center mb-6 sm:mb-8">
+              <div className="w-56 h-56 sm:w-80 sm:h-80 lg:w-96 lg:h-96 flex items-center justify-center">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing Logo"
@@ -280,23 +287,23 @@ export const LandingPage = () => {
               </div>
             </div>
 
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
+            <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-4 sm:mb-6 leading-tight px-2">
               Data-Driven Solutions for
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500">
                 Emergency Services
               </span>
             </h2>
             
-            <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto mb-8 leading-relaxed">
+            <p className="text-sm sm:text-lg lg:text-xl text-slate-300 max-w-3xl mx-auto mb-6 sm:mb-8 leading-relaxed px-2">
               {heroDescription}
             </p>
 
             {/* Service Areas Tags */}
-            <div className="flex flex-wrap justify-center gap-3 mb-10">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 sm:mb-10 px-2">
               {serviceAreas.map((area, index) => (
                 <span 
                   key={index}
-                  className="px-4 py-2 bg-slate-800/80 border border-slate-700 rounded-full text-sm font-medium text-slate-300"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-800/80 border border-slate-700 rounded-full text-xs sm:text-sm font-medium text-slate-300"
                 >
                   {area}
                 </span>
@@ -304,11 +311,11 @@ export const LandingPage = () => {
             </div>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
               <Button 
                 onClick={() => navigate('/client-login')}
                 size="lg"
-                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-4 text-lg rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-red-600/30"
+                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-red-600/30"
                 data-testid="hero-login-btn"
               >
                 <Building2 className="mr-2 h-5 w-5" />
@@ -318,7 +325,7 @@ export const LandingPage = () => {
                 variant="outline"
                 size="lg"
                 onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                className="w-full sm:w-auto border-2 border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 font-semibold px-8 py-4 text-lg rounded-xl transition-all duration-200"
+                className="w-full sm:w-auto border-2 border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 font-semibold px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-xl transition-all duration-200"
                 data-testid="learn-more-btn"
               >
                 Learn More
@@ -382,10 +389,10 @@ export const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-8 px-4 sm:px-6 lg:px-8">
+      <footer className="border-t border-slate-800 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0">
+          <a href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
@@ -393,11 +400,11 @@ export const LandingPage = () => {
               />
             </div>
             <div>
-              <span className="text-xl sm:text-2xl font-bold text-white block tracking-tight">BC STAFFING</span>
-              <span className="text-xs text-slate-400">Fire &amp; EMS Staffing Solutions</span>
+              <span className="text-lg sm:text-xl font-bold text-white block tracking-tight">BC STAFFING</span>
+              <span className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Staffing Solutions</span>
             </div>
           </a>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-xs sm:text-sm">
             &copy; {new Date().getFullYear()} BC Staffing. All rights reserved.
           </p>
         </div>
