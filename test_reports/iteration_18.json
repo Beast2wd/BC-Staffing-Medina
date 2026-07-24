@@ -1,0 +1,32 @@
+{
+  "summary": "Verified fix for Super Admin Platform Settings -> Login/Landing page background propagation. Backend API contract verified with pytest (4/4 pass). Frontend UI verified: /login page renders login_background_url from /api/platform/settings/public, LandingPage hero slideshow uses hero_backgrounds from same endpoint.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PlatformSettingsPage - Login Background tab", "issues": ["Only offers 'Upload Background' file upload; there is no text input field for providing a URL. If the user's mental model is 'change the URL', they may not realize they must upload a file. Consider adding a URL text field as an alternative to file upload."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_platform_settings.py", "/app/test_reports/pytest/platform_settings.xml"],
+  "action_items": [
+    "(Optional UX) Add a URL input alternative to file upload in Platform Settings > Login Background tab so Super Admins can paste external image URLs.",
+    "(Optional) Add data-testid to the platform settings tabs and inputs for easier automated testing."
+  ],
+  "critical_code_review_comments": [
+    "LoginPage.js fetches platform settings on every mount. Consider caching in BrandingContext to avoid redundant calls.",
+    "Both LoginPage.js and LandingPage.js duplicate the default fallback URLs; consider extracting to a shared constants file.",
+    "The current stored login_background_url is a large base64 data URL (~300KB) - this bloats every /api/platform/settings/public response. Consider storing uploaded images as file URLs served from a CDN/static route instead."
+  ],
+  "updated_files": ["/app/backend/tests/test_platform_settings.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Super Admin 100001 / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None - test creates, verifies, and restores original platform settings",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/test_platform_settings.py covers public settings GET, authenticated GET, and PUT with persistence verification. Login background is currently stored as a base64 data URL from a prior file upload. Fix verified: LoginPage and LandingPage now correctly fetch and use /api/platform/settings/public.",
+  "rca of the issue": "The original bug was that LoginPage.js and LandingPage.js used hardcoded default background URLs regardless of what Super Admin saved in Platform Settings. Fix applied: both components now fetch settings from /api/platform/settings/public on mount (when in non-subdomain context) and use those values with hardcoded URLs only as fallback. Verified via visual inspection that /login now displays the map image stored as login_background_url in DB (was displaying the previous default before the fix)."
+}

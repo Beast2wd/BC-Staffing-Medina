@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
@@ -9,8 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
+import axios from 'axios';
 
-// Default BC Staffing branding
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Default BC Staffing branding (fallback only)
 const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
 const DEFAULT_BACKGROUND = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg";
 
@@ -19,22 +22,43 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState(null);
   const { login, tenant, tenantLoading } = useAuth();
   const { logoUrl: brandingLogo, loginBackgroundUrl, tenantName, primaryColor } = useBranding();
   const navigate = useNavigate();
   
   const subdomain = getSubdomain();
   const isSubdomainContext = subdomain !== null;
-  const displayName = isSubdomainContext && tenant ? tenant.name : (tenantName || 'BC Staffing');
   
-  // Use tenant branding if available, otherwise defaults
+  // Fetch platform settings for main BC Staffing login (non-tenant context)
+  useEffect(() => {
+    if (!isSubdomainContext) {
+      const fetchPlatformSettings = async () => {
+        try {
+          const response = await axios.get(`${API_URL}/api/platform/settings/public`);
+          setPlatformSettings(response.data);
+        } catch (error) {
+          console.error('Failed to fetch platform settings:', error);
+        }
+      };
+      fetchPlatformSettings();
+    }
+  }, [isSubdomainContext]);
+
+  const displayName = isSubdomainContext && tenant ? tenant.name : (platformSettings?.hero_title || tenantName || 'BC Staffing');
+  
+  // Use tenant branding if in tenant context, platform settings for main login, or defaults
   const logoUrl = isSubdomainContext && tenant?.settings?.logo_url 
     ? tenant.settings.logo_url 
-    : (brandingLogo || DEFAULT_LOGO);
+    : (platformSettings?.logo_url || brandingLogo || DEFAULT_LOGO);
     
   const backgroundUrl = isSubdomainContext && tenant?.settings?.login_background_url
     ? tenant.settings.login_background_url
-    : (loginBackgroundUrl || DEFAULT_BACKGROUND);
+    : (platformSettings?.login_background_url || loginBackgroundUrl || DEFAULT_BACKGROUND);
+    
+  const buttonColor = isSubdomainContext && tenant?.settings?.primary_color
+    ? tenant.settings.primary_color
+    : (platformSettings?.primary_color || primaryColor || '#dc2626');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -156,8 +180,8 @@ export const LoginPage = () => {
               type="submit"
               className="w-full text-white font-semibold py-3 transition-all duration-200 hover:scale-[1.02]"
               style={{ 
-                backgroundColor: primaryColor || '#dc2626',
-                '--tw-shadow-color': primaryColor || '#dc2626'
+                backgroundColor: buttonColor,
+                '--tw-shadow-color': buttonColor
               }}
               disabled={isLoading}
               data-testid="login-button"

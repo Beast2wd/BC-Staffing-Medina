@@ -5,12 +5,13 @@ import { Button } from '../components/ui/button';
 import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut, Settings } from 'lucide-react';
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
+import axios from 'axios';
 
-// BC Staffing Logo URL - Transparent background version
-const LOGO_URL = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
+const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-// Hero Background Images for slideshow
-const HERO_BACKGROUNDS = [
+// Default BC Staffing branding (fallbacks)
+const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
+const DEFAULT_HERO_BACKGROUNDS = [
   "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/cr3ip2ql_IMG_9576.jpeg",
   "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/hqj9d35t_IMG_9577.jpeg",
   "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/3q4ymzj2_IMG_9578.jpeg",
@@ -23,19 +24,45 @@ export const LandingPage = () => {
   const navigate = useNavigate();
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState(null);
+
+  // Fetch platform settings
+  useEffect(() => {
+    const fetchPlatformSettings = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/platform/settings/public`);
+        setPlatformSettings(response.data);
+      } catch (error) {
+        console.error('Failed to fetch platform settings:', error);
+      }
+    };
+    fetchPlatformSettings();
+  }, []);
+
+  // Use platform settings or defaults
+  const LOGO_URL = platformSettings?.logo_url || DEFAULT_LOGO;
+  const HERO_BACKGROUNDS = platformSettings?.hero_backgrounds?.length > 0 
+    ? platformSettings.hero_backgrounds 
+    : DEFAULT_HERO_BACKGROUNDS;
+  const heroTitle = platformSettings?.hero_title || 'BC STAFFING';
+  const heroSubtitle = platformSettings?.hero_subtitle || 'Fire & EMS Staffing Solutions';
+  const heroDescription = platformSettings?.hero_description || 
+    'Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, personnel management, and emergency response.';
 
   // Background image slideshow effect
   useEffect(() => {
+    if (HERO_BACKGROUNDS.length === 0) return;
+    
     const interval = setInterval(() => {
       setIsTransitioning(true);
       setTimeout(() => {
         setCurrentBgIndex((prev) => (prev + 1) % HERO_BACKGROUNDS.length);
         setIsTransitioning(false);
-      }, 1000); // Wait for fade out before changing image
-    }, 6000); // Change image every 6 seconds
+      }, 1000);
+    }, 6000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [HERO_BACKGROUNDS.length]);
 
   // Clear tenant context when landing on this page (for fresh login)
   useEffect(() => {
@@ -261,9 +288,7 @@ export const LandingPage = () => {
             </h2>
             
             <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto mb-8 leading-relaxed">
-              Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, 
-              data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, 
-              personnel management, and emergency response.
+              {heroDescription}
             </p>
 
             {/* Service Areas Tags */}
