@@ -161,16 +161,6 @@ export const LoginPage = () => {
               <strong className="text-zinc-300">Volunteers:</strong> Use your email address
             </p>
           </div>
-
-          <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg">
-            <p className="text-xs text-zinc-400 text-center">
-              <strong className="text-zinc-300">Demo Credentials:</strong>
-              <br />
-              Admin: 100001 / admin123
-              <br />
-              Battalion Chief: 100002 / bc123
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
