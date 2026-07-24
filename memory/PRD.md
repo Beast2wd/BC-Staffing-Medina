@@ -635,3 +635,18 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Files Created**:
   - `/app/frontend/src/pages/LandingPage.js` - Full landing page component
   - Updated `/app/frontend/src/App.js` - Added root route for landing page
+
+### Platform Settings (Super Admin Visual Config) ✅ (Completed December 2025)
+- ✅ **Platform Settings Page** - New page at `/platform-settings` for Super Admins
+- ✅ **Global Logo Upload** - Upload platform-wide logo for main BC Staffing pages
+- ✅ **Login Background Upload** - Custom background for main `/login` page
+- ✅ **Hero Backgrounds** - Manage slideshow images for landing page hero section
+- ✅ **Color Customization** - Primary, secondary, accent colors for main platform
+- ✅ **Hero Text Settings** - Customize hero title, subtitle, description
+- ✅ **Public Settings API** - `GET /api/platform/settings/public` serves settings to unauthenticated pages
+- ✅ **Bug Fix: Settings Not Reflecting** - LoginPage.js and LandingPage.js now fetch from public API when not in tenant context (December 2025)
+- ✅ **Files Created/Updated**:
+  - `/app/frontend/src/pages/PlatformSettingsPage.js` - Platform settings UI
+  - `/app/backend/routes/platform_routes.py` - Platform settings API endpoints
+  - Updated `/app/frontend/src/pages/LoginPage.js` - Fetch platform settings for main login
+  - Updated `/app/frontend/src/pages/LandingPage.js` - Fetch platform settings for landing page
