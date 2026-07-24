@@ -153,7 +153,7 @@ export const ClientLoginPage = () => {
           <>
             <CardHeader className="text-center space-y-4">
               <div className="flex justify-center">
-                <div className="h-24 w-24 flex items-center justify-center">
+                <div className="h-40 w-40 flex items-center justify-center">
                   <img 
                     src={DEFAULT_LOGO} 
                     alt="BC Staffing" 
@@ -162,10 +162,10 @@ export const ClientLoginPage = () => {
                 </div>
               </div>
               <div>
-                <CardTitle className="text-2xl font-heading uppercase tracking-wider text-white">
+                <CardTitle className="text-4xl font-heading uppercase tracking-wider text-white">
                   Client Portal
                 </CardTitle>
-                <CardDescription className="text-zinc-300 mt-2">
+                <CardDescription className="text-zinc-300 mt-2 text-base">
                   Select your department to continue
                 </CardDescription>
               </div>
