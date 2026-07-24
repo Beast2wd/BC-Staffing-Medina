@@ -65,6 +65,14 @@ export const ReportsPage = () => {
             battalion_id: selectedBattalion
           }
         });
+      } else if (reportType === 'deployment') {
+        response = await api.get('/reports/deployment-summary', {
+          params: {
+            start_date: startDate,
+            end_date: endDate,
+            battalion_id: selectedBattalion
+          }
+        });
       }
       
       setReportData(response.data);
@@ -91,6 +99,7 @@ export const ReportsPage = () => {
       switch(reportType) {
         case 'daily': return 'Daily Staffing Summary';
         case 'overtime': return 'Overtime Summary';
+        case 'deployment': return 'Deployment Summary';
         case 'volunteer-hours': return 'Volunteer Hours Summary';
         case 'time-off': return 'Time Off Summary';
         default: return 'Report';
@@ -506,6 +515,70 @@ export const ReportsPage = () => {
                 </tbody>
               </table>
             </div>
+          ` : reportType === 'deployment' ? `
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+              <div class="stat-box">
+                <div class="value">${reportData.total_deployments || 0}</div>
+                <div class="label">Total Deployments</div>
+              </div>
+              <div class="stat-box">
+                <div class="value" style="color: #ef4444;">${reportData.tifmas_deployments || 0}</div>
+                <div class="label">TIFMAS</div>
+              </div>
+              <div class="stat-box">
+                <div class="value" style="color: #3b82f6;">${reportData.emtf_deployments || 0}</div>
+                <div class="label">EMTF</div>
+              </div>
+              <div class="stat-box">
+                <div class="value" style="color: #22c55e;">${reportData.unique_personnel_deployed || 0}</div>
+                <div class="label">Personnel Deployed</div>
+              </div>
+            </div>
+            
+            <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: 10px;">
+              <div class="stat-box">
+                <div class="value">${reportData.total_deployment_days || 0}</div>
+                <div class="label">Total Deployment Days</div>
+              </div>
+              <div class="stat-box">
+                <div class="value">${reportData.other_deployments || 0}</div>
+                <div class="label">Other Deployments</div>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2>Deployment Details</h2>
+              ${reportData.deployments?.length > 0 ? `
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:#f1f5f9;">
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Type</th>
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Personnel</th>
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">Start Date</th>
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">End Date</th>
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">Status</th>
+                      <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${reportData.deployments.map(dep => `
+                      <tr>
+                        <td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;color:${dep.deployment_type?.includes('TIFMAS') ? '#ef4444' : '#3b82f6'};">${dep.deployment_type || '-'}</td>
+                        <td style="padding:8px;border:1px solid #e2e8f0;">${dep.personnel_name || '-'}</td>
+                        <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">${dep.start_date || '-'}</td>
+                        <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">${dep.end_date || '-'}</td>
+                        <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">
+                          <span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${dep.status === 'active' ? '#dcfce7' : '#f1f5f9'};color:${dep.status === 'active' ? '#166534' : '#475569'};">
+                            ${dep.status || 'N/A'}
+                          </span>
+                        </td>
+                        <td style="padding:8px;border:1px solid #e2e8f0;font-size:12px;">${dep.notes || '-'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : '<p style="text-align:center;color:#666;padding:20px;">No deployments found for this date range</p>'}
+            </div>
           ` : ''}
           
           <div class="footer">
@@ -632,6 +705,7 @@ export const ReportsPage = () => {
                   <SelectContent>
                     <SelectItem value="daily">Daily Staffing Summary</SelectItem>
                     <SelectItem value="overtime">Overtime Summary</SelectItem>
+                    <SelectItem value="deployment">Deployment Summary</SelectItem>
                     <SelectItem value="volunteer-hours">Volunteer Hours Summary</SelectItem>
                     <SelectItem value="time-off">Time Off Summary</SelectItem>
                   </SelectContent>
@@ -648,7 +722,7 @@ export const ReportsPage = () => {
                 />
               </div>
 
-              {(reportType === 'overtime' || reportType === 'volunteer-hours') && (
+              {(reportType === 'overtime' || reportType === 'volunteer-hours' || reportType === 'deployment') && (
                 <div className="space-y-2">
                   <Label>End Date</Label>
                   <Input
@@ -1151,6 +1225,102 @@ export const ReportsPage = () => {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </div>
+              ) : reportType === 'deployment' ? (
+                <div className="space-y-6">
+                  {/* Deployment Summary Header */}
+                  <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Medina County Fire/EMS" className="h-20 mx-auto mb-3" />
+                    <h2 className="font-heading text-2xl uppercase font-bold">
+                      Deployment Summary
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {getBattalionName()} - {formatDateRange(reportData.start_date, reportData.end_date)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Generated by: {user?.name} (Emp #: {user?.payroll_number}) on {new Date().toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-muted/30 border rounded-lg text-center">
+                      <p className="text-3xl font-bold">{reportData.total_deployments || 0}</p>
+                      <p className="text-sm text-muted-foreground">Total Deployments</p>
+                    </div>
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-red-500">{reportData.tifmas_deployments || 0}</p>
+                      <p className="text-sm text-muted-foreground">TIFMAS</p>
+                    </div>
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-blue-500">{reportData.emtf_deployments || 0}</p>
+                      <p className="text-sm text-muted-foreground">EMTF</p>
+                    </div>
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-green-500">{reportData.unique_personnel_deployed || 0}</p>
+                      <p className="text-sm text-muted-foreground">Personnel Deployed</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted/30 border rounded-lg text-center">
+                      <p className="text-2xl font-bold">{reportData.total_deployment_days || 0}</p>
+                      <p className="text-sm text-muted-foreground">Total Deployment Days</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 border rounded-lg text-center">
+                      <p className="text-2xl font-bold">{reportData.other_deployments || 0}</p>
+                      <p className="text-sm text-muted-foreground">Other Deployments</p>
+                    </div>
+                  </div>
+
+                  {/* Deployment Details Table */}
+                  <div className="space-y-3">
+                    <h3 className="font-heading text-lg uppercase flex items-center gap-2">
+                      Deployment Details
+                    </h3>
+                    {reportData.deployments?.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/30">
+                              <th className="text-left p-3 font-semibold">Type</th>
+                              <th className="text-left p-3 font-semibold">Personnel</th>
+                              <th className="text-center p-3 font-semibold">Start Date</th>
+                              <th className="text-center p-3 font-semibold">End Date</th>
+                              <th className="text-center p-3 font-semibold">Status</th>
+                              <th className="text-left p-3 font-semibold">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.deployments.map((dep, idx) => (
+                              <tr key={idx} className="border-b border-muted hover:bg-muted/30">
+                                <td className={`p-3 font-bold ${dep.deployment_type?.includes('TIFMAS') ? 'text-red-500' : 'text-blue-500'}`}>
+                                  {dep.deployment_type || '-'}
+                                </td>
+                                <td className="p-3">{dep.personnel_name || '-'}</td>
+                                <td className="p-3 text-center">{dep.start_date || '-'}</td>
+                                <td className="p-3 text-center">{dep.end_date || '-'}</td>
+                                <td className="p-3 text-center">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    dep.status === 'active' 
+                                      ? 'bg-green-500/20 text-green-500' 
+                                      : 'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {dep.status || 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-muted-foreground text-xs">{dep.notes || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-center text-muted-foreground py-8">
+                        No deployments found for this date range
+                      </p>
+                    )}
                   </div>
                 </div>
               ) : null}

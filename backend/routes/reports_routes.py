@@ -379,6 +379,111 @@ async def get_volunteer_hours_summary(
     }
 
 
+@router.get("/deployment-summary")
+async def get_deployment_summary(
+    start_date: str,
+    end_date: str,
+    battalion_id: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get deployment summary report showing all deployments and personnel deployed"""
+    tenant_id = get_tenant_id(current_user)
+    
+    # Build query for deployments within date range
+    query = {
+        "$or": [
+            {"start_date": {"$lte": end_date}, "end_date": {"$gte": start_date}},
+            {"start_date": {"$gte": start_date, "$lte": end_date}}
+        ]
+    }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    # Get all deployments in date range
+    deployments = await db.deployments.find(query, {"_id": 0}).to_list(500)
+    
+    # Get deployment roster entries
+    roster_query = {
+        "deploy_date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        roster_query["tenant_id"] = tenant_id
+    roster_entries = await db.deployment_roster.find(roster_query, {"_id": 0}).to_list(1000)
+    
+    # Get deployment log entries
+    log_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        log_query["tenant_id"] = tenant_id
+    log_entries = await db.deployment_log.find(log_query, {"_id": 0}).to_list(1000)
+    
+    # Get personnel for name lookups
+    personnel_query = {}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
+    personnel_dict = {p["id"]: p for p in personnel_list}
+    
+    # Process deployments
+    deployment_summary = []
+    for deployment in deployments:
+        dep_id = deployment.get("id", "")
+        personnel_id = deployment.get("personnel_id", "")
+        person = personnel_dict.get(personnel_id, {})
+        
+        deployment_summary.append({
+            "id": dep_id,
+            "deployment_type": deployment.get("deployment_type", ""),
+            "personnel_id": personnel_id,
+            "personnel_name": deployment.get("personnel_name") or f"{person.get('rank', '')} {person.get('name', '')}".strip(),
+            "start_date": deployment.get("start_date", ""),
+            "end_date": deployment.get("end_date", ""),
+            "status": deployment.get("status", "active"),
+            "notes": deployment.get("notes", ""),
+            "created_at": deployment.get("created_at", "")
+        })
+    
+    # Sort by start date (most recent first)
+    deployment_summary.sort(key=lambda x: x["start_date"], reverse=True)
+    
+    # Calculate statistics
+    tifmas_count = len([d for d in deployment_summary if "TIFMAS" in d.get("deployment_type", "").upper()])
+    emtf_count = len([d for d in deployment_summary if "EMTF" in d.get("deployment_type", "").upper()])
+    other_count = len(deployment_summary) - tifmas_count - emtf_count
+    
+    # Get unique personnel deployed
+    unique_personnel = set(d["personnel_id"] for d in deployment_summary if d["personnel_id"])
+    
+    # Calculate total deployment days
+    total_days = 0
+    for dep in deployment_summary:
+        if dep["start_date"] and dep["end_date"]:
+            try:
+                start = datetime.strptime(dep["start_date"], "%Y-%m-%d")
+                end = datetime.strptime(dep["end_date"], "%Y-%m-%d")
+                total_days += (end - start).days + 1
+            except:
+                pass
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_deployments": len(deployment_summary),
+        "tifmas_deployments": tifmas_count,
+        "emtf_deployments": emtf_count,
+        "other_deployments": other_count,
+        "unique_personnel_deployed": len(unique_personnel),
+        "total_deployment_days": total_days,
+        "deployments": deployment_summary,
+        "roster_count": len(roster_entries),
+        "log_count": len(log_entries),
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
 @router.get("/time-off-summary")
 async def get_time_off_summary(
     year: int,
