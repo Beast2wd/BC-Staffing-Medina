@@ -112,6 +112,31 @@ async def get_template_details(template_id: str, current_user: dict = Depends(re
     }
 
 
+# ===================== PUBLIC ROUTES =====================
+# These routes don't require authentication
+
+@router.get("/public/list")
+async def get_public_tenant_list():
+    """Get list of active tenants for client portal login (public endpoint)"""
+    tenants = await db.tenants.find(
+        {"status": "active", "is_active": True},
+        {
+            "_id": 0,
+            "id": 1,
+            "name": 1,
+            "subdomain": 1,
+            "settings.logo_url": 1,
+            "settings.login_background_url": 1,
+            "settings.primary_color": 1
+        }
+    ).to_list(100)
+    
+    # Sort alphabetically by name
+    tenants.sort(key=lambda x: x.get("name", "").lower())
+    
+    return tenants
+
+
 # ===================== BRANDING ROUTES =====================
 # IMPORTANT: These routes MUST be defined BEFORE /{tenant_id} routes
 # Otherwise FastAPI will interpret "branding" as a tenant_id

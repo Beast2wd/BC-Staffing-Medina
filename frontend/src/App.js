@@ -14,6 +14,7 @@ import { getSubdomain } from "./utils/tenantUtils";
 // Pages
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ClientLoginPage } from "./pages/ClientLoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ApparatusPage } from "./pages/battalion-chief/ApparatusPage";
 import { LeaveManagementPage } from "./pages/battalion-chief/LeaveManagementPage";
@@ -116,6 +117,12 @@ const AppContent = () => {
           <Route path="/login" element={
             !user ? <LoginPage /> :
             shouldSuperAdminSeeLanding ? <Navigate to="/" replace /> :
+            <Navigate to="/dashboard" replace />
+          } />
+          
+          {/* Client Portal Login - for tenant users */}
+          <Route path="/client-login" element={
+            !user ? <ClientLoginPage /> :
             <Navigate to="/dashboard" replace />
           } />
           

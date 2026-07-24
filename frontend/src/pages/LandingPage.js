@@ -150,14 +150,25 @@ export const LandingPage = () => {
                 </Button>
               </div>
             ) : (
-              <Button 
-                onClick={() => navigate('/login')}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
-                data-testid="header-login-btn"
-              >
-                Login
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => navigate('/client-login')}
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:border-slate-500 font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200"
+                  data-testid="header-client-portal-btn"
+                >
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Client Portal
+                </Button>
+                <Button 
+                  onClick={() => navigate('/login')}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 sm:px-6 py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
+                  data-testid="header-login-btn"
+                >
+                  Staff Login
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -261,13 +272,13 @@ export const LandingPage = () => {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button 
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/client-login')}
                 size="lg"
                 className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-4 text-lg rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-red-600/30"
                 data-testid="hero-login-btn"
               >
-                Access Your Portal
-                <ChevronRight className="ml-2 h-5 w-5" />
+                <Building2 className="mr-2 h-5 w-5" />
+                Client Portal
               </Button>
               <Button 
                 variant="outline"

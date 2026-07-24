@@ -609,6 +609,19 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - Updated `/app/backend/tenant_models.py` - Added login_background_url field
   - Updated `/app/backend/routes/tenant_routes.py` - Login background in branding endpoints
 
+### Client Portal Login ✅ (Completed July 24, 2026)
+- ✅ **Unified Client Login Page** - New `/client-login` route for tenant users accessing from landing page
+- ✅ **Department Selector** - Step 1 shows searchable list of active departments with logos
+- ✅ **Dynamic Branding** - Step 2 transforms to show selected tenant's branding (logo, background, colors)
+- ✅ **Seamless Flow** - Single-page experience from department selection to login
+- ✅ **Landing Page Integration** - "Client Portal" buttons added to header and hero section
+- ✅ **Public Tenant List API** - `GET /api/tenants/public/list` returns active tenants for dropdown
+- ✅ **Files Created/Updated**:
+  - `/app/frontend/src/pages/ClientLoginPage.js` - Unified client login component
+  - Updated `/app/frontend/src/pages/LandingPage.js` - Added Client Portal buttons
+  - Updated `/app/frontend/src/App.js` - Added /client-login route
+  - Updated `/app/backend/routes/tenant_routes.py` - Public tenant list endpoint
+
 
 ### Public Landing Page ✅ (Completed July 20, 2026)
 - ✅ **Landing Page Component** - New page at `/` for unauthenticated visitors
