@@ -126,6 +126,7 @@ async def get_current_tenant_branding(current_user: dict = Depends(get_current_u
         return {
             "custom_branding": False,
             "logo_url": None,
+            "login_background_url": None,
             "primary_color": "#dc2626",
             "secondary_color": "#1e3a5f",
             "accent_color": "#f59e0b",
@@ -140,6 +141,7 @@ async def get_current_tenant_branding(current_user: dict = Depends(get_current_u
     return {
         "custom_branding": settings.get("custom_branding", False),
         "logo_url": settings.get("logo_url"),
+        "login_background_url": settings.get("login_background_url"),
         "primary_color": settings.get("primary_color") or "#dc2626",
         "secondary_color": settings.get("secondary_color") or "#1e3a5f",
         "accent_color": settings.get("accent_color") or "#f59e0b",
@@ -173,6 +175,8 @@ async def update_tenant_branding(
     
     if branding.logo_url is not None:
         update_fields["settings.logo_url"] = branding.logo_url
+    if branding.login_background_url is not None:
+        update_fields["settings.login_background_url"] = branding.login_background_url
     if branding.primary_color is not None:
         update_fields["settings.primary_color"] = branding.primary_color
     if branding.secondary_color is not None:

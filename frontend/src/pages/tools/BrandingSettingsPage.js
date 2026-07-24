@@ -25,13 +25,16 @@ export const BrandingSettingsPage = () => {
   const [branding, setBranding] = useState({
     custom_branding: false,
     logo_url: null,
+    login_background_url: null,
     primary_color: '#dc2626',
     secondary_color: '#1e3a5f',
     accent_color: '#f59e0b',
     tenant_name: 'BC Staffing'
   });
   const [previewLogo, setPreviewLogo] = useState(null);
+  const [previewBackground, setPreviewBackground] = useState(null);
   const fileInputRef = useRef(null);
+  const backgroundInputRef = useRef(null);
 
   useEffect(() => {
     fetchBranding();
@@ -42,6 +45,7 @@ export const BrandingSettingsPage = () => {
       const response = await api.get('/tenants/branding');
       setBranding(response.data);
       setPreviewLogo(response.data.logo_url);
+      setPreviewBackground(response.data.login_background_url);
     } catch (error) {
       console.error('Failed to fetch branding:', error);
       toast.error('Failed to load branding settings');
@@ -89,6 +93,35 @@ export const BrandingSettingsPage = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleBackgroundFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Max 5MB for backgrounds
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be less than 5MB');
+      return;
+    }
+
+    // Read and convert to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewBackground(reader.result);
+      setBranding(prev => ({
+        ...prev,
+        login_background_url: reader.result,
+        custom_branding: true
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRemoveLogo = () => {
     setPreviewLogo(null);
     setBranding(prev => ({
@@ -100,11 +133,23 @@ export const BrandingSettingsPage = () => {
     }
   };
 
+  const handleRemoveBackground = () => {
+    setPreviewBackground(null);
+    setBranding(prev => ({
+      ...prev,
+      login_background_url: null
+    }));
+    if (backgroundInputRef.current) {
+      backgroundInputRef.current.value = '';
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.put('/tenants/branding', {
         logo_url: branding.logo_url,
+        login_background_url: branding.login_background_url,
         primary_color: branding.primary_color,
         secondary_color: branding.secondary_color,
         accent_color: branding.accent_color,
@@ -126,6 +171,7 @@ export const BrandingSettingsPage = () => {
       await api.post('/tenants/branding/reset');
       await fetchBranding();
       setPreviewLogo(null);
+      setPreviewBackground(null);
       toast.success('Branding reset to defaults');
     } catch (error) {
       toast.error('Failed to reset branding');
@@ -247,6 +293,75 @@ export const BrandingSettingsPage = () => {
 
               <p className="text-xs text-muted-foreground">
                 Supported formats: PNG, JPG, SVG, WebP (max 2MB)
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Login Background Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Login Background
+              </CardTitle>
+              <CardDescription>
+                Upload a custom background image for your login page
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Background Preview */}
+              <div className="flex justify-center">
+                <div 
+                  className="w-full h-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50"
+                  style={{ 
+                    backgroundImage: previewBackground ? `url(${previewBackground})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
+                >
+                  {!previewBackground && (
+                    <div className="text-center text-muted-foreground">
+                      <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-xs">No background uploaded</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Upload Button */}
+              <input
+                ref={backgroundInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                onChange={handleBackgroundFile}
+                className="hidden"
+                data-testid="background-file-input"
+              />
+              
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => backgroundInputRef.current?.click()}
+                  data-testid="upload-background-btn"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Background
+                </Button>
+                {previewBackground && (
+                  <Button 
+                    variant="outline" 
+                    className="text-red-500"
+                    onClick={handleRemoveBackground}
+                    data-testid="remove-background-btn"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Recommended: High resolution image (1920x1080 or larger, max 5MB)
               </p>
             </CardContent>
           </Card>

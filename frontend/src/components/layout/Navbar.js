@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useBranding } from '../../context/BrandingContext';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -41,19 +42,21 @@ import {
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
 
-const LOGO_URL = '/medina-logo.png';
+// Default logo fallback
+const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
 
 // NavLink component defined outside to prevent re-renders
-const NavLink = ({ to, children, active, disabled }) => (
+const NavLink = ({ to, children, active, disabled, primaryColor }) => (
   <Link
     to={disabled ? '#' : to}
     className={`px-3 py-2 font-heading text-sm uppercase tracking-wider transition-colors whitespace-nowrap ${
       active 
-        ? 'text-red-500 border-b-2 border-red-500' 
+        ? 'border-b-2' 
         : disabled
           ? 'text-muted-foreground/50 cursor-not-allowed'
-          : 'text-foreground/80 hover:text-red-500'
+          : 'text-foreground/80 hover:opacity-80'
     }`}
+    style={active ? { color: primaryColor || '#dc2626', borderColor: primaryColor || '#dc2626' } : {}}
     onClick={(e) => disabled && e.preventDefault()}
     data-testid={`nav-link-${to.replace('/', '') || 'home'}`}
   >
@@ -62,12 +65,17 @@ const NavLink = ({ to, children, active, disabled }) => (
 );
 
 export const Navbar = () => {
-  const { user, logout, isAdmin, isFirefighter, isVolunteer, isSuperAdmin } = useAuth();
+  const { user, logout, isAdmin, isFirefighter, isVolunteer, isSuperAdmin, tenant } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { logoUrl: brandingLogo, tenantName, primaryColor } = useBranding();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // Use tenant logo if available, otherwise branding logo, otherwise default
+  const logoUrl = tenant?.settings?.logo_url || brandingLogo || DEFAULT_LOGO;
+  const displayTenantName = tenant?.name || tenantName || 'BC Staffing';
 
   const handleLogout = () => {
     logout();
@@ -84,12 +92,12 @@ export const Navbar = () => {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <Link to="/dashboard" className="flex items-center gap-3" data-testid="navbar-logo">
-          <img src={LOGO_URL} alt="Logo" className="h-12 w-auto" />
+          <img src={logoUrl} alt="Logo" className="h-12 w-auto" />
           <div className="hidden sm:block">
             <h1 className="font-heading text-xl uppercase tracking-wider font-bold text-foreground">
               BC Staffing
             </h1>
-            <p className="text-xs text-muted-foreground">Medina County</p>
+            <p className="text-xs text-muted-foreground">{displayTenantName !== 'BC Staffing' ? displayTenantName : 'Fire & EMS Solutions'}</p>
           </div>
         </Link>
 
@@ -97,13 +105,13 @@ export const Navbar = () => {
         <nav className="hidden lg:flex items-center gap-2">
           {/* Daily Worksheet - Hidden for volunteers */}
           {!isVolunteer && (
-            <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu}>
+            <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu} primaryColor={primaryColor}>
               Daily Worksheet
             </NavLink>
           )}
 
           {/* On Duty - Available to ALL users */}
-          <NavLink to="/on-duty" active={isActive('/on-duty')}>
+          <NavLink to="/on-duty" active={isActive('/on-duty')} primaryColor={primaryColor}>
             On Duty
           </NavLink>
 
@@ -256,7 +264,7 @@ export const Navbar = () => {
           </DropdownMenu>
 
           {canAccessFullMenu && (
-            <NavLink to="/reports" active={isActive('/reports')}>
+            <NavLink to="/reports" active={isActive('/reports')} primaryColor={primaryColor}>
               Reports
             </NavLink>
           )}

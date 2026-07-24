@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,10 +10,9 @@ import { toast } from 'sonner';
 import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 
-// BC Staffing main logo - Transparent background version
-const BC_STAFFING_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
-// Tenant-specific logo fallback
-const TENANT_LOGO = '/medina-logo.png';
+// Default BC Staffing branding
+const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
+const DEFAULT_BACKGROUND = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg";
 
 export const LoginPage = () => {
   const [payrollNumber, setPayrollNumber] = useState('');
@@ -20,16 +20,21 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login, tenant, tenantLoading } = useAuth();
+  const { logoUrl: brandingLogo, loginBackgroundUrl, tenantName, primaryColor } = useBranding();
   const navigate = useNavigate();
   
   const subdomain = getSubdomain();
   const isSubdomainContext = subdomain !== null;
-  const displayName = isSubdomainContext && tenant ? tenant.name : 'BC Staffing';
+  const displayName = isSubdomainContext && tenant ? tenant.name : (tenantName || 'BC Staffing');
   
-  // Use BC Staffing logo for main platform, tenant logo for tenant-specific login
+  // Use tenant branding if available, otherwise defaults
   const logoUrl = isSubdomainContext && tenant?.settings?.logo_url 
     ? tenant.settings.logo_url 
-    : (isSubdomainContext ? TENANT_LOGO : BC_STAFFING_LOGO);
+    : (brandingLogo || DEFAULT_LOGO);
+    
+  const backgroundUrl = isSubdomainContext && tenant?.settings?.login_background_url
+    ? tenant.settings.login_background_url
+    : (loginBackgroundUrl || DEFAULT_BACKGROUND);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -56,7 +61,10 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen login-bg flex items-center justify-center p-4">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url(${backgroundUrl})` }}
+    >
       <div className="absolute inset-0 bg-black/60" />
       
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
@@ -146,7 +154,11 @@ export const LoginPage = () => {
 
             <Button
               type="submit"
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 transition-all duration-200 hover:scale-[1.02]"
+              className="w-full text-white font-semibold py-3 transition-all duration-200 hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: primaryColor || '#dc2626',
+                '--tw-shadow-color': primaryColor || '#dc2626'
+              }}
               disabled={isLoading}
               data-testid="login-button"
             >

@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StaffingProvider } from "./context/StaffingContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { BrandingProvider } from "./context/BrandingContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
@@ -248,12 +249,14 @@ function App() {
   return (
     <ThemeProvider>
       <SettingsProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <AppContent />
-            <Toaster position="top-center" richColors expand={true} />
-          </BrowserRouter>
-        </AuthProvider>
+        <BrandingProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <AppContent />
+              <Toaster position="top-center" richColors expand={true} />
+            </BrowserRouter>
+          </AuthProvider>
+        </BrandingProvider>
       </SettingsProvider>
     </ThemeProvider>
   );

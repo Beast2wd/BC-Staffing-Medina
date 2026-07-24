@@ -22,6 +22,7 @@ class TenantSettings(BaseModel):
     # Branding settings
     custom_branding: bool = False
     logo_url: Optional[str] = None
+    login_background_url: Optional[str] = None  # Custom login page background
     primary_color: Optional[str] = "#dc2626"  # Default red
     secondary_color: Optional[str] = "#1e3a5f"  # Default navy
     accent_color: Optional[str] = "#f59e0b"  # Default amber
@@ -37,6 +38,7 @@ class TenantSettings(BaseModel):
 class TenantBrandingUpdate(BaseModel):
     """Schema for updating tenant branding"""
     logo_url: Optional[str] = None
+    login_background_url: Optional[str] = None
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
     accent_color: Optional[str] = None
