@@ -316,6 +316,23 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `auth.py` - Authentication helpers and utilities
 - ✅ **All 25+ API endpoints validated** - No regressions from refactor
 
+## Weather Widget (July 29, 2026)
+- ✅ **Daily Worksheet Weather Display** - Real-time weather widget on Daily Worksheet page
+- ✅ **Open-Meteo Integration** - Free API, no key required
+- ✅ **Current Conditions** - Temperature, humidity, wind speed, weather description with icon
+- ✅ **4-Day Forecast** - Today + 3 days with high/low temps, humidity, precipitation chance
+- ✅ **Tenant-Configurable Location** - Each department can set their own weather location
+- ✅ **Browser Geolocation** - Auto-detect location option for admins
+- ✅ **Manual Location Entry** - Search by city name, ZIP code, or address
+- ✅ **Weather Icons** - Sun, cloud, rain, snow, lightning, fog icons
+- ✅ **Files Created**:
+  - `/app/backend/routes/weather_routes.py` - Weather API endpoints
+  - `/app/frontend/src/components/dashboard/WeatherWidget.js` - Weather display component
+- ✅ **API Endpoints**:
+  - `GET /api/weather/forecast` - Get current weather and 4-day forecast
+  - `GET /api/weather/location` - Get tenant's configured location
+  - `PUT /api/weather/location` - Update tenant's weather location (Admin only)
+
 ## Next Tasks (Backlog)
 1. **Minimum Staffing Alerts** - Shift notification alerts when stations fall below minimum staffing (P2)
 2. **Decline Notifications** - Email and text notifications to on-duty BC when user declines assigned part-time shift (P2)

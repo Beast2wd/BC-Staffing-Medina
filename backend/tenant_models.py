@@ -26,6 +26,10 @@ class TenantSettings(BaseModel):
     primary_color: Optional[str] = "#dc2626"  # Default red
     secondary_color: Optional[str] = "#1e3a5f"  # Default navy
     accent_color: Optional[str] = "#f59e0b"  # Default amber
+    # Weather location settings
+    weather_latitude: Optional[float] = None
+    weather_longitude: Optional[float] = None
+    weather_location_name: Optional[str] = None
     # Operational settings
     shifts: List[str] = ["A", "B", "C"]
     ranks: List[str] = [

@@ -4,6 +4,7 @@ import { ShiftCalendar } from '../components/dashboard/ShiftCalendar';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { StaffingGrid } from '../components/dashboard/StaffingGrid';
 import { RemarksPanel } from '../components/dashboard/RemarksPanel';
+import { WeatherWidget } from '../components/dashboard/WeatherWidget';
 import { useStaffing } from '../context/StaffingContext';
 import { useAuth } from '../context/AuthContext';
 import { useStaffingUpdates } from '../contexts/WebSocketContext';
@@ -96,9 +97,14 @@ export const DashboardPage = () => {
         </div>
 
         {/* Battalion Chief Info */}
-        <div className="mb-6 flex items-center gap-4 text-sm">
+        <div className="mb-4 flex items-center gap-4 text-sm">
           <span className="text-muted-foreground">Battalion Chief on duty PR#:</span>
           <span className="font-semibold">{user?.payroll_number || '---'}</span>
+        </div>
+
+        {/* Weather Widget */}
+        <div className="mb-6">
+          <WeatherWidget />
         </div>
 
         {/* Main Grid Layout */}
