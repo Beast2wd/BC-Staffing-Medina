@@ -15,7 +15,9 @@ import {
   Thermometer,
   MapPin,
   RefreshCw,
-  Settings2
+  Settings2,
+  Radar,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -262,39 +264,61 @@ export const WeatherWidget = () => {
 
             {/* 3-Day Forecast */}
             <div className="flex-1 grid grid-cols-4 gap-2 sm:gap-3">
-              {forecast.map((day, index) => (
-                <div 
-                  key={day.date} 
-                  className={`text-center p-2 rounded-lg ${
-                    index === 0 
-                      ? 'bg-sky-500/20 dark:bg-sky-500/10' 
-                      : 'bg-white/50 dark:bg-slate-800/50'
-                  }`}
-                >
-                  <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {formatDayName(day.date, index)}
-                  </p>
-                  <div className="flex justify-center mb-1 text-sky-600 dark:text-sky-400">
-                    {getWeatherIcon(day.icon, "h-5 w-5")}
-                  </div>
-                  <div className="flex justify-center items-baseline gap-1 text-sm">
-                    <span className="font-semibold">{day.temp_high}°</span>
-                    <span className="text-muted-foreground text-xs">{day.temp_low}°</span>
-                  </div>
-                  <div className="flex justify-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                    <span className="flex items-center gap-0.5">
-                      <Droplets className="h-2.5 w-2.5 text-blue-400" />
-                      {day.humidity}%
-                    </span>
-                    {day.precipitation_chance > 0 && (
+              {forecast.map((day, index) => {
+                const isToday = index === 0;
+                const radarUrl = isToday && weather.location 
+                  ? `https://www.windy.com/?${weather.location.latitude},${weather.location.longitude},10,radar`
+                  : null;
+                
+                return (
+                  <div 
+                    key={day.date} 
+                    className={`text-center p-2 rounded-lg transition-all ${
+                      isToday 
+                        ? 'bg-sky-500/20 dark:bg-sky-500/10 cursor-pointer hover:bg-sky-500/30 dark:hover:bg-sky-500/20 hover:scale-105' 
+                        : 'bg-white/50 dark:bg-slate-800/50'
+                    }`}
+                    onClick={() => {
+                      if (isToday && radarUrl) {
+                        window.open(radarUrl, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
+                    title={isToday ? "Click to view live radar" : ""}
+                    role={isToday ? "button" : undefined}
+                  >
+                    <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center justify-center gap-1">
+                      {formatDayName(day.date, index)}
+                      {isToday && (
+                        <ExternalLink className="h-2.5 w-2.5 text-sky-500" />
+                      )}
+                    </p>
+                    <div className="flex justify-center mb-1 text-sky-600 dark:text-sky-400">
+                      {getWeatherIcon(day.icon, "h-5 w-5")}
+                    </div>
+                    <div className="flex justify-center items-baseline gap-1 text-sm">
+                      <span className="font-semibold">{day.temp_high}°</span>
+                      <span className="text-muted-foreground text-xs">{day.temp_low}°</span>
+                    </div>
+                    <div className="flex justify-center gap-2 mt-1 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-0.5">
-                        <CloudRain className="h-2.5 w-2.5 text-blue-400" />
-                        {day.precipitation_chance}%
+                        <Droplets className="h-2.5 w-2.5 text-blue-400" />
+                        {day.humidity}%
                       </span>
+                      {day.precipitation_chance > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <CloudRain className="h-2.5 w-2.5 text-blue-400" />
+                          {day.precipitation_chance}%
+                        </span>
+                      )}
+                    </div>
+                    {isToday && (
+                      <p className="text-[9px] text-sky-500 mt-1 font-medium">
+                        Live Radar
+                      </p>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Settings Button (Admin only) */}
