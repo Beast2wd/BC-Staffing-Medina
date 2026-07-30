@@ -17,6 +17,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
+import { TimezoneSettings } from '../../components/settings/TimezoneSettings';
 
 export const BrandingSettingsPage = () => {
   const { api, user } = useAuth();
@@ -596,6 +597,11 @@ export const BrandingSettingsPage = () => {
               </>
             )}
           </Button>
+        </div>
+
+        {/* Timezone Settings Section */}
+        <div className="mt-8">
+          <TimezoneSettings />
         </div>
       </main>
     </div>

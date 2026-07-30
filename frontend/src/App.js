@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StaffingProvider } from "./context/StaffingContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { BrandingProvider } from "./context/BrandingContext";
+import { TimezoneProvider } from "./context/TimezoneContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ChangePasswordModal } from "./components/auth/ChangePasswordModal";
@@ -264,10 +265,12 @@ function App() {
       <SettingsProvider>
         <BrandingProvider>
           <AuthProvider>
-            <BrowserRouter>
-              <AppContent />
-              <Toaster position="top-center" richColors expand={true} />
-            </BrowserRouter>
+            <TimezoneProvider>
+              <BrowserRouter>
+                <AppContent />
+                <Toaster position="top-center" richColors expand={true} />
+              </BrowserRouter>
+            </TimezoneProvider>
           </AuthProvider>
         </BrandingProvider>
       </SettingsProvider>

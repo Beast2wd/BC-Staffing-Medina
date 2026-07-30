@@ -738,3 +738,112 @@ async def get_tenant_data_preview(tenant_id: str, current_user: dict = Depends(r
     }
     
     return preview
+
+
+
+# ===================== TIMEZONE SETTINGS =====================
+
+# Common US timezones for fire departments
+US_TIMEZONES = [
+    {"value": "America/New_York", "label": "Eastern Time (ET)", "offset": "UTC-5/-4"},
+    {"value": "America/Chicago", "label": "Central Time (CT)", "offset": "UTC-6/-5"},
+    {"value": "America/Denver", "label": "Mountain Time (MT)", "offset": "UTC-7/-6"},
+    {"value": "America/Phoenix", "label": "Arizona Time (AZ)", "offset": "UTC-7"},
+    {"value": "America/Los_Angeles", "label": "Pacific Time (PT)", "offset": "UTC-8/-7"},
+    {"value": "America/Anchorage", "label": "Alaska Time (AKT)", "offset": "UTC-9/-8"},
+    {"value": "Pacific/Honolulu", "label": "Hawaii Time (HT)", "offset": "UTC-10"},
+]
+
+
+class TimezoneSettingsUpdate(BaseModel):
+    timezone: Optional[str] = None
+    use_browser_timezone: bool = False
+    shift_reference_date: Optional[str] = None
+    shift_reference_shift: Optional[str] = None
+
+
+@router.get("/timezones/list")
+async def get_available_timezones(current_user: dict = Depends(get_current_user)):
+    """Get list of available timezones"""
+    return {
+        "timezones": US_TIMEZONES,
+        "default": "America/Chicago"
+    }
+
+
+@router.get("/settings/timezone")
+async def get_tenant_timezone_settings(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get current tenant's timezone settings"""
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant context")
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    settings = tenant.get("settings", {})
+    
+    return {
+        "timezone": settings.get("timezone", "America/Chicago"),
+        "use_browser_timezone": settings.get("use_browser_timezone", False),
+        "shift_reference_date": settings.get("shift_reference_date", "2026-03-24"),
+        "shift_reference_shift": settings.get("shift_reference_shift", "C"),
+        "available_timezones": US_TIMEZONES
+    }
+
+
+@router.put("/settings/timezone")
+async def update_tenant_timezone_settings(
+    settings: TimezoneSettingsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update tenant's timezone settings (Admin only)"""
+    # Check if user is admin
+    if current_user.get("role") not in ["admin", "battalion_chief"]:
+        if not current_user.get("is_super_admin"):
+            raise HTTPException(status_code=403, detail="Only admins can update timezone settings")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant context")
+    
+    # Validate timezone if provided
+    valid_timezones = [tz["value"] for tz in US_TIMEZONES]
+    if settings.timezone and settings.timezone not in valid_timezones:
+        raise HTTPException(status_code=400, detail=f"Invalid timezone. Must be one of: {valid_timezones}")
+    
+    # Validate shift reference shift if provided
+    if settings.shift_reference_shift and settings.shift_reference_shift not in ["A", "B", "C"]:
+        raise HTTPException(status_code=400, detail="Shift must be A, B, or C")
+    
+    # Build update dict
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if settings.timezone is not None:
+        update_fields["settings.timezone"] = settings.timezone
+    
+    update_fields["settings.use_browser_timezone"] = settings.use_browser_timezone
+    
+    if settings.shift_reference_date is not None:
+        update_fields["settings.shift_reference_date"] = settings.shift_reference_date
+    
+    if settings.shift_reference_shift is not None:
+        update_fields["settings.shift_reference_shift"] = settings.shift_reference_shift
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": update_fields}
+    )
+    
+    return {
+        "message": "Timezone settings updated successfully",
+        "settings": {
+            "timezone": settings.timezone,
+            "use_browser_timezone": settings.use_browser_timezone,
+            "shift_reference_date": settings.shift_reference_date,
+            "shift_reference_shift": settings.shift_reference_shift
+        }
+    }

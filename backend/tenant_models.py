@@ -30,6 +30,12 @@ class TenantSettings(BaseModel):
     weather_latitude: Optional[float] = None
     weather_longitude: Optional[float] = None
     weather_location_name: Optional[str] = None
+    # Timezone settings
+    timezone: Optional[str] = "America/Chicago"  # Default to Central Time
+    use_browser_timezone: bool = False  # If true, use browser/device timezone instead
+    # Shift rotation settings
+    shift_reference_date: Optional[str] = "2026-03-24"  # Reference date for shift calculation
+    shift_reference_shift: Optional[str] = "C"  # Which shift was on duty on reference date
     # Operational settings
     shifts: List[str] = ["A", "B", "C"]
     ranks: List[str] = [

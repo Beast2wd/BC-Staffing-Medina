@@ -1,20 +1,22 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { getDateInTimezone, getBrowserTimezone } from '../utils/timezoneUtils';
 
 const StaffingContext = createContext(null);
 
-// Get today's date in local timezone as YYYY-MM-DD
-const getLocalDateString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 export const StaffingProvider = ({ children }) => {
   const { api } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  
+  // Initialize with a function that will be updated once timezone settings are loaded
+  const getInitialDate = () => {
+    // Try to get from localStorage if available, otherwise use browser timezone
+    const savedTimezone = localStorage.getItem('tenant_timezone');
+    const useBrowser = localStorage.getItem('use_browser_timezone') === 'true';
+    const tz = useBrowser ? getBrowserTimezone() : (savedTimezone || getBrowserTimezone());
+    return getDateInTimezone(tz);
+  };
+  
+  const [selectedDate, setSelectedDate] = useState(getInitialDate());
   const [selectedBattalion, setSelectedBattalion] = useState('bat-8110');
   const [battalions, setBattalions] = useState([]);
   const [stations, setStations] = useState([]);
