@@ -3,9 +3,18 @@ import { useAuth } from './AuthContext';
 
 const StaffingContext = createContext(null);
 
+// Get today's date in local timezone as YYYY-MM-DD
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const StaffingProvider = ({ children }) => {
   const { api } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [selectedBattalion, setSelectedBattalion] = useState('bat-8110');
   const [battalions, setBattalions] = useState([]);
   const [stations, setStations] = useState([]);
