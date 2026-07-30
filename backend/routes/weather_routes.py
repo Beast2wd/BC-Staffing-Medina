@@ -63,6 +63,8 @@ async def get_weather_forecast(
     Get current weather and 3-day forecast.
     If lat/long not provided, uses tenant's configured location.
     """
+    location_name = None
+    
     # If no coordinates provided, get from tenant settings
     if latitude is None or longitude is None:
         tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
@@ -70,11 +72,13 @@ async def get_weather_forecast(
             settings = tenant["settings"]
             latitude = settings.get("weather_latitude")
             longitude = settings.get("weather_longitude")
+            location_name = settings.get("weather_location_name")
     
     # Default to Medina, OH if still no coordinates
     if latitude is None or longitude is None:
         latitude = 41.1381
         longitude = -81.8637
+        location_name = "Medina, OH"
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -129,7 +133,8 @@ async def get_weather_forecast(
     return {
         "location": {
             "latitude": latitude,
-            "longitude": longitude
+            "longitude": longitude,
+            "name": location_name
         },
         "current": current_weather,
         "forecast": forecast,

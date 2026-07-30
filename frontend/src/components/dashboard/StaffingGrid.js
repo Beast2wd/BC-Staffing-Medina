@@ -330,7 +330,7 @@ export const StaffingGrid = () => {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="font-heading text-lg uppercase tracking-wider">
-            Stations
+            Department Staffing
           </CardTitle>
           <Badge className={getShiftBadgeClass(currentShift)}>
             {currentShift} Shift - {formatDisplayDate(selectedDate)}

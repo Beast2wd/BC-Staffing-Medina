@@ -96,9 +96,9 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Battalion Chief Info */}
+        {/* Personnel Info */}
         <div className="mb-4 flex items-center gap-4 text-sm">
-          <span className="text-muted-foreground">Battalion Chief on duty PR#:</span>
+          <span className="text-muted-foreground">Personnel on duty PR#:</span>
           <span className="font-semibold">{user?.payroll_number || '---'}</span>
         </div>
 

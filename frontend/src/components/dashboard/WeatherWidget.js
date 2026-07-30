@@ -219,6 +219,7 @@ export const WeatherWidget = () => {
   if (!weather) return null;
 
   const { current, forecast } = weather;
+  const weatherLocationName = weather.location?.name;
 
   return (
     <>
@@ -232,6 +233,12 @@ export const WeatherWidget = () => {
                   {getWeatherIcon(current.icon, "h-8 w-8")}
                 </div>
                 <div>
+                  {weatherLocationName && (
+                    <p className="text-xs font-medium text-sky-600 dark:text-sky-400 flex items-center gap-1 mb-0.5">
+                      <MapPin className="h-3 w-3" />
+                      {weatherLocationName}
+                    </p>
+                  )}
                   <div className="flex items-baseline gap-1">
                     <span className="text-3xl font-bold text-foreground">{current.temperature}°</span>
                     <span className="text-sm text-muted-foreground">F</span>
