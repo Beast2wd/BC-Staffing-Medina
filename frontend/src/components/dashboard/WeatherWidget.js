@@ -255,7 +255,7 @@ export const WeatherWidget = () => {
                 </div>
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Wind className="h-3.5 w-3.5 text-slate-500" />
-                  <span>{current.wind_speed} mph</span>
+                  <span>{current.wind_direction} {current.wind_speed} mph</span>
                 </div>
               </div>
             </div>

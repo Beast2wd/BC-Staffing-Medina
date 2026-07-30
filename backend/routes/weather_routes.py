@@ -52,6 +52,18 @@ def get_weather_info(code: int) -> dict:
     return WEATHER_CODES.get(code, {"description": "Unknown", "icon": "cloud"})
 
 
+def degrees_to_compass(degrees: float) -> str:
+    """Convert wind direction degrees to compass direction"""
+    if degrees is None:
+        return "N/A"
+    # Normalize degrees to 0-360
+    degrees = degrees % 360
+    directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+                  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    index = round(degrees / 22.5) % 16
+    return directions[index]
+
+
 @router.get("/forecast")
 async def get_weather_forecast(
     latitude: Optional[float] = Query(None, description="Latitude for weather location"),
@@ -87,8 +99,8 @@ async def get_weather_forecast(
                 params={
                     "latitude": latitude,
                     "longitude": longitude,
-                    "current": "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
-                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,relative_humidity_2m_max,wind_speed_10m_max",
+                    "current": "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m",
+                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,relative_humidity_2m_max,wind_speed_10m_max,wind_direction_10m_dominant",
                     "temperature_unit": "fahrenheit",
                     "wind_speed_unit": "mph",
                     "precipitation_unit": "inch",
@@ -104,11 +116,14 @@ async def get_weather_forecast(
     # Parse current weather
     current = data.get("current", {})
     current_weather_info = get_weather_info(current.get("weather_code", 0))
+    wind_direction_degrees = current.get("wind_direction_10m")
     
     current_weather = {
         "temperature": round(current.get("temperature_2m", 0)),
         "humidity": current.get("relative_humidity_2m", 0),
         "wind_speed": round(current.get("wind_speed_10m", 0)),
+        "wind_direction": degrees_to_compass(wind_direction_degrees),
+        "wind_direction_degrees": wind_direction_degrees,
         "description": current_weather_info["description"],
         "icon": current_weather_info["icon"]
     }
@@ -119,6 +134,7 @@ async def get_weather_forecast(
     
     for i in range(min(4, len(daily.get("time", [])))):
         weather_info = get_weather_info(daily.get("weather_code", [0])[i])
+        daily_wind_dir = daily.get("wind_direction_10m_dominant", [None])[i] if daily.get("wind_direction_10m_dominant") else None
         forecast.append({
             "date": daily.get("time", [])[i],
             "temp_high": round(daily.get("temperature_2m_max", [0])[i]),
@@ -126,6 +142,7 @@ async def get_weather_forecast(
             "humidity": daily.get("relative_humidity_2m_max", [0])[i],
             "precipitation_chance": daily.get("precipitation_probability_max", [0])[i],
             "wind_speed": round(daily.get("wind_speed_10m_max", [0])[i]),
+            "wind_direction": degrees_to_compass(daily_wind_dir),
             "description": weather_info["description"],
             "icon": weather_info["icon"]
         })
