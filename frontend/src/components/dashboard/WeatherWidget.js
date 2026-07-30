@@ -99,12 +99,22 @@ export const WeatherWidget = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // Reverse geocode to get location name
+          // Reverse geocode to get location name using OpenStreetMap Nominatim
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            {
+              headers: {
+                'User-Agent': 'BCStaffing/1.0 (Fire Department Staffing App)'
+              }
+            }
           );
+          
+          if (!response.ok) {
+            throw new Error('Geocoding failed');
+          }
+          
           const data = await response.json();
-          const name = data.address?.city || data.address?.town || data.address?.county || 'Current Location';
+          const name = data.address?.city || data.address?.town || data.address?.county || data.address?.village || 'Current Location';
           
           // Save the location
           await api.put('/weather/location', null, {
@@ -115,16 +125,24 @@ export const WeatherWidget = () => {
           setLocationDialog(false);
           fetchWeather(latitude, longitude);
         } catch (err) {
-          toast.error('Failed to save location');
+          console.error('Location save error:', err);
+          toast.error('Failed to save location. Please try manual entry.');
         } finally {
           setDetecting(false);
         }
       },
       (err) => {
         setDetecting(false);
-        toast.error('Unable to get your location. Please check permissions.');
+        console.error('Geolocation error:', err);
+        if (err.code === 1) {
+          toast.error('Location access denied. Please enable location permissions.');
+        } else if (err.code === 2) {
+          toast.error('Location unavailable. Please try manual entry.');
+        } else {
+          toast.error('Location request timed out. Please try manual entry.');
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -136,10 +154,20 @@ export const WeatherWidget = () => {
 
     try {
       setDetecting(true);
-      // Geocode the location name
+      // Geocode the location name using OpenStreetMap Nominatim
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName)}&format=json&limit=1`
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName)}&format=json&limit=1&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'BCStaffing/1.0 (Fire Department Staffing App)'
+          }
+        }
       );
+      
+      if (!response.ok) {
+        throw new Error('Geocoding service unavailable');
+      }
+      
       const data = await response.json();
       
       if (data.length === 0) {
@@ -149,22 +177,24 @@ export const WeatherWidget = () => {
       }
 
       const { lat, lon, display_name } = data[0];
+      const shortName = display_name.split(',')[0];
       
       // Save the location
       await api.put('/weather/location', null, {
         params: { 
           latitude: parseFloat(lat), 
           longitude: parseFloat(lon), 
-          location_name: display_name.split(',')[0] 
+          location_name: shortName 
         }
       });
       
-      toast.success(`Weather location set to ${display_name.split(',')[0]}`);
+      toast.success(`Weather location set to ${shortName}`);
       setLocationDialog(false);
       setLocationName('');
       fetchWeather(parseFloat(lat), parseFloat(lon));
     } catch (err) {
-      toast.error('Failed to save location');
+      console.error('Manual location error:', err);
+      toast.error('Failed to find location. Please check your entry and try again.');
     } finally {
       setDetecting(false);
     }
@@ -340,7 +370,7 @@ export const WeatherWidget = () => {
               <div className="flex gap-2">
                 <Input
                   id="location"
-                  placeholder="e.g., Medina, OH or 44256"
+                  placeholder="e.g., San Antonio, TX or 78205"
                   value={locationName}
                   onChange={(e) => setLocationName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveManualLocation()}
