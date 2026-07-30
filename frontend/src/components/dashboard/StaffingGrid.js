@@ -39,6 +39,7 @@ export const StaffingGrid = () => {
     personnel,
     leaveRecords,
     currentShift,
+    currentShiftDay,
     selectedDate,
     selectedBattalion,
     fetchStaffingRecords,
@@ -333,7 +334,7 @@ export const StaffingGrid = () => {
             Department Staffing
           </CardTitle>
           <Badge className={getShiftBadgeClass(currentShift)}>
-            {currentShift} Shift - {formatDisplayDate(selectedDate)}
+            {currentShift} Shift (Day {currentShiftDay}) - {formatDisplayDate(selectedDate)}
           </Badge>
         </div>
       </CardHeader>

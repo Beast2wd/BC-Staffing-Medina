@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { formatDisplayDateWithDay } from '../utils/dateUtils';
 
 export const DashboardPage = () => {
-  const { fetchAllData, loading, currentShift, selectedDate } = useStaffing();
+  const { fetchAllData, loading, currentShift, currentShiftDay, selectedDate } = useStaffing();
   const { user, isFirefighter, isVolunteer } = useAuth();
 
   // Hide remarks for firefighters and volunteers
@@ -52,7 +52,7 @@ export const DashboardPage = () => {
             </h1>
             <div className="flex items-center gap-3 mt-1">
               <p className="text-muted-foreground">
-                {formatDisplayDateWithDay(selectedDate)} - {currentShift} Shift
+                {formatDisplayDateWithDay(selectedDate)} - {currentShift} Shift (Day {currentShiftDay})
               </p>
               {/* Real-time connection indicator */}
               <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${

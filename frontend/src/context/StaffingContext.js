@@ -34,7 +34,21 @@ export const StaffingProvider = ({ children }) => {
     return 'B';
   }, []);
 
+  // Get which day of the shift rotation (Day 1 or Day 2)
+  const getShiftDay = useCallback((dateStr) => {
+    const referenceDate = new Date('2026-03-24');
+    const targetDate = new Date(dateStr);
+    const daysDiff = Math.floor((targetDate - referenceDate) / (1000 * 60 * 60 * 24));
+    
+    // Pattern repeats every 6 days
+    const normalizedDay = ((daysDiff % 6) + 6) % 6;
+    
+    // Day 0, 2, 4 = 1st day; Day 1, 3, 5 = 2nd day
+    return (normalizedDay % 2) + 1;
+  }, []);
+
   const currentShift = getShiftForDate(selectedDate);
+  const currentShiftDay = getShiftDay(selectedDate);
 
   const fetchBattalions = useCallback(async () => {
     try {
@@ -166,7 +180,9 @@ export const StaffingProvider = ({ children }) => {
       selectedBattalion,
       setSelectedBattalion,
       currentShift,
+      currentShiftDay,
       getShiftForDate,
+      getShiftDay,
       battalions,
       stations,
       personnel,
