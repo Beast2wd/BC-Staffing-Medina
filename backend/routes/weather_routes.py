@@ -192,3 +192,90 @@ async def get_weather_location(
         "location_name": settings.get("weather_location_name"),
         "is_configured": settings.get("weather_latitude") is not None
     }
+
+
+
+@router.get("/geocode")
+async def geocode_location(
+    query: str = Query(..., description="Location to geocode (city, ZIP, address)"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Geocode a location string to coordinates.
+    This proxies through the backend to avoid CORS issues with Nominatim.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={
+                    "q": query,
+                    "format": "json",
+                    "limit": 1,
+                    "addressdetails": 1,
+                    "countrycodes": "us"
+                },
+                headers={
+                    "User-Agent": "BCStaffing/1.0 (Fire Department Staffing Application)"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                raise HTTPException(status_code=404, detail="Location not found")
+            
+            result = data[0]
+            return {
+                "latitude": float(result["lat"]),
+                "longitude": float(result["lon"]),
+                "display_name": result["display_name"],
+                "short_name": result["display_name"].split(",")[0]
+            }
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Geocoding service unavailable: {str(e)}")
+
+
+@router.get("/reverse-geocode")
+async def reverse_geocode_location(
+    latitude: float = Query(..., description="Latitude"),
+    longitude: float = Query(..., description="Longitude"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Reverse geocode coordinates to a location name.
+    This proxies through the backend to avoid CORS issues with Nominatim.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={
+                    "lat": latitude,
+                    "lon": longitude,
+                    "format": "json"
+                },
+                headers={
+                    "User-Agent": "BCStaffing/1.0 (Fire Department Staffing Application)"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            address = data.get("address", {})
+            name = (
+                address.get("city") or 
+                address.get("town") or 
+                address.get("county") or 
+                address.get("village") or 
+                "Unknown Location"
+            )
+            
+            return {
+                "latitude": latitude,
+                "longitude": longitude,
+                "location_name": name,
+                "display_name": data.get("display_name", name)
+            }
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Geocoding service unavailable: {str(e)}")

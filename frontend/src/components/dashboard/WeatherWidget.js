@@ -62,6 +62,7 @@ export const WeatherWidget = () => {
   const [locationDialog, setLocationDialog] = useState(false);
   const [locationName, setLocationName] = useState('');
   const [detecting, setDetecting] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'battalion_chief' || user?.is_super_admin;
 
@@ -76,6 +77,9 @@ export const WeatherWidget = () => {
       }
       const response = await api.get('/weather/forecast', { params });
       setWeather(response.data);
+      if (response.data?.location) {
+        setCurrentLocation(response.data.location);
+      }
     } catch (err) {
       console.error('Failed to fetch weather:', err);
       setError('Unable to load weather data');
@@ -95,35 +99,29 @@ export const WeatherWidget = () => {
     }
 
     setDetecting(true);
+    toast.info('Detecting your location...');
+    
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // Reverse geocode to get location name using OpenStreetMap Nominatim
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            {
-              headers: {
-                'User-Agent': 'BCStaffing/1.0 (Fire Department Staffing App)'
-              }
-            }
-          );
+          // Use backend proxy for reverse geocoding to avoid CORS issues
+          const geoResponse = await api.get('/weather/reverse-geocode', {
+            params: { latitude, longitude }
+          });
           
-          if (!response.ok) {
-            throw new Error('Geocoding failed');
-          }
-          
-          const data = await response.json();
-          const name = data.address?.city || data.address?.town || data.address?.county || data.address?.village || 'Current Location';
+          const locationName = geoResponse.data.location_name;
           
           // Save the location
           await api.put('/weather/location', null, {
-            params: { latitude, longitude, location_name: name }
+            params: { latitude, longitude, location_name: locationName }
           });
           
-          toast.success(`Weather location set to ${name}`);
+          toast.success(`Weather location set to ${locationName}`);
           setLocationDialog(false);
-          fetchWeather(latitude, longitude);
+          
+          // Refresh weather with new location
+          await fetchWeather(latitude, longitude);
         } catch (err) {
           console.error('Location save error:', err);
           toast.error('Failed to save location. Please try manual entry.');
@@ -135,7 +133,7 @@ export const WeatherWidget = () => {
         setDetecting(false);
         console.error('Geolocation error:', err);
         if (err.code === 1) {
-          toast.error('Location access denied. Please enable location permissions.');
+          toast.error('Location access denied. Please enable location permissions or use manual entry.');
         } else if (err.code === 2) {
           toast.error('Location unavailable. Please try manual entry.');
         } else {
@@ -154,47 +152,37 @@ export const WeatherWidget = () => {
 
     try {
       setDetecting(true);
-      // Geocode the location name using OpenStreetMap Nominatim
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName)}&format=json&limit=1&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'BCStaffing/1.0 (Fire Department Staffing App)'
-          }
-        }
-      );
+      toast.info('Looking up location...');
       
-      if (!response.ok) {
-        throw new Error('Geocoding service unavailable');
-      }
+      // Use backend proxy for geocoding to avoid CORS issues
+      const geoResponse = await api.get('/weather/geocode', {
+        params: { query: locationName.trim() }
+      });
       
-      const data = await response.json();
-      
-      if (data.length === 0) {
-        toast.error('Location not found. Try a different search term.');
-        setDetecting(false);
-        return;
-      }
-
-      const { lat, lon, display_name } = data[0];
-      const shortName = display_name.split(',')[0];
+      const { latitude, longitude, short_name } = geoResponse.data;
       
       // Save the location
       await api.put('/weather/location', null, {
         params: { 
-          latitude: parseFloat(lat), 
-          longitude: parseFloat(lon), 
-          location_name: shortName 
+          latitude, 
+          longitude, 
+          location_name: short_name 
         }
       });
       
-      toast.success(`Weather location set to ${shortName}`);
+      toast.success(`Weather location set to ${short_name}`);
       setLocationDialog(false);
       setLocationName('');
-      fetchWeather(parseFloat(lat), parseFloat(lon));
+      
+      // Refresh weather with new location
+      await fetchWeather(latitude, longitude);
     } catch (err) {
       console.error('Manual location error:', err);
-      toast.error('Failed to find location. Please check your entry and try again.');
+      if (err.response?.status === 404) {
+        toast.error('Location not found. Try a different city name or ZIP code.');
+      } else {
+        toast.error('Failed to find location. Please check your entry and try again.');
+      }
     } finally {
       setDetecting(false);
     }
