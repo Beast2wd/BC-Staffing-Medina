@@ -584,3 +584,475 @@ async def import_deployment_log(
         await db.deployment_log.insert_many(entries)
     
     return {"message": f"Imported {len(entries)} log entries"}
+
+
+
+# ===================== CERTIFICATION MANAGEMENT =====================
+
+CERTIFICATION_TYPES = {
+    "ff1": "Firefighter I",
+    "ff2": "Firefighter II",
+    "crew_boss": "Crew Boss",
+    "engine_boss": "Engine Boss",
+    "mist": "MIST",
+    "wpu": "WPU",
+    "astl": "ASTL",
+    "medl": "MedL",
+    "tech_spec": "Tech-Spec",
+    "pack_test": "Pack Test",
+    "ems": "EMS Certification",
+    "hazmat_awareness": "HazMat Awareness",
+    "hazmat_ops": "HazMat Operations",
+    "rope_rescue": "Rope Rescue",
+    "swift_water": "Swift Water Rescue",
+    "driver_operator": "Driver/Operator"
+}
+
+
+@router.get("/certifications/expiring")
+async def get_expiring_certifications(
+    days: int = 90,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all certifications expiring within the specified number of days"""
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    roster = await db.deployment_roster.find(query, {"_id": 0}).to_list(1000)
+    
+    today = datetime.now(timezone.utc).date()
+    alerts = []
+    
+    for person in roster:
+        certifications = person.get("certifications", {})
+        for cert_key, cert_data in certifications.items():
+            if not isinstance(cert_data, dict):
+                continue
+            
+            exp_date_str = cert_data.get("expiration_date")
+            if not exp_date_str:
+                continue
+            
+            try:
+                exp_date = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
+                days_until = (exp_date - today).days
+                
+                if days_until <= days:
+                    # Determine alert level
+                    if days_until < 0:
+                        alert_level = "expired"
+                    elif days_until <= 30:
+                        alert_level = "critical"
+                    elif days_until <= 90:
+                        alert_level = "warning"
+                    else:
+                        alert_level = "upcoming"
+                    
+                    alerts.append({
+                        "id": f"{person['id']}_{cert_key}",
+                        "personnel_id": person["id"],
+                        "personnel_name": person["name"],
+                        "rank": person.get("rank", ""),
+                        "certification_type": cert_key,
+                        "certification_name": CERTIFICATION_TYPES.get(cert_key, cert_key),
+                        "expiration_date": exp_date_str,
+                        "days_until_expiry": days_until,
+                        "alert_level": alert_level
+                    })
+            except ValueError:
+                continue
+    
+    # Sort by days until expiry (most urgent first)
+    alerts.sort(key=lambda x: x["days_until_expiry"])
+    
+    return {
+        "alerts": alerts,
+        "summary": {
+            "total": len(alerts),
+            "expired": len([a for a in alerts if a["alert_level"] == "expired"]),
+            "critical": len([a for a in alerts if a["alert_level"] == "critical"]),
+            "warning": len([a for a in alerts if a["alert_level"] == "warning"]),
+            "upcoming": len([a for a in alerts if a["alert_level"] == "upcoming"])
+        }
+    }
+
+
+@router.put("/deployment-roster/{entry_id}/certifications")
+async def update_certifications(
+    entry_id: str,
+    certifications: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Update certification details for a roster entry"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    entry = await db.deployment_roster.find_one(query)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Roster entry not found")
+    
+    # Merge with existing certifications
+    existing_certs = entry.get("certifications", {})
+    for cert_key, cert_data in certifications.items():
+        if cert_key in existing_certs:
+            existing_certs[cert_key].update(cert_data)
+        else:
+            existing_certs[cert_key] = cert_data
+        
+        # Also update legacy boolean flags for backwards compatibility
+        if cert_key in ["ff1", "crew_boss", "engine_boss", "mist", "wpu", "astl", "medl", "tech_spec"]:
+            await db.deployment_roster.update_one(
+                query,
+                {"$set": {cert_key: cert_data.get("certified", False)}}
+            )
+    
+    await db.deployment_roster.update_one(
+        query,
+        {
+            "$set": {
+                "certifications": existing_certs,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Certifications updated successfully"}
+
+
+# ===================== ROTATION SCHEDULER =====================
+
+def calculate_rotation_score(person: dict, deployment_type: str) -> float:
+    """
+    Calculate rotation score for fair deployment selection.
+    Lower score = higher priority for next deployment.
+    
+    Factors:
+    - Days since last deployment (more days = lower score)
+    - Total deployments in last 12 months (fewer = lower score)
+    - Declined count (more declines = higher score penalty)
+    - Seniority (optional tiebreaker)
+    """
+    today = datetime.now(timezone.utc).date()
+    
+    # Get last deployment date based on type
+    if deployment_type == "TIFMAS":
+        last_deploy_str = person.get("last_tifmas_deploy", "")
+    else:
+        last_deploy_str = person.get("last_emtf_deploy", "")
+    
+    # Calculate days since last deployment
+    if last_deploy_str:
+        try:
+            last_deploy = datetime.strptime(last_deploy_str, "%Y-%m-%d").date()
+            days_since = (today - last_deploy).days
+        except ValueError:
+            days_since = 365  # Default if no valid date
+    else:
+        days_since = 365  # Never deployed = high priority
+    
+    # Get deployment count in last 12 months
+    deployments_12mo = person.get("deployments_last_12mo", 0)
+    
+    # Get declined count
+    declined = person.get("declined_count", 0)
+    
+    # Calculate score (lower is better for selection)
+    # Base score from days since deployment (inverted - more days = lower score)
+    score = -days_since
+    
+    # Add penalty for recent deployments
+    score += deployments_12mo * 30
+    
+    # Add penalty for declines
+    score += declined * 50
+    
+    return score
+
+
+@router.get("/deployment-roster/next-rotation/{deployment_type}")
+async def get_next_rotation(
+    deployment_type: str,
+    count: int = 10,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get suggested next personnel for deployment based on fair rotation"""
+    if deployment_type.upper() not in ["TIFMAS", "EMTF"]:
+        raise HTTPException(status_code=400, detail="deployment_type must be TIFMAS or EMTF")
+    
+    deployment_type = deployment_type.upper()
+    tenant_id = get_tenant_id(current_user)
+    
+    # Get eligible roster
+    if deployment_type == "TIFMAS":
+        query = {"eligible_tifmas": True}
+    else:
+        query = {"eligible_emtf": True}
+    
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    roster = await db.deployment_roster.find(query, {"_id": 0}).to_list(1000)
+    
+    # Calculate rotation scores
+    for person in roster:
+        person["rotation_score"] = calculate_rotation_score(person, deployment_type)
+    
+    # Sort by rotation score (lowest first = highest priority)
+    roster.sort(key=lambda x: x["rotation_score"])
+    
+    # Return top candidates
+    suggestions = []
+    for i, person in enumerate(roster[:count]):
+        last_deploy = person.get(f"last_{deployment_type.lower()}_deploy", "")
+        if last_deploy:
+            try:
+                last_date = datetime.strptime(last_deploy, "%Y-%m-%d").date()
+                days_since = (datetime.now(timezone.utc).date() - last_date).days
+            except ValueError:
+                days_since = None
+        else:
+            days_since = None
+        
+        suggestions.append({
+            "rank": i + 1,
+            "id": person["id"],
+            "name": person["name"],
+            "person_rank": person.get("rank", ""),
+            "ems_level": person.get("ems_level", ""),
+            "last_deployment": last_deploy or "Never",
+            "days_since_deployment": days_since,
+            "deployments_12mo": person.get("deployments_last_12mo", 0),
+            "declined_count": person.get("declined_count", 0),
+            "rotation_score": round(person["rotation_score"], 2),
+            "certifications": person.get("certifications", {})
+        })
+    
+    return {
+        "deployment_type": deployment_type,
+        "suggestions": suggestions,
+        "total_eligible": len(roster)
+    }
+
+
+@router.post("/deployment-roster/{entry_id}/decline")
+async def record_deployment_decline(
+    entry_id: str,
+    deployment_type: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Record that a person declined a deployment offer"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": entry_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    result = await db.deployment_roster.find_one_and_update(
+        query,
+        {
+            "$inc": {"declined_count": 1},
+            "$set": {
+                "last_offered_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        },
+        return_document=True
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Roster entry not found")
+    
+    return {"message": "Decline recorded", "declined_count": result.get("declined_count", 0)}
+
+
+# ===================== DEPLOYMENT HISTORY =====================
+
+@router.get("/deployment-history")
+async def get_deployment_history(
+    deployment_type: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    personnel_name: Optional[str] = None,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get deployment history with filtering options"""
+    tenant_id = get_tenant_id(current_user)
+    query = {}
+    
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    if deployment_type:
+        query["deployment_type"] = deployment_type.upper()
+    
+    if status:
+        query["status"] = status
+    
+    if start_date:
+        query["start_date"] = {"$gte": start_date}
+    
+    if end_date:
+        if "start_date" in query:
+            query["start_date"]["$lte"] = end_date
+        else:
+            query["start_date"] = {"$lte": end_date}
+    
+    if personnel_name:
+        query["personnel.name"] = {"$regex": personnel_name, "$options": "i"}
+    
+    history = await db.deployment_history.find(
+        query, 
+        {"_id": 0}
+    ).sort("start_date", -1).limit(limit).to_list(limit)
+    
+    return history
+
+
+@router.post("/deployment-history")
+async def create_deployment_history(
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Create a new deployment history entry"""
+    tenant_id = get_tenant_id(current_user)
+    
+    history_entry = {
+        "id": str(uuid.uuid4()),
+        "deployment_type": data.get("deployment_type", "").upper(),
+        "incident_name": data.get("incident_name", ""),
+        "location": data.get("location", ""),
+        "start_date": data.get("start_date", ""),
+        "end_date": data.get("end_date", ""),
+        "status": data.get("status", "active"),
+        "personnel": data.get("personnel", []),
+        "total_personnel": len(data.get("personnel", [])),
+        "notes": data.get("notes", ""),
+        "created_by": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if tenant_id:
+        history_entry["tenant_id"] = tenant_id
+    
+    await db.deployment_history.insert_one(history_entry)
+    
+    # Update rotation stats for deployed personnel
+    for person in data.get("personnel", []):
+        person_query = {"id": person.get("id")}
+        if tenant_id:
+            person_query["tenant_id"] = tenant_id
+        
+        deploy_type = data.get("deployment_type", "").upper()
+        update_fields = {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "$inc": {"total_deployments": 1, "deployments_last_12mo": 1}
+        }
+        
+        if deploy_type == "TIFMAS":
+            update_fields["$set"] = {"last_tifmas_deploy": data.get("start_date", "")}
+        elif deploy_type == "EMTF":
+            update_fields["$set"] = {"last_emtf_deploy": data.get("start_date", "")}
+        
+        await db.deployment_roster.update_one(person_query, update_fields)
+    
+    return {"message": "Deployment history created", "id": history_entry["id"]}
+
+
+@router.put("/deployment-history/{history_id}")
+async def update_deployment_history(
+    history_id: str,
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Update a deployment history entry"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": history_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    if data.get("status") == "completed" and not data.get("completed_at"):
+        data["completed_at"] = datetime.now(timezone.utc).isoformat()
+    
+    result = await db.deployment_history.find_one_and_update(
+        query,
+        {"$set": data},
+        return_document=True
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Deployment history not found")
+    
+    result.pop("_id", None)
+    return result
+
+
+@router.get("/deployment-history/stats")
+async def get_deployment_stats(
+    year: Optional[int] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get deployment statistics"""
+    tenant_id = get_tenant_id(current_user)
+    
+    if year is None:
+        year = datetime.now().year
+    
+    query = {
+        "start_date": {
+            "$gte": f"{year}-01-01",
+            "$lte": f"{year}-12-31"
+        }
+    }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    history = await db.deployment_history.find(query, {"_id": 0}).to_list(1000)
+    
+    # Calculate stats
+    tifmas_count = len([h for h in history if h.get("deployment_type") == "TIFMAS"])
+    emtf_count = len([h for h in history if h.get("deployment_type") == "EMTF"])
+    
+    total_personnel = sum(h.get("total_personnel", 0) for h in history)
+    
+    # Personnel deployment counts
+    personnel_counts = {}
+    for h in history:
+        for p in h.get("personnel", []):
+            name = p.get("name", "Unknown")
+            if name not in personnel_counts:
+                personnel_counts[name] = {"tifmas": 0, "emtf": 0, "total": 0}
+            personnel_counts[name]["total"] += 1
+            if h.get("deployment_type") == "TIFMAS":
+                personnel_counts[name]["tifmas"] += 1
+            elif h.get("deployment_type") == "EMTF":
+                personnel_counts[name]["emtf"] += 1
+    
+    # Top deployers
+    top_deployers = sorted(
+        [{"name": k, **v} for k, v in personnel_counts.items()],
+        key=lambda x: x["total"],
+        reverse=True
+    )[:10]
+    
+    return {
+        "year": year,
+        "total_deployments": len(history),
+        "tifmas_deployments": tifmas_count,
+        "emtf_deployments": emtf_count,
+        "total_personnel_deployed": total_personnel,
+        "unique_personnel": len(personnel_counts),
+        "top_deployers": top_deployers,
+        "by_status": {
+            "active": len([h for h in history if h.get("status") == "active"]),
+            "completed": len([h for h in history if h.get("status") == "completed"]),
+            "cancelled": len([h for h in history if h.get("status") == "cancelled"])
+        }
+    }

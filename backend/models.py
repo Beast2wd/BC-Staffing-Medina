@@ -269,6 +269,15 @@ class LeaveRecordCreate(BaseModel):
 
 
 # Deployment Tracker Models
+class CertificationInfo(BaseModel):
+    """Certification with expiration tracking"""
+    certified: bool = False
+    expiration_date: Optional[str] = None  # YYYY-MM-DD format
+    certification_date: Optional[str] = None  # When they got certified
+    document_url: Optional[str] = None  # URL to cert document
+    notes: Optional[str] = None
+
+
 class DeploymentRoster(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -284,6 +293,7 @@ class DeploymentRoster(BaseModel):
     emtf_score: float = 0
     last_tifmas_deploy: str = ""
     last_emtf_deploy: str = ""
+    # Basic certification flags (legacy)
     ff1: bool = False
     crew_boss: bool = False
     engine_boss: bool = False
@@ -293,6 +303,31 @@ class DeploymentRoster(BaseModel):
     medl: bool = False
     tech_spec: bool = False
     pack_test_level: str = ""  # Arduous, Moderate, Light
+    # Enhanced certification tracking with expirations
+    certifications: dict = Field(default_factory=lambda: {
+        "ff1": {"certified": False, "expiration_date": None, "certification_date": None},
+        "ff2": {"certified": False, "expiration_date": None, "certification_date": None},
+        "crew_boss": {"certified": False, "expiration_date": None, "certification_date": None},
+        "engine_boss": {"certified": False, "expiration_date": None, "certification_date": None},
+        "mist": {"certified": False, "expiration_date": None, "certification_date": None},
+        "wpu": {"certified": False, "expiration_date": None, "certification_date": None},
+        "astl": {"certified": False, "expiration_date": None, "certification_date": None},
+        "medl": {"certified": False, "expiration_date": None, "certification_date": None},
+        "tech_spec": {"certified": False, "expiration_date": None, "certification_date": None},
+        "pack_test": {"certified": False, "expiration_date": None, "level": "Arduous"},
+        "ems": {"certified": False, "expiration_date": None, "level": ""},
+        "hazmat_awareness": {"certified": False, "expiration_date": None},
+        "hazmat_ops": {"certified": False, "expiration_date": None},
+        "rope_rescue": {"certified": False, "expiration_date": None},
+        "swift_water": {"certified": False, "expiration_date": None},
+        "driver_operator": {"certified": False, "expiration_date": None},
+    })
+    # Rotation tracking
+    rotation_score: float = 0  # Lower score = higher priority for next deployment
+    total_deployments: int = 0
+    total_deployment_days: int = 0
+    last_offered_date: str = ""  # When they were last offered a deployment
+    declined_count: int = 0  # Number of times they declined
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -350,6 +385,40 @@ class DeploymentRecord(BaseModel):
     notes: str = ""
     station: str = ""
     shift: str = ""
+
+
+class DeploymentHistory(BaseModel):
+    """Comprehensive deployment history for tracking and reporting"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    deployment_type: str  # TIFMAS, EMTF
+    incident_name: str
+    location: str
+    start_date: str
+    end_date: str
+    status: str = "active"  # active, completed, cancelled
+    personnel: List[dict] = []  # List of {id, name, rank, position, accepted_date}
+    total_personnel: int = 0
+    notes: str = ""
+    created_by: str = ""  # User who created the deployment
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    completed_at: Optional[str] = None
+
+
+class CertificationAlert(BaseModel):
+    """Alert for expiring certifications"""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    personnel_id: str
+    personnel_name: str
+    certification_type: str
+    expiration_date: str
+    days_until_expiry: int
+    alert_level: str  # expired, critical (< 30 days), warning (< 90 days), upcoming (< 180 days)
+    acknowledged: bool = False
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[str] = None
 
 
 # Volunteer Models

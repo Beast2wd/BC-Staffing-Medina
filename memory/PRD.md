@@ -336,7 +336,36 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 ## Next Tasks (Backlog)
 1. **Minimum Staffing Alerts** - Shift notification alerts when stations fall below minimum staffing (P2)
 2. **Decline Notifications** - Email and text notifications to on-duty BC when user declines assigned part-time shift (P2)
-3. **Multi-tenant SaaS architecture** - Convert platform to host multiple independent fire departments (Future)
+
+## Deployment Tracker Enhancements (August 2026)
+- ✅ **Certification Expiration Tracking** - Track expiration dates for all certifications
+  - TIFMAS: FF1, FF2, Crew Boss, Engine Boss, WPU, ASTL, Pack Test
+  - EMTF: MIST, MedL, Tech-Spec, EMS Certification
+  - Additional: HazMat, Rope Rescue, Swift Water, Driver/Operator
+- ✅ **Certification Alerts Dashboard** - View expiring/expired certs with alert levels
+  - Expired (red), Critical <30 days (dark red), Warning <90 days (amber), Upcoming (gray)
+- ✅ **Fair Rotation Scheduler** - Auto-suggest next personnel based on:
+  - Days since last deployment (more days = higher priority)
+  - Deployments in last 12 months (fewer = higher priority)
+  - Declined offers count (penalty for declines)
+- ✅ **Decline Tracking** - Record when personnel decline deployment offers
+- ✅ **Deployment History Log** - Complete history with filtering
+  - Filter by type (TIFMAS/EMTF), status, date range, personnel name
+  - Stats dashboard with yearly totals
+  - Top deployers leaderboard
+  - CSV export functionality
+- ✅ **Files Created**:
+  - `/app/frontend/src/components/deployment/CertificationManager.js` - Certification alerts and editor
+  - `/app/frontend/src/components/deployment/RotationScheduler.js` - Fair rotation UI
+  - `/app/frontend/src/pages/deployment-tracker/DeploymentHistoryPage.js` - History log page
+- ✅ **API Endpoints**:
+  - `GET /api/certifications/expiring?days=90` - Get expiring certifications
+  - `PUT /api/deployment-roster/{id}/certifications` - Update certification details
+  - `GET /api/deployment-roster/next-rotation/{type}` - Get rotation suggestions
+  - `POST /api/deployment-roster/{id}/decline` - Record deployment decline
+  - `GET /api/deployment-history` - List deployment history with filters
+  - `POST /api/deployment-history` - Create new deployment record
+  - `GET /api/deployment-history/stats` - Get deployment statistics
 
 ## Real-time WebSocket Updates (June 19, 2026)
 - ✅ **WebSocket Endpoint** - `/api/ws` accepts authenticated and anonymous connections

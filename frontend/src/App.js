@@ -47,6 +47,7 @@ import { DeploymentRosterPage } from "./pages/deployment-tracker/DeploymentRoste
 import { DeploymentLogPage } from "./pages/deployment-tracker/DeploymentLogPage";
 import { TIFMASRankPage } from "./pages/deployment-tracker/TIFMASRankPage";
 import { EMTFRankPage } from "./pages/deployment-tracker/EMTFRankPage";
+import { DeploymentHistoryPage } from "./pages/deployment-tracker/DeploymentHistoryPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -214,6 +215,9 @@ const AppContent = () => {
           } />
           <Route path="/personnel/deployment-tracker/emtf-rank" element={
             <ProtectedRoute><EMTFRankPage /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/history" element={
+            <ProtectedRoute><DeploymentHistoryPage /></ProtectedRoute>
           } />
           
           {/* Overtime Availability - Available to ALL users including firefighters */}

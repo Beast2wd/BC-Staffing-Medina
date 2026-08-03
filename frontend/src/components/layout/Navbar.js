@@ -257,6 +257,12 @@ export const Navbar = () => {
                         <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Rank
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/history" className="flex items-center gap-2" data-testid="nav-deploy-history">
+                        <History className="h-4 w-4" /> Deployment History
+                      </Link>
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
