@@ -950,14 +950,14 @@ async def create_deployment_history(
         
         deploy_type = data.get("deployment_type", "").upper()
         update_fields = {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()},
             "$inc": {"total_deployments": 1, "deployments_last_12mo": 1}
         }
         
         if deploy_type == "TIFMAS":
-            update_fields["$set"] = {"last_tifmas_deploy": data.get("start_date", "")}
+            update_fields["$set"]["last_tifmas_deploy"] = data.get("start_date", "")
         elif deploy_type == "EMTF":
-            update_fields["$set"] = {"last_emtf_deploy": data.get("start_date", "")}
+            update_fields["$set"]["last_emtf_deploy"] = data.get("start_date", "")
         
         await db.deployment_roster.update_one(person_query, update_fields)
     

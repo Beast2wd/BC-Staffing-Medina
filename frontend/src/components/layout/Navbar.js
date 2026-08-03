@@ -259,6 +259,17 @@ export const Navbar = () => {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/tifmas-log" className="flex items-center gap-2" data-testid="nav-tifmas-log">
+                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS Deployment Log
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/personnel/deployment-tracker/emtf-log" className="flex items-center gap-2" data-testid="nav-emtf-log">
+                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Deployment Log
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
                       <Link to="/personnel/deployment-tracker/history" className="flex items-center gap-2" data-testid="nav-deploy-history">
                         <History className="h-4 w-4" /> Deployment History
                       </Link>

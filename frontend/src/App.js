@@ -48,6 +48,8 @@ import { DeploymentLogPage } from "./pages/deployment-tracker/DeploymentLogPage"
 import { TIFMASRankPage } from "./pages/deployment-tracker/TIFMASRankPage";
 import { EMTFRankPage } from "./pages/deployment-tracker/EMTFRankPage";
 import { DeploymentHistoryPage } from "./pages/deployment-tracker/DeploymentHistoryPage";
+import { TIFMASDeploymentLog } from "./pages/deployment-tracker/TIFMASDeploymentLog";
+import { EMTFDeploymentLog } from "./pages/deployment-tracker/EMTFDeploymentLog";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -218,6 +220,12 @@ const AppContent = () => {
           } />
           <Route path="/personnel/deployment-tracker/history" element={
             <ProtectedRoute><DeploymentHistoryPage /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/tifmas-log" element={
+            <ProtectedRoute><TIFMASDeploymentLog /></ProtectedRoute>
+          } />
+          <Route path="/personnel/deployment-tracker/emtf-log" element={
+            <ProtectedRoute><EMTFDeploymentLog /></ProtectedRoute>
           } />
           
           {/* Overtime Availability - Available to ALL users including firefighters */}
