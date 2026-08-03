@@ -9,9 +9,7 @@ import {
   Users, 
   RefreshCw, 
   ArrowRight,
-  Clock,
   TrendingUp,
-  AlertCircle,
   CheckCircle2,
   XCircle,
   Calendar
@@ -81,13 +79,6 @@ export const RotationScheduler = ({ onSelectPersonnel }) => {
     onSelectPersonnel?.(selected, deploymentType);
   };
 
-  const getScoreBadge = (score) => {
-    if (score < -200) return <Badge className="bg-green-500">High Priority</Badge>;
-    if (score < -100) return <Badge className="bg-blue-500">Normal</Badge>;
-    if (score < 0) return <Badge className="bg-amber-500">Recent Deploy</Badge>;
-    return <Badge variant="secondary">Low Priority</Badge>;
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -148,7 +139,6 @@ export const RotationScheduler = ({ onSelectPersonnel }) => {
                         <TableHead>Last Deploy</TableHead>
                         <TableHead className="text-center">12mo Count</TableHead>
                         <TableHead className="text-center">Declines</TableHead>
-                        <TableHead>Priority</TableHead>
                         <TableHead className="w-24">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -193,9 +183,6 @@ export const RotationScheduler = ({ onSelectPersonnel }) => {
                             ) : (
                               <span className="text-muted-foreground">0</span>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            {getScoreBadge(person.rotation_score)}
                           </TableCell>
                           <TableCell>
                             <Button
