@@ -367,6 +367,39 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `POST /api/deployment-history` - Create new deployment record
   - `GET /api/deployment-history/stats` - Get deployment statistics
 
+## Separate TIFMAS & EMTF Deployment Logs (December 2025)
+- ✅ **TIFMAS Deployment Log** - Dedicated page for tracking TIFMAS (Texas Intrastate Fire Mutual Aid System) deployments
+  - Route: `/personnel/deployment-tracker/tifmas-log`
+  - Orange theme with flame icon
+  - Shows 24 eligible TIFMAS-certified personnel
+  - Fair rotation ordering: personnel who haven't deployed recently appear at top
+  - Columns: Order, Name, Rank, EMS Level, Last TIFMAS Deploy, 12mo Deployments
+  - Select personnel via checkboxes and deploy with incident details
+- ✅ **EMTF Deployment Log** - Dedicated page for tracking EMTF (Emergency Medical Task Force) deployments
+  - Route: `/personnel/deployment-tracker/emtf-log`
+  - Blue theme with ambulance icon
+  - Shows 26 eligible EMTF-certified personnel
+  - Fair rotation ordering: separate from TIFMAS rotation
+  - Columns: Order, Name, Rank, EMS Level, Last EMTF Deploy, 12mo Deployments
+  - Select personnel via checkboxes and deploy with incident details
+- ✅ **Fair Rotation Algorithm** - Personnel sorted by:
+  1. Days since last deployment (more days = higher priority)
+  2. Deployment count in last 12 months (fewer = higher priority)
+  3. Declined offers count (penalty for declines)
+- ✅ **Type-Specific Tracking** - TIFMAS and EMTF deployments tracked separately
+  - Deploying on TIFMAS only affects TIFMAS rotation position
+  - Deploying on EMTF only affects EMTF rotation position
+- ✅ **Deployment Creation Flow**:
+  - Select personnel via checkboxes
+  - Click "Deploy Selected" to open deployment dialog
+  - Enter incident name, location, start/end dates, notes
+  - Confirm to create deployment record
+  - Personnel automatically move down in rotation after deployment
+- ✅ **Files Created**:
+  - `/app/frontend/src/pages/deployment-tracker/TIFMASDeploymentLog.js` - TIFMAS log page
+  - `/app/frontend/src/pages/deployment-tracker/EMTFDeploymentLog.js` - EMTF log page
+- ✅ **Navigation**: Deployment Tracker submenu under Personnel includes TIFMAS Log and EMTF Log links
+
 ## Real-time WebSocket Updates (June 19, 2026)
 - ✅ **WebSocket Endpoint** - `/api/ws` accepts authenticated and anonymous connections
 - ✅ **Channel-based Subscriptions** - Clients subscribe to specific channels (staffing, overtime, personnel, volunteer, parttime, deployments)
