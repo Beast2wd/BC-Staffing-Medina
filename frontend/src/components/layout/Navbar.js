@@ -239,17 +239,17 @@ export const Navbar = () => {
                   <DropdownMenuSubContent className="w-48">
                     <DropdownMenuItem asChild>
                       <Link to="/personnel/deployment-tracker/roster" className="flex items-center gap-2" data-testid="nav-deploy-roster">
-                        <Users className="h-4 w-4" /> Roster
+                        <Users className="h-4 w-4" /> TIFMAS & EMTF Roster
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/personnel/deployment-tracker/tifmas-rank" className="flex items-center gap-2" data-testid="nav-tifmas-rank">
-                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS Rank
+                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/personnel/deployment-tracker/emtf-rank" className="flex items-center gap-2" data-testid="nav-emtf-rank">
-                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Rank
+                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -497,13 +497,13 @@ export const Navbar = () => {
             {/* Deployments */}
             <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deployments</div>
             <Link to="/personnel/deployment-tracker/roster" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Users className="h-4 w-4 inline mr-2" /> Roster
+              <Users className="h-4 w-4 inline mr-2" /> TIFMAS & EMTF Roster
             </Link>
             <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Rank
+              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS
             </Link>
             <Link to="/personnel/deployment-tracker/emtf-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF Rank
+              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF
             </Link>
             <Link to="/personnel/deployment-tracker/tifmas-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
               <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Deployment Log
