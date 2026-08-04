@@ -230,21 +230,16 @@ export const Navbar = () => {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {/* Deployment Tracker Submenu */}
+              {/* Deployments Submenu */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="flex items-center gap-2">
-                  <Plane className="h-4 w-4" /> Deployment Tracker
+                  <Plane className="h-4 w-4" /> Deployments
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent className="w-48">
                     <DropdownMenuItem asChild>
                       <Link to="/personnel/deployment-tracker/roster" className="flex items-center gap-2" data-testid="nav-deploy-roster">
                         <Users className="h-4 w-4" /> Roster
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/log" className="flex items-center gap-2" data-testid="nav-deploy-log">
-                        <FileText className="h-4 w-4" /> Deployment Log
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
@@ -499,13 +494,10 @@ export const Navbar = () => {
               <Hand className="h-4 w-4 inline mr-2" /> Volunteer
             </Link>
             
-            {/* Deployment Tracker */}
-            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deployment Tracker</div>
+            {/* Deployments */}
+            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deployments</div>
             <Link to="/personnel/deployment-tracker/roster" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
               <Users className="h-4 w-4 inline mr-2" /> Roster
-            </Link>
-            <Link to="/personnel/deployment-tracker/log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <FileText className="h-4 w-4 inline mr-2" /> Log
             </Link>
             <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
               <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Rank
