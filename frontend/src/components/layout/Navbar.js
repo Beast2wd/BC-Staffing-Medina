@@ -508,10 +508,19 @@ export const Navbar = () => {
               <FileText className="h-4 w-4 inline mr-2" /> Log
             </Link>
             <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Flame className="h-4 w-4 inline mr-2" /> TIFMAS Rank
+              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Rank
             </Link>
             <Link to="/personnel/deployment-tracker/emtf-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Ambulance className="h-4 w-4 inline mr-2" /> EMTF Rank
+              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF Rank
+            </Link>
+            <Link to="/personnel/deployment-tracker/tifmas-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Deployment Log
+            </Link>
+            <Link to="/personnel/deployment-tracker/emtf-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF Deployment Log
+            </Link>
+            <Link to="/personnel/deployment-tracker/history" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+              <History className="h-4 w-4 inline mr-2" /> Deployment History
             </Link>
             
             {/* Reports */}
