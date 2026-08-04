@@ -148,11 +148,6 @@ export const Navbar = () => {
                     <Calendar className="h-4 w-4" /> Holiday
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/battalion-chief/deployment" className="flex items-center gap-2" data-testid="nav-deployment">
-                    <Plane className="h-4 w-4" /> Deployment
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/battalion-chief/overtime" className="flex items-center gap-2" data-testid="nav-overtime">
@@ -451,9 +446,6 @@ export const Navbar = () => {
                 </Link>
                 <Link to="/battalion-chief/holiday" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Calendar className="h-4 w-4 inline mr-2" /> Holiday
-                </Link>
-                <Link to="/battalion-chief/deployment" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-                  <Plane className="h-4 w-4 inline mr-2" /> Deployments
                 </Link>
                 <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Clock className="h-4 w-4 inline mr-2" /> Overtime Available
