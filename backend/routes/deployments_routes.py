@@ -994,6 +994,79 @@ async def update_deployment_history(
     return result
 
 
+@router.delete("/deployment-history/{history_id}")
+async def delete_deployment_history(
+    history_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Delete a deployment history entry and revert rotation stats for deployed personnel"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": history_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    # First, get the deployment to know who was deployed
+    deployment = await db.deployment_history.find_one(query)
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment history not found")
+    
+    deploy_type = deployment.get("deployment_type", "").upper()
+    personnel_list = deployment.get("personnel", [])
+    start_date = deployment.get("start_date", "")
+    
+    # Delete the deployment record
+    await db.deployment_history.delete_one(query)
+    
+    # Revert rotation stats for each deployed person
+    for person in personnel_list:
+        person_id = person.get("id")
+        if not person_id:
+            continue
+            
+        person_query = {"id": person_id}
+        if tenant_id:
+            person_query["tenant_id"] = tenant_id
+        
+        # Decrement deployment counts
+        update_fields = {
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()},
+            "$inc": {"total_deployments": -1, "deployments_last_12mo": -1}
+        }
+        
+        await db.deployment_roster.update_one(person_query, update_fields)
+        
+        # Recalculate last deployment date for this type by checking remaining records
+        remaining_query = {"personnel.id": person_id}
+        if tenant_id:
+            remaining_query["tenant_id"] = tenant_id
+        if deploy_type in ["TIFMAS", "EMTF"]:
+            remaining_query["deployment_type"] = deploy_type
+        
+        # Find the most recent remaining deployment for this person and type
+        remaining_deployments = await db.deployment_history.find(
+            remaining_query
+        ).sort("start_date", -1).limit(1).to_list(1)
+        
+        if deploy_type == "TIFMAS":
+            new_last_date = remaining_deployments[0]["start_date"] if remaining_deployments else None
+            await db.deployment_roster.update_one(
+                person_query,
+                {"$set": {"last_tifmas_deploy": new_last_date}}
+            )
+        elif deploy_type == "EMTF":
+            new_last_date = remaining_deployments[0]["start_date"] if remaining_deployments else None
+            await db.deployment_roster.update_one(
+                person_query,
+                {"$set": {"last_emtf_deploy": new_last_date}}
+            )
+    
+    return {
+        "message": "Deployment deleted and rotation stats reverted",
+        "deleted_id": history_id,
+        "personnel_updated": len(personnel_list)
+    }
+
+
 @router.get("/deployment-history/stats")
 async def get_deployment_stats(
     year: Optional[int] = None,

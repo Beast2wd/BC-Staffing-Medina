@@ -18,7 +18,9 @@ import {
   Search,
   CheckCircle2,
   FileText,
-  Clock
+  Clock,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Table,
@@ -36,16 +38,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 import { Textarea } from '../../components/ui/textarea';
 
 export const EMTFDeploymentLog = () => {
   const { api } = useAuth();
   const [personnel, setPersonnel] = useState([]);
+  const [recentDeployments, setRecentDeployments] = useState([]);
   const [totalEligible, setTotalEligible] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [deployDialog, setDeployDialog] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, deployment: null });
   const [deploymentData, setDeploymentData] = useState({
     incident_name: '',
     location: '',
@@ -54,6 +68,7 @@ export const EMTFDeploymentLog = () => {
     notes: ''
   });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchPersonnel = async () => {
     try {
@@ -69,8 +84,18 @@ export const EMTFDeploymentLog = () => {
     }
   };
 
+  const fetchRecentDeployments = async () => {
+    try {
+      const response = await api.get('/deployment-history?deployment_type=EMTF&limit=10');
+      setRecentDeployments(response.data.items || response.data || []);
+    } catch (error) {
+      console.error('Failed to fetch recent deployments:', error);
+    }
+  };
+
   useEffect(() => {
     fetchPersonnel();
+    fetchRecentDeployments();
   }, []);
 
   const toggleSelection = (id) => {
@@ -135,11 +160,32 @@ export const EMTFDeploymentLog = () => {
       
       // Refresh to show updated rotation order
       fetchPersonnel();
+      fetchRecentDeployments();
     } catch (error) {
       console.error('Failed to create deployment:', error);
       toast.error('Failed to create deployment');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteDeployment = async () => {
+    if (!deleteDialog.deployment) return;
+    
+    try {
+      setDeleting(true);
+      await api.delete(`/deployment-history/${deleteDialog.deployment.id}`);
+      toast.success('Deployment deleted and rotation stats reverted');
+      setDeleteDialog({ open: false, deployment: null });
+      
+      // Refresh both lists
+      fetchPersonnel();
+      fetchRecentDeployments();
+    } catch (error) {
+      console.error('Failed to delete deployment:', error);
+      toast.error('Failed to delete deployment');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -318,6 +364,128 @@ export const EMTFDeploymentLog = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Recent Deployments */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-500" />
+              Recent EMTF Deployments
+            </CardTitle>
+            <CardDescription>
+              View and manage recent deployments. Delete accidental deployments to revert rotation stats.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentDeployments.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No recent EMTF deployments
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Incident</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Personnel</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-20">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentDeployments.map((deployment) => (
+                    <TableRow key={deployment.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          {deployment.start_date}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{deployment.incident_name}</TableCell>
+                      <TableCell>{deployment.location}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {(deployment.personnel || []).slice(0, 3).map((p, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {p.name}
+                            </Badge>
+                          ))}
+                          {(deployment.personnel || []).length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{deployment.personnel.length - 3} more
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={deployment.status === 'active' ? 'default' : 'secondary'}>
+                          {deployment.status || 'active'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteDialog({ open: true, deployment })}
+                          data-testid={`delete-deployment-${deployment.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, deployment: null })}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Deployment?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>This will permanently delete this deployment and revert rotation stats for all deployed personnel:</p>
+                {deleteDialog.deployment && (
+                  <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
+                    <p><strong>Incident:</strong> {deleteDialog.deployment.incident_name}</p>
+                    <p><strong>Date:</strong> {deleteDialog.deployment.start_date}</p>
+                    <p><strong>Personnel:</strong> {(deleteDialog.deployment.personnel || []).map(p => p.name).join(', ')}</p>
+                  </div>
+                )}
+                <p className="text-amber-600 font-medium mt-2">
+                  Personnel will move back up in the rotation order as if this deployment never happened.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteDeployment}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Deployment
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Deploy Dialog */}
         <Dialog open={deployDialog} onOpenChange={setDeployDialog}>
