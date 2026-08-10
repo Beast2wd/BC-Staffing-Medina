@@ -800,7 +800,7 @@ def calculate_rotation_score(person: dict, deployment_type: str) -> float:
     
     Factors:
     - Days since last deployment (more days = lower score)
-    - Total deployments in last 12 months (fewer = lower score)
+    - Total deployments in last 12 months for this type (fewer = lower score)
     - Declined count (more declines = higher score penalty)
     - Seniority (optional tiebreaker)
     """
@@ -809,8 +809,10 @@ def calculate_rotation_score(person: dict, deployment_type: str) -> float:
     # Get last deployment date based on type
     if deployment_type == "TIFMAS":
         last_deploy_str = person.get("last_tifmas_deploy", "")
+        deployments_12mo = person.get("tifmas_deployments_12mo", 0) or 0
     else:
         last_deploy_str = person.get("last_emtf_deploy", "")
+        deployments_12mo = person.get("emtf_deployments_12mo", 0) or 0
     
     # Calculate days since last deployment
     if last_deploy_str:
@@ -822,9 +824,6 @@ def calculate_rotation_score(person: dict, deployment_type: str) -> float:
     else:
         days_since = 365  # Never deployed = high priority
     
-    # Get deployment count in last 12 months
-    deployments_12mo = person.get("deployments_last_12mo", 0)
-    
     # Get declined count
     declined = person.get("declined_count", 0)
     
@@ -832,7 +831,7 @@ def calculate_rotation_score(person: dict, deployment_type: str) -> float:
     # Base score from days since deployment (inverted - more days = lower score)
     score = -days_since
     
-    # Add penalty for recent deployments
+    # Add penalty for recent deployments of this type
     score += deployments_12mo * 30
     
     # Add penalty for declines
@@ -885,6 +884,12 @@ async def get_next_rotation(
         else:
             days_since = None
         
+        # Get type-specific 12-month deployment count
+        if deployment_type == "TIFMAS":
+            type_deployments_12mo = person.get("tifmas_deployments_12mo", 0) or 0
+        else:
+            type_deployments_12mo = person.get("emtf_deployments_12mo", 0) or 0
+        
         suggestions.append({
             "rank": i + 1,
             "id": person["id"],
@@ -892,8 +897,10 @@ async def get_next_rotation(
             "person_rank": person.get("rank", ""),
             "ems_level": person.get("ems_level", ""),
             "last_deployment": last_deploy or "Never",
+            "last_tifmas_deploy": person.get("last_tifmas_deploy", ""),
+            "last_emtf_deploy": person.get("last_emtf_deploy", ""),
             "days_since_deployment": days_since,
-            "deployments_12mo": person.get("deployments_last_12mo", 0),
+            "deployments_12mo": type_deployments_12mo,
             "declined_count": person.get("declined_count", 0),
             "rotation_score": round(person["rotation_score"], 2),
             "certifications": person.get("certifications", {})
@@ -1010,7 +1017,7 @@ async def create_deployment_history(
     
     await db.deployment_history.insert_one(history_entry)
     
-    # Update rotation stats for deployed personnel
+    # Update rotation stats for deployed personnel - TYPE SPECIFIC
     for person in data.get("personnel", []):
         person_query = {"id": person.get("id")}
         if tenant_id:
@@ -1019,13 +1026,16 @@ async def create_deployment_history(
         deploy_type = data.get("deployment_type", "").upper()
         update_fields = {
             "$set": {"updated_at": datetime.now(timezone.utc).isoformat()},
-            "$inc": {"total_deployments": 1, "deployments_last_12mo": 1}
+            "$inc": {"total_deployments": 1}
         }
         
+        # Update type-specific fields ONLY
         if deploy_type == "TIFMAS":
             update_fields["$set"]["last_tifmas_deploy"] = data.get("start_date", "")
+            update_fields["$inc"]["tifmas_deployments_12mo"] = 1
         elif deploy_type == "EMTF":
             update_fields["$set"]["last_emtf_deploy"] = data.get("start_date", "")
+            update_fields["$inc"]["emtf_deployments_12mo"] = 1
         
         await db.deployment_roster.update_one(person_query, update_fields)
     
@@ -1085,7 +1095,7 @@ async def delete_deployment_history(
     # Delete the deployment record
     await db.deployment_history.delete_one(query)
     
-    # Revert rotation stats for each deployed person
+    # Revert rotation stats for each deployed person - TYPE SPECIFIC
     for person in personnel_list:
         person_id = person.get("id")
         if not person_id:
@@ -1095,11 +1105,17 @@ async def delete_deployment_history(
         if tenant_id:
             person_query["tenant_id"] = tenant_id
         
-        # Decrement deployment counts
+        # Decrement deployment counts - TYPE SPECIFIC
         update_fields = {
             "$set": {"updated_at": datetime.now(timezone.utc).isoformat()},
-            "$inc": {"total_deployments": -1, "deployments_last_12mo": -1}
+            "$inc": {"total_deployments": -1}
         }
+        
+        # Decrement type-specific counter
+        if deploy_type == "TIFMAS":
+            update_fields["$inc"]["tifmas_deployments_12mo"] = -1
+        elif deploy_type == "EMTF":
+            update_fields["$inc"]["emtf_deployments_12mo"] = -1
         
         await db.deployment_roster.update_one(person_query, update_fields)
         
