@@ -403,10 +403,11 @@ export const EMTFDeploymentLog = () => {
     
     try {
       setSaving(true);
+      // Use reset_all to fully reset all deployment stats including totals
       await api.put(`/deployment-roster/${editStatsDialog.person.id}/reset-stats`, {
-        reset_emtf: true
+        reset_all: true
       });
-      toast.success(`EMTF stats reset for ${editStatsDialog.person.name}`);
+      toast.success(`All deployment stats reset for ${editStatsDialog.person.name}`);
       setEditStatsDialog({ open: false, person: null });
       fetchPersonnel();
     } catch (error) {

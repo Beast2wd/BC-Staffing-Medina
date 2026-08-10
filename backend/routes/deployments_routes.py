@@ -741,21 +741,33 @@ async def reset_deployment_stats(
     
     update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
     
-    # Handle TIFMAS stats reset
+    # Handle TIFMAS stats reset - also update totals
     if "reset_tifmas" in data and data["reset_tifmas"]:
         update_fields["last_tifmas_deploy"] = None
         update_fields["tifmas_deployments_12mo"] = 0
+        # Recalculate totals by removing TIFMAS contribution
+        current_tifmas_12mo = person.get("tifmas_deployments_12mo") or 0
+        current_total_12mo = person.get("deployments_last_12mo") or 0
+        current_total = person.get("total_deployments") or 0
+        update_fields["deployments_last_12mo"] = max(0, current_total_12mo - current_tifmas_12mo)
+        update_fields["total_deployments"] = max(0, current_total - current_tifmas_12mo)
     elif "last_tifmas_deploy" in data:
         update_fields["last_tifmas_deploy"] = data["last_tifmas_deploy"] if data["last_tifmas_deploy"] else None
     
-    # Handle EMTF stats reset  
+    # Handle EMTF stats reset - also update totals
     if "reset_emtf" in data and data["reset_emtf"]:
         update_fields["last_emtf_deploy"] = None
         update_fields["emtf_deployments_12mo"] = 0
+        # Recalculate totals by removing EMTF contribution
+        current_emtf_12mo = person.get("emtf_deployments_12mo") or 0
+        current_total_12mo = person.get("deployments_last_12mo") or 0
+        current_total = person.get("total_deployments") or 0
+        update_fields["deployments_last_12mo"] = max(0, current_total_12mo - current_emtf_12mo)
+        update_fields["total_deployments"] = max(0, current_total - current_emtf_12mo)
     elif "last_emtf_deploy" in data:
         update_fields["last_emtf_deploy"] = data["last_emtf_deploy"] if data["last_emtf_deploy"] else None
     
-    # Handle total deployments reset
+    # Handle total/full reset - resets everything
     if "reset_all" in data and data["reset_all"]:
         update_fields["last_tifmas_deploy"] = None
         update_fields["last_emtf_deploy"] = None
@@ -765,9 +777,9 @@ async def reset_deployment_stats(
         update_fields["emtf_deployments_12mo"] = 0
     
     # Allow manual setting of deployment counts
-    if "deployments_last_12mo" in data:
+    if "deployments_last_12mo" in data and "reset_tifmas" not in data and "reset_emtf" not in data and "reset_all" not in data:
         update_fields["deployments_last_12mo"] = max(0, int(data["deployments_last_12mo"]))
-    if "total_deployments" in data:
+    if "total_deployments" in data and "reset_tifmas" not in data and "reset_emtf" not in data and "reset_all" not in data:
         update_fields["total_deployments"] = max(0, int(data["total_deployments"]))
     
     await db.deployment_roster.update_one(query, {"$set": update_fields})
