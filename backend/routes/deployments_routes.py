@@ -723,6 +723,62 @@ async def update_certifications(
     return {"message": "Certifications updated successfully"}
 
 
+@router.put("/deployment-roster/{person_id}/reset-stats")
+async def reset_deployment_stats(
+    person_id: str,
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Reset or update deployment stats for a person"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": person_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    person = await db.deployment_roster.find_one(query)
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found in deployment roster")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    # Handle TIFMAS stats reset
+    if "reset_tifmas" in data and data["reset_tifmas"]:
+        update_fields["last_tifmas_deploy"] = None
+        update_fields["tifmas_deployments_12mo"] = 0
+    elif "last_tifmas_deploy" in data:
+        update_fields["last_tifmas_deploy"] = data["last_tifmas_deploy"] if data["last_tifmas_deploy"] else None
+    
+    # Handle EMTF stats reset  
+    if "reset_emtf" in data and data["reset_emtf"]:
+        update_fields["last_emtf_deploy"] = None
+        update_fields["emtf_deployments_12mo"] = 0
+    elif "last_emtf_deploy" in data:
+        update_fields["last_emtf_deploy"] = data["last_emtf_deploy"] if data["last_emtf_deploy"] else None
+    
+    # Handle total deployments reset
+    if "reset_all" in data and data["reset_all"]:
+        update_fields["last_tifmas_deploy"] = None
+        update_fields["last_emtf_deploy"] = None
+        update_fields["total_deployments"] = 0
+        update_fields["deployments_last_12mo"] = 0
+        update_fields["tifmas_deployments_12mo"] = 0
+        update_fields["emtf_deployments_12mo"] = 0
+    
+    # Allow manual setting of deployment counts
+    if "deployments_last_12mo" in data:
+        update_fields["deployments_last_12mo"] = max(0, int(data["deployments_last_12mo"]))
+    if "total_deployments" in data:
+        update_fields["total_deployments"] = max(0, int(data["total_deployments"]))
+    
+    await db.deployment_roster.update_one(query, {"$set": update_fields})
+    
+    return {
+        "message": "Deployment stats updated successfully",
+        "person_id": person_id,
+        "updates": update_fields
+    }
+
+
 # ===================== ROTATION SCHEDULER =====================
 
 def calculate_rotation_score(person: dict, deployment_type: str) -> float:

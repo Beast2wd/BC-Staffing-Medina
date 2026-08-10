@@ -23,7 +23,9 @@ import {
   AlertTriangle,
   Upload,
   UserPlus,
-  Download
+  Download,
+  Edit2,
+  RotateCcw
 } from 'lucide-react';
 import {
   Table,
@@ -90,6 +92,11 @@ export const EMTFDeploymentLog = () => {
     start_date: '',
     end_date: '',
     notes: ''
+  });
+  const [editStatsDialog, setEditStatsDialog] = useState({ open: false, person: null });
+  const [editStatsData, setEditStatsData] = useState({
+    last_emtf_deploy: '',
+    deployments_12mo: 0
   });
   const [csvData, setCsvData] = useState([]);
   const [csvPreview, setCsvPreview] = useState([]);
@@ -383,6 +390,53 @@ export const EMTFDeploymentLog = () => {
     URL.revokeObjectURL(url);
   };
 
+  const openEditStats = (person) => {
+    setEditStatsData({
+      last_emtf_deploy: person.last_deployment === 'Never' ? '' : (person.last_emtf_deploy || ''),
+      deployments_12mo: person.deployments_12mo || 0
+    });
+    setEditStatsDialog({ open: true, person });
+  };
+
+  const handleResetStats = async () => {
+    if (!editStatsDialog.person) return;
+    
+    try {
+      setSaving(true);
+      await api.put(`/deployment-roster/${editStatsDialog.person.id}/reset-stats`, {
+        reset_emtf: true
+      });
+      toast.success(`EMTF stats reset for ${editStatsDialog.person.name}`);
+      setEditStatsDialog({ open: false, person: null });
+      fetchPersonnel();
+    } catch (error) {
+      console.error('Failed to reset stats:', error);
+      toast.error('Failed to reset deployment stats');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateStats = async () => {
+    if (!editStatsDialog.person) return;
+    
+    try {
+      setSaving(true);
+      await api.put(`/deployment-roster/${editStatsDialog.person.id}/reset-stats`, {
+        last_emtf_deploy: editStatsData.last_emtf_deploy || null,
+        deployments_last_12mo: editStatsData.deployments_12mo
+      });
+      toast.success(`EMTF stats updated for ${editStatsDialog.person.name}`);
+      setEditStatsDialog({ open: false, person: null });
+      fetchPersonnel();
+    } catch (error) {
+      console.error('Failed to update stats:', error);
+      toast.error('Failed to update deployment stats');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filteredPersonnel = personnel.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.person_rank.toLowerCase().includes(searchTerm.toLowerCase())
@@ -533,6 +587,7 @@ export const EMTFDeploymentLog = () => {
                     <TableHead>EMS Level</TableHead>
                     <TableHead>Last EMTF Deploy</TableHead>
                     <TableHead className="text-center">12mo Deployments</TableHead>
+                    <TableHead className="w-16">Edit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -573,6 +628,17 @@ export const EMTFDeploymentLog = () => {
                         <Badge variant={person.deployments_12mo === 0 ? 'outline' : 'secondary'}>
                           {person.deployments_12mo}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEditStats(person)}
+                          data-testid={`edit-stats-${person.id}`}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1009,6 +1075,87 @@ export const EMTFDeploymentLog = () => {
                   </>
                 )}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Stats Dialog */}
+        <Dialog open={editStatsDialog.open} onOpenChange={(open) => !open && setEditStatsDialog({ open: false, person: null })}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-blue-500" />
+                Edit EMTF Stats
+              </DialogTitle>
+              <DialogDescription>
+                {editStatsDialog.person && (
+                  <>Update or reset deployment stats for <strong>{editStatsDialog.person.name}</strong></>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-last-deploy">Last EMTF Deployment Date</Label>
+                <Input
+                  id="edit-last-deploy"
+                  type="date"
+                  value={editStatsData.last_emtf_deploy}
+                  onChange={(e) => setEditStatsData(d => ({ ...d, last_emtf_deploy: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Leave blank to set as Never deployed</p>
+              </div>
+              <div>
+                <Label htmlFor="edit-deployments">Deployments in Last 12 Months</Label>
+                <Input
+                  id="edit-deployments"
+                  type="number"
+                  min="0"
+                  value={editStatsData.deployments_12mo}
+                  onChange={(e) => setEditStatsData(d => ({ ...d, deployments_12mo: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                <p className="text-sm text-amber-600">
+                  <AlertTriangle className="h-4 w-4 inline mr-2" />
+                  Changing these stats will affect the persons position in the fair rotation order.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button 
+                variant="destructive" 
+                onClick={handleResetStats}
+                disabled={saving}
+                className="w-full sm:w-auto"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset to Never
+              </Button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="outline" onClick={() => setEditStatsDialog({ open: false, person: null })}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleUpdateStats} 
+                  disabled={saving}
+                  className="bg-blue-500 hover:bg-blue-600"
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
