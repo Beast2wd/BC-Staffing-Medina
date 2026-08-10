@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -20,7 +20,10 @@ import {
   FileText,
   Clock,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Upload,
+  UserPlus,
+  Download
 } from 'lucide-react';
 import {
   Table,
@@ -48,17 +51,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import { Textarea } from '../../components/ui/textarea';
 
 export const EMTFDeploymentLog = () => {
   const { api } = useAuth();
+  const fileInputRef = useRef(null);
   const [personnel, setPersonnel] = useState([]);
+  const [allPersonnel, setAllPersonnel] = useState([]);
   const [recentDeployments, setRecentDeployments] = useState([]);
   const [totalEligible, setTotalEligible] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [deployDialog, setDeployDialog] = useState(false);
+  const [manualEntryDialog, setManualEntryDialog] = useState(false);
+  const [importDialog, setImportDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, deployment: null });
   const [deploymentData, setDeploymentData] = useState({
     incident_name: '',
@@ -67,6 +81,19 @@ export const EMTFDeploymentLog = () => {
     end_date: '',
     notes: ''
   });
+  const [manualEntryData, setManualEntryData] = useState({
+    personnel_id: '',
+    personnel_name: '',
+    personnel_rank: '',
+    incident_name: '',
+    location: '',
+    start_date: '',
+    end_date: '',
+    notes: ''
+  });
+  const [csvData, setCsvData] = useState([]);
+  const [csvPreview, setCsvPreview] = useState([]);
+  const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -93,8 +120,19 @@ export const EMTFDeploymentLog = () => {
     }
   };
 
+  const fetchAllPersonnel = async () => {
+    try {
+      const response = await api.get('/deployment-roster');
+      const roster = response.data.roster || response.data || [];
+      setAllPersonnel(roster.filter(p => p.emtf_eligible));
+    } catch (error) {
+      console.error('Failed to fetch all personnel:', error);
+    }
+  };
+
   useEffect(() => {
     fetchPersonnel();
+    fetchAllPersonnel();
     fetchRecentDeployments();
   }, []);
 
@@ -189,6 +227,162 @@ export const EMTFDeploymentLog = () => {
     }
   };
 
+  // Manual Entry Handler
+  const handleManualEntry = async () => {
+    if (!manualEntryData.personnel_id || !manualEntryData.incident_name || !manualEntryData.start_date) {
+      toast.error('Please select personnel and fill in incident name and start date');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.post('/deployment-history', {
+        deployment_type: 'EMTF',
+        incident_name: manualEntryData.incident_name,
+        location: manualEntryData.location,
+        start_date: manualEntryData.start_date,
+        end_date: manualEntryData.end_date,
+        notes: manualEntryData.notes,
+        personnel: [{
+          id: manualEntryData.personnel_id,
+          name: manualEntryData.personnel_name,
+          rank: manualEntryData.personnel_rank,
+          position: ''
+        }],
+        status: manualEntryData.end_date ? 'completed' : 'active'
+      });
+
+      toast.success(`Historical EMTF deployment added for ${manualEntryData.personnel_name}`);
+      setManualEntryDialog(false);
+      setManualEntryData({
+        personnel_id: '',
+        personnel_name: '',
+        personnel_rank: '',
+        incident_name: '',
+        location: '',
+        start_date: '',
+        end_date: '',
+        notes: ''
+      });
+      
+      fetchPersonnel();
+      fetchRecentDeployments();
+    } catch (error) {
+      console.error('Failed to create manual entry:', error);
+      toast.error('Failed to create deployment entry');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // CSV Import Handlers
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+        
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
+          if (values.length >= 3) {
+            const row = {};
+            headers.forEach((header, idx) => {
+              row[header] = values[idx] || '';
+            });
+            data.push(row);
+          }
+        }
+
+        setCsvData(data);
+        setCsvPreview(data.slice(0, 5));
+        setImportDialog(true);
+      } catch (error) {
+        console.error('Failed to parse CSV:', error);
+        toast.error('Failed to parse CSV file');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const handleImportCSV = async () => {
+    if (csvData.length === 0) {
+      toast.error('No data to import');
+      return;
+    }
+
+    setImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const row of csvData) {
+      try {
+        const personnelName = row.personnel_name || row.name || row.personnel;
+        const matchedPerson = allPersonnel.find(p => 
+          p.name.toLowerCase() === personnelName?.toLowerCase() ||
+          p.name.toLowerCase().includes(personnelName?.toLowerCase())
+        );
+
+        if (!matchedPerson) {
+          console.warn(`Personnel not found: ${personnelName}`);
+          errorCount++;
+          continue;
+        }
+
+        await api.post('/deployment-history', {
+          deployment_type: 'EMTF',
+          incident_name: row.incident_name || row.incident || 'Historical Deployment',
+          location: row.location || '',
+          start_date: row.start_date || row.date,
+          end_date: row.end_date || '',
+          notes: row.notes || 'Imported from CSV',
+          personnel: [{
+            id: matchedPerson.id,
+            name: matchedPerson.name,
+            rank: matchedPerson.rank || '',
+            position: ''
+          }],
+          status: 'completed'
+        });
+        successCount++;
+      } catch (error) {
+        console.error('Failed to import row:', row, error);
+        errorCount++;
+      }
+    }
+
+    setImporting(false);
+    setImportDialog(false);
+    setCsvData([]);
+    setCsvPreview([]);
+
+    if (successCount > 0) {
+      toast.success(`Successfully imported ${successCount} deployment records`);
+      fetchPersonnel();
+      fetchRecentDeployments();
+    }
+    if (errorCount > 0) {
+      toast.error(`Failed to import ${errorCount} records (personnel not found or invalid data)`);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const template = 'personnel_name,incident_name,location,start_date,end_date,notes\n"Last, First","Hurricane Response","Galveston County, TX","2024-06-01","2024-06-05","Example deployment"';
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'emtf_deployment_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredPersonnel = personnel.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.person_rank.toLowerCase().includes(searchTerm.toLowerCase())
@@ -209,11 +403,34 @@ export const EMTFDeploymentLog = () => {
               <p className="text-muted-foreground">Emergency Medical Task Force</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" onClick={fetchPersonnel} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setManualEntryDialog(true)}
+              data-testid="emtf-manual-entry-btn"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Manual Entry
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              data-testid="emtf-import-csv-btn"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
             <Button 
               onClick={() => setDeployDialog(true)}
               disabled={selectedIds.length === 0}
@@ -289,7 +506,7 @@ export const EMTFDeploymentLog = () => {
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-200">
             <strong>Fair Rotation:</strong> Personnel are ordered by last deployment date. 
-            Those who haven't deployed recently appear at the top. After a deployment, they move down the list.
+            Those who have not deployed recently appear at the top. After a deployment, they move down the list.
           </p>
         </div>
 
@@ -586,6 +803,209 @@ export const EMTFDeploymentLog = () => {
                   <>
                     <FileText className="h-4 w-4 mr-2" />
                     Create Deployment
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manual Entry Dialog */}
+        <Dialog open={manualEntryDialog} onOpenChange={setManualEntryDialog}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-blue-500" />
+                Manual EMTF Entry
+              </DialogTitle>
+              <DialogDescription>
+                Add a historical deployment record for a single person
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="manual-personnel">Personnel *</Label>
+                <Select
+                  value={manualEntryData.personnel_id}
+                  onValueChange={(value) => {
+                    const person = allPersonnel.find(p => p.id === value);
+                    setManualEntryData(d => ({
+                      ...d,
+                      personnel_id: value,
+                      personnel_name: person?.name || '',
+                      personnel_rank: person?.rank || ''
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select personnel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allPersonnel.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} - {p.rank}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="manual-incident">Incident Name *</Label>
+                <Input
+                  id="manual-incident"
+                  placeholder="e.g., Hurricane Response - Coastal Region"
+                  value={manualEntryData.incident_name}
+                  onChange={(e) => setManualEntryData(d => ({ ...d, incident_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="manual-location">Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="manual-location"
+                    placeholder="e.g., Galveston County, TX"
+                    className="pl-10"
+                    value={manualEntryData.location}
+                    onChange={(e) => setManualEntryData(d => ({ ...d, location: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="manual-start">Start Date *</Label>
+                  <Input
+                    id="manual-start"
+                    type="date"
+                    value={manualEntryData.start_date}
+                    onChange={(e) => setManualEntryData(d => ({ ...d, start_date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-end">End Date</Label>
+                  <Input
+                    id="manual-end"
+                    type="date"
+                    value={manualEntryData.end_date}
+                    onChange={(e) => setManualEntryData(d => ({ ...d, end_date: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="manual-notes">Notes</Label>
+                <Textarea
+                  id="manual-notes"
+                  placeholder="Additional notes..."
+                  value={manualEntryData.notes}
+                  onChange={(e) => setManualEntryData(d => ({ ...d, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setManualEntryDialog(false)}>Cancel</Button>
+              <Button 
+                onClick={handleManualEntry} 
+                disabled={saving}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                {saving ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Add Entry
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Import CSV Dialog */}
+        <Dialog open={importDialog} onOpenChange={setImportDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-blue-500" />
+                Import EMTF Deployments from CSV
+              </DialogTitle>
+              <DialogDescription>
+                Preview and import historical deployment records
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {csvData.length} records found in file
+                </p>
+                <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Template
+                </Button>
+              </div>
+
+              {csvPreview.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Personnel</TableHead>
+                        <TableHead>Incident</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {csvPreview.map((row, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{row.personnel_name || row.name || row.personnel}</TableCell>
+                          <TableCell>{row.incident_name || row.incident}</TableCell>
+                          <TableCell>{row.location}</TableCell>
+                          <TableCell>{row.start_date || row.date}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {csvData.length > 5 && (
+                    <p className="text-sm text-muted-foreground text-center py-2 border-t">
+                      ... and {csvData.length - 5} more records
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                <p className="text-sm text-amber-600">
+                  <AlertTriangle className="h-4 w-4 inline mr-2" />
+                  Personnel names in CSV must match existing roster names exactly. Unmatched records will be skipped.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setImportDialog(false); setCsvData([]); setCsvPreview([]); }}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleImportCSV} 
+                disabled={importing || csvData.length === 0}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                {importing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import {csvData.length} Records
                   </>
                 )}
               </Button>
