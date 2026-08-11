@@ -151,7 +151,7 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
       className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-500 ${fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       data-testid="video-intro"
     >
-      {/* Video - Fullscreen, responsive for all devices */}
+      {/* Video - Fullscreen, show full video (letterbox on mobile) */}
       {!videoError ? (
         <video
           ref={videoRef}
@@ -159,10 +159,8 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
           src={videoSrc}
           className="absolute inset-0 w-full h-full"
           style={{
-            objectFit: 'cover',
-            objectPosition: 'center center',
-            minWidth: '100vw',
-            minHeight: '100vh'
+            objectFit: 'contain',
+            objectPosition: 'center center'
           }}
           autoPlay
           muted
