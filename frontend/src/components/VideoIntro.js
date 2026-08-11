@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { SkipForward } from 'lucide-react';
 
-export const VideoIntro = ({ onComplete }) => {
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+export const VideoIntro = ({ onComplete, videoUrl }) => {
   const [showSkip, setShowSkip] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     // Show skip button after 1 second
@@ -12,10 +17,10 @@ export const VideoIntro = ({ onComplete }) => {
       setShowSkip(true);
     }, 1000);
 
-    // Auto-complete after 6 seconds
+    // Auto-complete after 6 seconds (fallback if video doesn't trigger onEnded)
     const completeTimer = setTimeout(() => {
       handleComplete();
-    }, 6000);
+    }, 7000);
 
     return () => {
       clearTimeout(skipTimer);
@@ -24,6 +29,7 @@ export const VideoIntro = ({ onComplete }) => {
   }, []);
 
   const handleComplete = () => {
+    if (fadeOut) return; // Prevent double-trigger
     setFadeOut(true);
     // Wait for fade animation to complete
     setTimeout(() => {
@@ -33,31 +39,67 @@ export const VideoIntro = ({ onComplete }) => {
     }, 500);
   };
 
+  const handleVideoEnd = () => {
+    handleComplete();
+  };
+
+  const handleVideoError = () => {
+    console.error('Video failed to load');
+    setVideoError(true);
+    // Skip intro if video fails
+    setTimeout(() => {
+      handleComplete();
+    }, 1000);
+  };
+
+  const handleVideoLoaded = () => {
+    setVideoLoaded(true);
+  };
+
+  // If no video URL provided, skip intro immediately
+  useEffect(() => {
+    if (!videoUrl) {
+      handleComplete();
+    }
+  }, [videoUrl]);
+
+  if (!videoUrl) {
+    return null;
+  }
+
+  // Construct full video URL
+  const fullVideoUrl = videoUrl.startsWith('http') ? videoUrl : `${API_URL}${videoUrl}`;
+
   return (
     <div 
       className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
       data-testid="video-intro"
     >
-      {/* YouTube Video Embed - Fullscreen */}
-      <div className="absolute inset-0 w-full h-full">
-        <iframe
-          src="https://www.youtube.com/embed/A5eES30o87Q?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&loop=1&playlist=A5eES30o87Q"
-          title="BC Staffing Intro"
-          className="w-full h-full object-cover"
-          style={{ 
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            minWidth: '100%',
-            minHeight: '100%',
-            width: 'auto',
-            height: 'auto'
-          }}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          frameBorder="0"
+      {/* Video - Fullscreen, no controls, autoplay */}
+      {!videoError ? (
+        <video
+          ref={videoRef}
+          src={fullVideoUrl}
+          className="absolute inset-0 w-full h-full object-cover"
+          autoPlay
+          muted
+          playsInline
+          onEnded={handleVideoEnd}
+          onError={handleVideoError}
+          onLoadedData={handleVideoLoaded}
         />
-      </div>
+      ) : (
+        <div className="text-white text-center">
+          <p className="text-lg">Loading...</p>
+        </div>
+      )}
+
+      {/* Loading indicator while video loads */}
+      {!videoLoaded && !videoError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
 
       {/* Skip Button */}
       {showSkip && (
@@ -88,6 +130,13 @@ export const VideoIntro = ({ onComplete }) => {
         @keyframes progressBar {
           from { width: 0%; }
           to { width: 100%; }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
         }
       `}</style>
     </div>

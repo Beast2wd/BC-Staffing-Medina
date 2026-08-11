@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Save, Upload, Trash2, Image as ImageIcon, Palette, 
-  Layout, RotateCcw, Plus, GripVertical, Loader2 
+  Layout, RotateCcw, Plus, GripVertical, Loader2, Video, Play
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -19,6 +19,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const DEFAULT_SETTINGS = {
   logo_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png",
   login_background_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg",
+  intro_video_url: null,
   primary_color: "#dc2626",
   secondary_color: "#1e3a5f",
   accent_color: "#f59e0b",
@@ -45,6 +46,8 @@ export const PlatformSettingsPage = () => {
   const logoInputRef = useRef(null);
   const loginBgInputRef = useRef(null);
   const heroImageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   // Redirect non-super-admins
   useEffect(() => {
@@ -152,6 +155,58 @@ export const PlatformSettingsPage = () => {
     }));
   };
 
+  const handleVideoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please select a video file (MP4, WebM, OGG, or MOV)');
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Video file must be less than 50MB');
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/api/platform/upload-video`, formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      setSettings(prev => ({ ...prev, intro_video_url: response.data.video_url }));
+      toast.success('Intro video uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload video:', error);
+      toast.error('Failed to upload video');
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const handleRemoveVideo = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/api/platform/video`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSettings(prev => ({ ...prev, intro_video_url: null }));
+      toast.success('Intro video removed');
+    } catch (error) {
+      console.error('Failed to remove video:', error);
+      toast.error('Failed to remove video');
+    }
+  };
+
   const handleColorChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
@@ -218,6 +273,10 @@ export const PlatformSettingsPage = () => {
             <TabsTrigger value="branding" className="data-[state=active]:bg-red-600">
               <Palette className="h-4 w-4 mr-2" />
               Logos & Colors
+            </TabsTrigger>
+            <TabsTrigger value="video" className="data-[state=active]:bg-red-600">
+              <Video className="h-4 w-4 mr-2" />
+              Intro Video
             </TabsTrigger>
             <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
               <ImageIcon className="h-4 w-4 mr-2" />
@@ -358,6 +417,98 @@ export const PlatformSettingsPage = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Intro Video Tab */}
+          <TabsContent value="video" className="space-y-6">
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Video className="h-5 w-5" />
+                  Landing Page Intro Video
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Upload a short intro video that plays when visitors first arrive at the landing page.
+                  The video auto-plays (muted) for 5-6 seconds before the main page appears.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Current Video Preview */}
+                {settings.intro_video_url ? (
+                  <div className="space-y-4">
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-black border border-slate-600">
+                      <video 
+                        src={settings.intro_video_url.startsWith('http') ? settings.intro_video_url : `${API_URL}${settings.intro_video_url}`}
+                        className="w-full h-full object-cover"
+                        controls
+                        muted
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-400">
+                        <Play className="h-4 w-4" />
+                        <span className="text-sm font-medium">Intro video is active</span>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleRemoveVideo}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove Video
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border-2 border-dashed border-slate-600 rounded-lg">
+                    <Video className="h-12 w-12 mx-auto text-slate-500 mb-4" />
+                    <p className="text-slate-400 mb-4">No intro video uploaded</p>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Upload a video file (MP4, WebM, OGG, or MOV) up to 50MB
+                    </p>
+                  </div>
+                )}
+
+                {/* Upload Button */}
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                  onChange={handleVideoUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={uploadingVideo}
+                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  {uploadingVideo ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading Video...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      {settings.intro_video_url ? 'Replace Video' : 'Upload Video'}
+                    </>
+                  )}
+                </Button>
+
+                {/* Tips */}
+                <div className="p-4 bg-slate-700/50 rounded-lg">
+                  <h4 className="text-sm font-medium text-white mb-2">Video Tips:</h4>
+                  <ul className="text-sm text-slate-400 space-y-1">
+                    <li>• Keep videos short (5-10 seconds recommended)</li>
+                    <li>• MP4 format with H.264 encoding works best</li>
+                    <li>• Videos auto-play muted (browser policy)</li>
+                    <li>• Visitors can skip the intro after 1 second</li>
+                    <li>• Video only plays once per browser session</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Hero Slideshow Tab */}
