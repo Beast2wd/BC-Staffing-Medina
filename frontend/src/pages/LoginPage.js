@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import { Button } from '../components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { toast } from 'sonner';
-import { Shield, Eye, EyeOff, Building2, Loader2 } from 'lucide-react';
+import { Shield, Eye, EyeOff, Building2, Loader2, Home } from 'lucide-react';
 import { getSubdomain } from '../utils/tenantUtils';
 import axios from 'axios';
 
@@ -90,6 +90,23 @@ export const LoginPage = () => {
       style={{ backgroundImage: `url(${backgroundUrl})` }}
     >
       <div className="absolute inset-0 bg-black/60" />
+      
+      {/* Home Button - Only shown on main BC Staffing login (not tenant context) */}
+      {!isSubdomainContext && (
+        <Link 
+          to="/"
+          className="absolute top-4 left-4 z-20"
+          data-testid="login-home-button"
+        >
+          <Button 
+            variant="outline" 
+            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 hover:text-white"
+          >
+            <Home className="h-4 w-4 mr-2" />
+            Home
+          </Button>
+        </Link>
+      )}
       
       <Card className="relative z-10 w-full max-w-md glass animate-fade-in">
         <CardHeader className="text-center space-y-4">
