@@ -729,3 +729,22 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/backend/routes/platform_routes.py` - Platform settings API endpoints
   - Updated `/app/frontend/src/pages/LoginPage.js` - Fetch platform settings for main login
   - Updated `/app/frontend/src/pages/LandingPage.js` - Fetch platform settings for landing page
+
+### Landing Page Intro Video ✅ (Completed August 2026)
+- ✅ **Video Upload** - Super Admin can upload intro video (MP4, WebM, OGG, MOV, max 50MB) via Platform Settings Intro Video tab
+- ✅ **Direct Video Hosting** - Videos stored locally and served via `/api/platform/video/{filename}` endpoint
+- ✅ **VideoIntro Component** - Full-screen video intro with:
+  - Auto-play muted (required for browser autoplay policy)
+  - Skip Intro button (appears after 1 second)
+  - Progress bar indicator
+  - Auto-transition to landing page after video ends
+  - Graceful error handling (skips to landing page if video fails)
+- ✅ **Replay on Refresh** - Video plays every time user visits/refreshes the landing page
+- ✅ **No YouTube Branding** - Replaced YouTube embed with direct HTML5 video for clean, brandless experience
+- ✅ **Streaming Support** - Backend serves video with proper streaming headers (Accept-Ranges, chunked transfer)
+- ✅ **Files Created/Updated**:
+  - `/app/frontend/src/components/VideoIntro.js` - Video intro component
+  - Updated `/app/frontend/src/pages/LandingPage.js` - Integrates VideoIntro
+  - Updated `/app/frontend/src/pages/PlatformSettingsPage.js` - Intro Video tab
+  - Updated `/app/backend/routes/platform_routes.py` - Video upload/serve/delete endpoints
+

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from './ui/button';
 import { SkipForward } from 'lucide-react';
 
@@ -9,7 +9,28 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
   const [fadeOut, setFadeOut] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const videoRef = useRef(null);
+  const hasCompletedRef = useRef(false);
+  const MAX_RETRIES = 2;
+
+  // Construct full video URL - handle relative and absolute paths
+  const fullVideoUrl = videoUrl?.startsWith('http') 
+    ? videoUrl 
+    : videoUrl?.startsWith('/') 
+      ? `${API_URL}${videoUrl}`
+      : `${API_URL}/${videoUrl}`;
+
+  const handleComplete = useCallback(() => {
+    if (hasCompletedRef.current || fadeOut) return; // Prevent double-trigger
+    hasCompletedRef.current = true;
+    setFadeOut(true);
+    // Wait for fade animation to complete
+    setTimeout(() => {
+      onComplete();
+    }, 500);
+  }, [fadeOut, onComplete]);
 
   useEffect(() => {
     // Show skip button after 1 second
@@ -17,36 +38,84 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
       setShowSkip(true);
     }, 1000);
 
-    // Auto-complete after 6 seconds (fallback if video doesn't trigger onEnded)
+    // Fallback auto-complete after 12 seconds if video doesn't end/error
     const completeTimer = setTimeout(() => {
       handleComplete();
-    }, 7000);
+    }, 12000);
 
     return () => {
       clearTimeout(skipTimer);
       clearTimeout(completeTimer);
     };
-  }, []);
+  }, [handleComplete]);
 
-  const handleComplete = () => {
-    if (fadeOut) return; // Prevent double-trigger
-    setFadeOut(true);
-    // Wait for fade animation to complete
-    setTimeout(() => {
-      // Mark intro as seen in session storage
-      sessionStorage.setItem('introSeen', 'true');
-      onComplete();
-    }, 500);
-  };
+  // Handle video playback with retry logic
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+
+    const attemptPlay = async () => {
+      try {
+        // Ensure video is muted for autoplay
+        video.muted = true;
+        video.playsInline = true;
+        await video.play();
+        setIsPlaying(true);
+        setVideoLoaded(true);
+      } catch (error) {
+        console.warn('Video autoplay failed:', error);
+        // Still mark as loaded so user can see skip option
+        setVideoLoaded(true);
+      }
+    };
+
+    // Listen for when video can play
+    const handleCanPlay = () => {
+      setVideoLoaded(true);
+      attemptPlay();
+    };
+
+    const handleCanPlayThrough = () => {
+      attemptPlay();
+    };
+
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('canplaythrough', handleCanPlayThrough);
+
+    // If video already has data, try to play
+    if (video.readyState >= 3) {
+      attemptPlay();
+    }
+
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('canplaythrough', handleCanPlayThrough);
+    };
+  }, [videoUrl, retryCount]);
 
   const handleVideoEnd = () => {
     handleComplete();
   };
 
-  const handleVideoError = () => {
-    console.error('Video failed to load');
+  const handleVideoError = (e) => {
+    const video = videoRef.current;
+    const errorCode = video?.error?.code;
+    const errorMessage = video?.error?.message || 'Unknown error';
+    console.error('Video error:', { errorCode, errorMessage, src: fullVideoUrl, retry: retryCount });
+    
+    // Retry logic
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying video load (${retryCount + 1}/${MAX_RETRIES})...`);
+      setRetryCount(prev => prev + 1);
+      // Force reload by updating the video src
+      if (video) {
+        video.load();
+      }
+      return;
+    }
+    
     setVideoError(true);
-    // Skip intro if video fails
+    // Skip intro if video fails after retries
     setTimeout(() => {
       handleComplete();
     }, 1000);
@@ -56,41 +125,53 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
     setVideoLoaded(true);
   };
 
+  const handleVideoPlaying = () => {
+    setIsPlaying(true);
+    setVideoLoaded(true);
+  };
+
   // If no video URL provided, skip intro immediately
   useEffect(() => {
     if (!videoUrl) {
       handleComplete();
     }
-  }, [videoUrl]);
+  }, [videoUrl, handleComplete]);
 
   if (!videoUrl) {
     return null;
   }
 
-  // Construct full video URL
-  const fullVideoUrl = videoUrl.startsWith('http') ? videoUrl : `${API_URL}${videoUrl}`;
+  // Add cache-busting for retries
+  const videoSrc = retryCount > 0 
+    ? `${fullVideoUrl}${fullVideoUrl.includes('?') ? '&' : '?'}retry=${retryCount}` 
+    : fullVideoUrl;
 
   return (
     <div 
-      className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-500 ${fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       data-testid="video-intro"
     >
       {/* Video - Fullscreen, no controls, autoplay */}
       {!videoError ? (
         <video
           ref={videoRef}
-          src={fullVideoUrl}
+          key={videoSrc}
+          src={videoSrc}
           className="absolute inset-0 w-full h-full object-cover"
           autoPlay
           muted
           playsInline
+          preload="auto"
           onEnded={handleVideoEnd}
           onError={handleVideoError}
           onLoadedData={handleVideoLoaded}
+          onLoadedMetadata={handleVideoLoaded}
+          onPlaying={handleVideoPlaying}
+          data-testid="intro-video-element"
         />
       ) : (
         <div className="text-white text-center">
-          <p className="text-lg">Loading...</p>
+          <p className="text-lg opacity-50">Loading...</p>
         </div>
       )}
 
@@ -116,12 +197,12 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
         </div>
       )}
 
-      {/* Progress indicator */}
+      {/* Progress indicator - uses actual video duration when available */}
       <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
         <div 
           className="h-full bg-red-500 transition-all ease-linear"
           style={{ 
-            animation: 'progressBar 6s linear forwards'
+            animation: `progressBar ${isPlaying ? '6s' : '12s'} linear forwards`
           }}
         />
       </div>

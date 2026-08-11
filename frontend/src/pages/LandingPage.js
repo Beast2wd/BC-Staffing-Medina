@@ -26,10 +26,8 @@ export const LandingPage = () => {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [platformSettings, setPlatformSettings] = useState(null);
-  const [showIntro, setShowIntro] = useState(() => {
-    // Check if intro has been seen in this session
-    return !sessionStorage.getItem('introSeen');
-  });
+  // Always show intro when video is configured - plays on every visit/refresh
+  const [showIntro, setShowIntro] = useState(true);
 
   // Fetch platform settings
   useEffect(() => {

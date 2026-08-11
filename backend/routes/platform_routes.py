@@ -168,9 +168,11 @@ async def upload_intro_video(
 
 
 @router.get("/video/{filename}")
-async def serve_video(filename: str):
-    """Serve uploaded video files"""
-    from fastapi.responses import FileResponse
+async def serve_video(filename: str, request=None):
+    """Serve uploaded video files with proper streaming headers for HTML5 video playback"""
+    from fastapi import Request
+    from fastapi.responses import StreamingResponse, Response
+    import aiofiles
     
     filepath = os.path.join(UPLOAD_DIR, filename)
     if not os.path.exists(filepath):
@@ -186,7 +188,56 @@ async def serve_video(filename: str):
     }
     content_type = content_types.get(ext, "video/mp4")
     
-    return FileResponse(filepath, media_type=content_type)
+    # Get file size
+    file_size = os.path.getsize(filepath)
+    
+    async def iterfile():
+        """Stream file in chunks"""
+        async with aiofiles.open(filepath, 'rb') as f:
+            while chunk := await f.read(65536):  # 64KB chunks
+                yield chunk
+    
+    # Return streaming response for better video playback
+    return StreamingResponse(
+        iterfile(),
+        media_type=content_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Cache-Control": "public, max-age=86400",
+            "X-Content-Type-Options": "nosniff"
+        }
+    )
+
+
+@router.head("/video/{filename}")
+async def head_video(filename: str):
+    """Handle HEAD requests for video files"""
+    from fastapi.responses import Response
+    
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    ext = filename.split(".")[-1].lower()
+    content_types = {
+        "mp4": "video/mp4",
+        "webm": "video/webm", 
+        "ogg": "video/ogg",
+        "mov": "video/quicktime"
+    }
+    content_type = content_types.get(ext, "video/mp4")
+    file_size = os.path.getsize(filepath)
+    
+    return Response(
+        content=None,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Content-Type": content_type,
+            "Cache-Control": "public, max-age=86400"
+        }
+    )
 
 
 @router.delete("/video")
