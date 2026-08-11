@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Shield, Users, Calendar, BarChart3, Clock, Bell, ArrowRight, ChevronRight, Building2, LogOut, Settings } from 'lucide-react';
 import TenantSwitcher from '../components/dev/TenantSwitcher';
 import { clearManualSubdomain } from '../utils/tenantUtils';
+import VideoIntro from '../components/VideoIntro';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -25,6 +26,10 @@ export const LandingPage = () => {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [platformSettings, setPlatformSettings] = useState(null);
+  const [showIntro, setShowIntro] = useState(() => {
+    // Check if intro has been seen in this session
+    return !sessionStorage.getItem('introSeen');
+  });
 
   // Fetch platform settings
   useEffect(() => {
@@ -138,7 +143,13 @@ export const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+    <>
+      {/* Video Intro - Shows only once per session */}
+      {showIntro && (
+        <VideoIntro onComplete={() => setShowIntro(false)} />
+      )}
+      
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -410,6 +421,7 @@ export const LandingPage = () => {
         </div>
       </footer>
     </div>
+    </>
   );
 };
 
