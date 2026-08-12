@@ -52,6 +52,7 @@ export const LandingPage = () => {
   const heroDescription = platformSettings?.hero_description || 
     'Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, personnel management, and emergency response.';
   const introVideoUrl = platformSettings?.intro_video_url || null;
+  const introVideoSound = platformSettings?.intro_video_sound || false;
 
   // Background image slideshow effect
   useEffect(() => {
@@ -143,9 +144,13 @@ export const LandingPage = () => {
 
   return (
     <>
-      {/* Video Intro - Shows only once per session and only if video is configured */}
+      {/* Video Intro - Shows on every visit if video is configured */}
       {showIntro && introVideoUrl && (
-        <VideoIntro videoUrl={introVideoUrl} onComplete={() => setShowIntro(false)} />
+        <VideoIntro 
+          videoUrl={introVideoUrl} 
+          soundEnabled={introVideoSound}
+          onComplete={() => setShowIntro(false)} 
+        />
       )}
       
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">

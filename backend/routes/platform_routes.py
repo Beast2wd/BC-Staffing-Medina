@@ -24,6 +24,7 @@ class PlatformSettings(BaseModel):
     logo_url: Optional[str] = None
     login_background_url: Optional[str] = None
     intro_video_url: Optional[str] = None
+    intro_video_sound: Optional[bool] = False  # Whether to prompt users to enable sound
     primary_color: Optional[str] = "#dc2626"
     secondary_color: Optional[str] = "#1e3a5f"
     accent_color: Optional[str] = "#f59e0b"
@@ -45,6 +46,7 @@ async def get_platform_settings(current_user: dict = Depends(require_super_admin
             "logo_url": "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png",
             "login_background_url": "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg",
             "intro_video_url": None,
+            "intro_video_sound": False,
             "primary_color": "#dc2626",
             "secondary_color": "#1e3a5f",
             "accent_color": "#f59e0b",
@@ -105,7 +107,8 @@ async def get_public_platform_settings():
             "hero_title": "BC STAFFING",
             "hero_subtitle": "Fire & EMS Staffing Solutions",
             "hero_description": "Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, personnel management, and emergency response.",
-            "intro_video_url": None
+            "intro_video_url": None,
+            "intro_video_sound": False
         }
     
     # Return only public-safe fields
@@ -113,6 +116,7 @@ async def get_public_platform_settings():
         "logo_url": settings.get("logo_url"),
         "login_background_url": settings.get("login_background_url"),
         "intro_video_url": settings.get("intro_video_url"),
+        "intro_video_sound": settings.get("intro_video_sound", False),
         "primary_color": settings.get("primary_color", "#dc2626"),
         "secondary_color": settings.get("secondary_color", "#1e3a5f"),
         "accent_color": settings.get("accent_color", "#f59e0b"),

@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   logo_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png",
   login_background_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg",
   intro_video_url: null,
+  intro_video_sound: false,
   primary_color: "#dc2626",
   secondary_color: "#1e3a5f",
   accent_color: "#f59e0b",
@@ -458,6 +459,30 @@ export const PlatformSettingsPage = () => {
                         Remove Video
                       </Button>
                     </div>
+                    
+                    {/* Sound Settings */}
+                    <div className="p-4 bg-slate-700/50 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium text-white">Enable Sound Prompt</label>
+                          <p className="text-xs text-slate-400">
+                            Show a prompt encouraging visitors to unmute the video
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={settings.intro_video_sound || false}
+                            onChange={(e) => setSettings({ ...settings, intro_video_sound: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                        </label>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Note: Browsers require videos to start muted for autoplay. When enabled, visitors will see an &quot;Unmute&quot; button and a brief prompt to enable sound.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 border-2 border-dashed border-slate-600 rounded-lg">
@@ -502,9 +527,10 @@ export const PlatformSettingsPage = () => {
                   <ul className="text-sm text-slate-400 space-y-1">
                     <li>• Keep videos short (5-10 seconds recommended)</li>
                     <li>• MP4 format with H.264 encoding works best</li>
-                    <li>• Videos auto-play muted (browser policy)</li>
-                    <li>• Visitors can skip the intro after 1 second</li>
-                    <li>• Video only plays once per browser session</li>
+                    <li>• Videos start muted (browser autoplay policy)</li>
+                    <li>• Visitors can tap &quot;Unmute&quot; to enable sound</li>
+                    <li>• Skip button appears after 1 second</li>
+                    <li>• Video replays on each visit/refresh</li>
                   </ul>
                 </div>
               </CardContent>

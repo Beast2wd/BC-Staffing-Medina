@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from './ui/button';
-import { SkipForward } from 'lucide-react';
+import { SkipForward, Volume2, VolumeX } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-export const VideoIntro = ({ onComplete, videoUrl }) => {
+export const VideoIntro = ({ onComplete, videoUrl, soundEnabled = false }) => {
   const [showSkip, setShowSkip] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Always start muted for autoplay
+  const [showUnmutePrompt, setShowUnmutePrompt] = useState(soundEnabled); // Show prompt if sound should be on
   const [retryCount, setRetryCount] = useState(0);
   const videoRef = useRef(null);
   const hasCompletedRef = useRef(false);
@@ -32,6 +34,16 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
     }, 500);
   }, [fadeOut, onComplete]);
 
+  // Toggle mute/unmute
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = !video.muted;
+      setIsMuted(video.muted);
+      setShowUnmutePrompt(false); // Hide prompt after user interaction
+    }
+  }, []);
+
   useEffect(() => {
     // Show skip button after 1 second
     const skipTimer = setTimeout(() => {
@@ -43,9 +55,15 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
       handleComplete();
     }, 12000);
 
+    // Hide unmute prompt after 3 seconds
+    const unmuteTimer = setTimeout(() => {
+      setShowUnmutePrompt(false);
+    }, 4000);
+
     return () => {
       clearTimeout(skipTimer);
       clearTimeout(completeTimer);
+      clearTimeout(unmuteTimer);
     };
   }, [handleComplete]);
 
@@ -56,12 +74,13 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
 
     const attemptPlay = async () => {
       try {
-        // Ensure video is muted for autoplay
+        // Must start muted for autoplay to work in browsers
         video.muted = true;
         video.playsInline = true;
         await video.play();
         setIsPlaying(true);
         setVideoLoaded(true);
+        setIsMuted(true);
       } catch (error) {
         console.warn('Video autoplay failed:', error);
         // Still mark as loaded so user can see skip option
@@ -186,7 +205,38 @@ export const VideoIntro = ({ onComplete, videoUrl }) => {
         </div>
       )}
 
-      {/* Skip Button */}
+      {/* Sound/Mute Toggle Button - Bottom Left */}
+      {videoLoaded && !videoError && (
+        <div className="absolute bottom-8 left-8 z-10 animate-fade-in flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={toggleMute}
+            className="bg-black/50 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white transition-all"
+            data-testid="sound-toggle-button"
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="h-4 w-4 mr-2" />
+                Unmute
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-4 w-4 mr-2" />
+                Mute
+              </>
+            )}
+          </Button>
+          
+          {/* Unmute prompt - shows briefly if sound is enabled in settings */}
+          {showUnmutePrompt && isMuted && (
+            <span className="text-white/80 text-sm animate-pulse">
+              Tap to hear audio
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Skip Button - Bottom Right */}
       {showSkip && (
         <div className="absolute bottom-8 right-8 z-10 animate-fade-in">
           <Button
