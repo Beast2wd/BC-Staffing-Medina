@@ -74,17 +74,27 @@ export const VideoIntro = ({ onComplete, videoUrl, soundEnabled = false }) => {
 
     const attemptPlay = async () => {
       try {
-        // Must start muted for autoplay to work in browsers
-        video.muted = true;
+        // First, try to play WITH sound (will work if user has interacted with site before)
+        video.muted = false;
         video.playsInline = true;
         await video.play();
+        // Success! Playing with sound
         setIsPlaying(true);
         setVideoLoaded(true);
-        setIsMuted(true);
+        setIsMuted(false);
       } catch (error) {
-        console.warn('Video autoplay failed:', error);
-        // Still mark as loaded so user can see skip option
-        setVideoLoaded(true);
+        // Browser blocked autoplay with sound - try muted
+        console.log('Autoplay with sound blocked, trying muted...');
+        try {
+          video.muted = true;
+          await video.play();
+          setIsPlaying(true);
+          setVideoLoaded(true);
+          setIsMuted(true);
+        } catch (mutedError) {
+          console.warn('Video autoplay failed completely:', mutedError);
+          setVideoLoaded(true);
+        }
       }
     };
 
