@@ -26,6 +26,7 @@ export const LandingPage = () => {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [platformSettings, setPlatformSettings] = useState(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Always show intro when video is configured - plays on every visit/refresh
   const [showIntro, setShowIntro] = useState(true);
 
@@ -37,6 +38,8 @@ export const LandingPage = () => {
         setPlatformSettings(response.data);
       } catch (error) {
         console.error('Failed to fetch platform settings:', error);
+      } finally {
+        setSettingsLoaded(true);
       }
     };
     fetchPlatformSettings();
@@ -87,9 +90,11 @@ export const LandingPage = () => {
     }
   }, [user, loading, isSuperAdmin, navigate]);
 
-  if (loading) {
+  // Show loading screen while auth or settings are loading
+  // This prevents the flash of landing page before intro video
+  if (loading || !settingsLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
       </div>
     );
