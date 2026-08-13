@@ -1,66 +1,67 @@
 """
-Weather API routes - fetches weather data from Open-Meteo API
+Weather API routes - fetches weather data from WeatherAPI.com
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 import httpx
+import os
 
 from database import db
 from auth import get_current_user, get_tenant_id
 
 router = APIRouter(prefix="/weather", tags=["Weather"])
 
-# Open-Meteo API base URL
-OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
+# WeatherAPI.com configuration
+WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY", "")
+WEATHER_API_BASE = "https://api.weatherapi.com/v1"
 
 # Simple in-memory cache for weather data (10 minute TTL)
 _weather_cache = {}
 CACHE_TTL_SECONDS = 600  # 10 minutes
 
-# Weather code to description mapping
-WEATHER_CODES = {
-    0: {"description": "Clear sky", "icon": "sun"},
-    1: {"description": "Mainly clear", "icon": "sun"},
-    2: {"description": "Partly cloudy", "icon": "cloud-sun"},
-    3: {"description": "Overcast", "icon": "cloud"},
-    45: {"description": "Foggy", "icon": "cloud-fog"},
-    48: {"description": "Depositing rime fog", "icon": "cloud-fog"},
-    51: {"description": "Light drizzle", "icon": "cloud-drizzle"},
-    53: {"description": "Moderate drizzle", "icon": "cloud-drizzle"},
-    55: {"description": "Dense drizzle", "icon": "cloud-drizzle"},
-    56: {"description": "Light freezing drizzle", "icon": "cloud-drizzle"},
-    57: {"description": "Dense freezing drizzle", "icon": "cloud-drizzle"},
-    61: {"description": "Slight rain", "icon": "cloud-rain"},
-    63: {"description": "Moderate rain", "icon": "cloud-rain"},
-    65: {"description": "Heavy rain", "icon": "cloud-rain"},
-    66: {"description": "Light freezing rain", "icon": "cloud-rain"},
-    67: {"description": "Heavy freezing rain", "icon": "cloud-rain"},
-    71: {"description": "Slight snow", "icon": "cloud-snow"},
-    73: {"description": "Moderate snow", "icon": "cloud-snow"},
-    75: {"description": "Heavy snow", "icon": "cloud-snow"},
-    77: {"description": "Snow grains", "icon": "cloud-snow"},
-    80: {"description": "Slight rain showers", "icon": "cloud-rain"},
-    81: {"description": "Moderate rain showers", "icon": "cloud-rain"},
-    82: {"description": "Violent rain showers", "icon": "cloud-rain"},
-    85: {"description": "Slight snow showers", "icon": "cloud-snow"},
-    86: {"description": "Heavy snow showers", "icon": "cloud-snow"},
-    95: {"description": "Thunderstorm", "icon": "cloud-lightning"},
-    96: {"description": "Thunderstorm with slight hail", "icon": "cloud-lightning"},
-    99: {"description": "Thunderstorm with heavy hail", "icon": "cloud-lightning"},
+# Weather condition to icon mapping (for consistency with existing frontend)
+CONDITION_ICONS = {
+    "sunny": "sun",
+    "clear": "sun",
+    "partly cloudy": "cloud-sun",
+    "cloudy": "cloud",
+    "overcast": "cloud",
+    "mist": "cloud-fog",
+    "fog": "cloud-fog",
+    "freezing fog": "cloud-fog",
+    "patchy rain": "cloud-drizzle",
+    "light rain": "cloud-drizzle",
+    "light drizzle": "cloud-drizzle",
+    "drizzle": "cloud-drizzle",
+    "moderate rain": "cloud-rain",
+    "heavy rain": "cloud-rain",
+    "rain": "cloud-rain",
+    "light snow": "cloud-snow",
+    "moderate snow": "cloud-snow",
+    "heavy snow": "cloud-snow",
+    "snow": "cloud-snow",
+    "sleet": "cloud-snow",
+    "ice": "cloud-snow",
+    "blizzard": "cloud-snow",
+    "thundery": "cloud-lightning",
+    "thunder": "cloud-lightning",
 }
 
 
-def get_weather_info(code: int) -> dict:
-    """Get weather description and icon from code"""
-    return WEATHER_CODES.get(code, {"description": "Unknown", "icon": "cloud"})
+def get_icon_for_condition(condition_text: str) -> str:
+    """Map WeatherAPI condition text to our icon names"""
+    condition_lower = condition_text.lower()
+    for key, icon in CONDITION_ICONS.items():
+        if key in condition_lower:
+            return icon
+    return "cloud"  # default
 
 
 def degrees_to_compass(degrees: float) -> str:
     """Convert wind direction degrees to compass direction"""
     if degrees is None:
         return "N/A"
-    # Normalize degrees to 0-360
     degrees = degrees % 360
     directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
                   "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
@@ -76,11 +77,12 @@ async def get_weather_forecast(
     tenant_id: str = Depends(get_tenant_id)
 ):
     """
-    Get current weather and 3-day forecast.
+    Get current weather and 3-day forecast using WeatherAPI.com.
     If lat/long not provided, uses tenant's configured location.
-    Results are cached for 10 minutes to prevent rate limiting.
+    Results are cached for 10 minutes.
     """
     location_name = None
+    location_query = None
     
     # If no coordinates provided, get from tenant settings
     if latitude is None or longitude is None:
@@ -91,11 +93,14 @@ async def get_weather_forecast(
             longitude = settings.get("weather_longitude")
             location_name = settings.get("weather_location_name")
     
-    # Default to Medina, OH if still no coordinates
+    # Default to Medina, TX if still no coordinates
     if latitude is None or longitude is None:
-        latitude = 41.1381
-        longitude = -81.8637
-        location_name = "Medina, OH"
+        latitude = 29.7969
+        longitude = -99.2464
+        location_name = "Medina, TX"
+    
+    # Build location query for WeatherAPI (lat,lon format)
+    location_query = f"{latitude},{longitude}"
     
     # Check cache first
     cache_key = f"{latitude:.4f},{longitude:.4f}"
@@ -108,36 +113,40 @@ async def get_weather_forecast(
             cache_data["cached"] = True
             return cache_data
     
+    if not WEATHER_API_KEY:
+        raise HTTPException(status_code=503, detail="Weather service not configured")
+    
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                OPEN_METEO_API,
+                f"{WEATHER_API_BASE}/forecast.json",
                 params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "current": "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m",
-                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,relative_humidity_2m_max,wind_speed_10m_max,wind_direction_10m_dominant",
-                    "temperature_unit": "fahrenheit",
-                    "wind_speed_unit": "mph",
-                    "precipitation_unit": "inch",
-                    "timezone": "America/New_York",
-                    "forecast_days": 4  # Today + 3 days
+                    "key": WEATHER_API_KEY,
+                    "q": location_query,
+                    "days": 4,  # Today + 3 days
+                    "aqi": "no",
+                    "alerts": "no"
                 }
             )
             
-            # Handle rate limiting specifically
+            # Handle specific error codes
+            if response.status_code == 401 or response.status_code == 403:
+                raise HTTPException(status_code=503, detail="Weather service authentication failed")
             if response.status_code == 429:
-                # Return cached data if available, even if expired
+                # Return cached data if available
                 if cached:
                     _, cache_data = cached
                     cache_data["location"]["name"] = location_name
                     cache_data["cached"] = True
                     cache_data["rate_limited"] = True
                     return cache_data
-                raise HTTPException(status_code=503, detail="Weather service is temporarily unavailable due to rate limiting. Please try again in a few minutes.")
+                raise HTTPException(status_code=503, detail="Weather service quota exceeded")
+            if response.status_code == 400:
+                raise HTTPException(status_code=400, detail="Invalid location")
             
             response.raise_for_status()
             data = response.json()
+            
     except httpx.HTTPError as e:
         # Return cached data if available on error
         if cached:
@@ -148,50 +157,61 @@ async def get_weather_forecast(
             return cache_data
         raise HTTPException(status_code=503, detail=f"Weather service unavailable: {str(e)}")
     
-    # Parse current weather
-    current = data.get("current", {})
-    current_weather_info = get_weather_info(current.get("weather_code", 0))
-    wind_direction_degrees = current.get("wind_direction_10m")
+    # Parse current weather from WeatherAPI response
+    current_data = data.get("current", {})
+    condition = current_data.get("condition", {})
     
     current_weather = {
-        "temperature": round(current.get("temperature_2m", 0)),
-        "humidity": current.get("relative_humidity_2m", 0),
-        "wind_speed": round(current.get("wind_speed_10m", 0)),
-        "wind_direction": degrees_to_compass(wind_direction_degrees),
-        "wind_direction_degrees": wind_direction_degrees,
-        "description": current_weather_info["description"],
-        "icon": current_weather_info["icon"]
+        "temperature": round(current_data.get("temp_f", 0)),
+        "humidity": current_data.get("humidity", 0),
+        "wind_speed": round(current_data.get("wind_mph", 0)),
+        "wind_direction": current_data.get("wind_dir", "N"),
+        "wind_direction_degrees": current_data.get("wind_degree", 0),
+        "description": condition.get("text", "Unknown"),
+        "icon": get_icon_for_condition(condition.get("text", "")),
+        "feels_like": round(current_data.get("feelslike_f", 0)),
+        "uv": current_data.get("uv", 0),
+        "condition_icon": condition.get("icon", "")  # WeatherAPI's icon URL
     }
     
-    # Parse daily forecast
-    daily = data.get("daily", {})
+    # Parse forecast
+    forecast_data = data.get("forecast", {}).get("forecastday", [])
     forecast = []
     
-    for i in range(min(4, len(daily.get("time", [])))):
-        weather_info = get_weather_info(daily.get("weather_code", [0])[i])
-        daily_wind_dir = daily.get("wind_direction_10m_dominant", [None])[i] if daily.get("wind_direction_10m_dominant") else None
+    for day in forecast_data:
+        day_data = day.get("day", {})
+        day_condition = day_data.get("condition", {})
         forecast.append({
-            "date": daily.get("time", [])[i],
-            "temp_high": round(daily.get("temperature_2m_max", [0])[i]),
-            "temp_low": round(daily.get("temperature_2m_min", [0])[i]),
-            "humidity": daily.get("relative_humidity_2m_max", [0])[i],
-            "precipitation_chance": daily.get("precipitation_probability_max", [0])[i],
-            "wind_speed": round(daily.get("wind_speed_10m_max", [0])[i]),
-            "wind_direction": degrees_to_compass(daily_wind_dir),
-            "description": weather_info["description"],
-            "icon": weather_info["icon"]
+            "date": day.get("date"),
+            "temp_high": round(day_data.get("maxtemp_f", 0)),
+            "temp_low": round(day_data.get("mintemp_f", 0)),
+            "humidity": day_data.get("avghumidity", 0),
+            "precipitation_chance": day_data.get("daily_chance_of_rain", 0),
+            "wind_speed": round(day_data.get("maxwind_mph", 0)),
+            "wind_direction": "N/A",  # Not provided in daily forecast
+            "description": day_condition.get("text", "Unknown"),
+            "icon": get_icon_for_condition(day_condition.get("text", "")),
+            "condition_icon": day_condition.get("icon", "")
         })
+    
+    # Get location info from response
+    location_data = data.get("location", {})
+    api_location_name = f"{location_data.get('name', '')}, {location_data.get('region', '')}"
     
     result = {
         "location": {
             "latitude": latitude,
             "longitude": longitude,
-            "name": location_name
+            "name": location_name or api_location_name,
+            "city": location_data.get("name"),
+            "region": location_data.get("region"),
+            "country": location_data.get("country")
         },
         "current": current_weather,
         "forecast": forecast,
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "cached": False
+        "cached": False,
+        "source": "WeatherAPI.com"
     }
     
     # Cache the result
@@ -204,16 +224,12 @@ async def get_weather_forecast(
 async def update_weather_location(
     latitude: float = Query(..., description="Latitude"),
     longitude: float = Query(..., description="Longitude"),
-    location_name: Optional[str] = Query(None, description="Location display name"),
+    location_name: Optional[str] = Query(None, description="Display name for location"),
     current_user: dict = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id)
 ):
-    """Update tenant's weather location settings (Admin only)"""
-    # Check if user is admin
-    if current_user.get("role") not in ["admin", "battalion_chief"]:
-        if not current_user.get("is_super_admin"):
-            raise HTTPException(status_code=403, detail="Only admins can update weather location")
-    
+    """Update tenant's weather location settings"""
+    # Update tenant settings
     await db.tenants.update_one(
         {"id": tenant_id},
         {
@@ -221,13 +237,13 @@ async def update_weather_location(
                 "settings.weather_latitude": latitude,
                 "settings.weather_longitude": longitude,
                 "settings.weather_location_name": location_name,
-                "updated_at": datetime.now(timezone.utc).isoformat()
+                "settings.weather_updated_at": datetime.now(timezone.utc).isoformat()
             }
         }
     )
     
     return {
-        "message": "Weather location updated successfully",
+        "message": "Weather location updated",
         "location": {
             "latitude": latitude,
             "longitude": longitude,
@@ -236,109 +252,103 @@ async def update_weather_location(
     }
 
 
-@router.get("/location")
-async def get_weather_location(
-    current_user: dict = Depends(get_current_user),
-    tenant_id: str = Depends(get_tenant_id)
-):
-    """Get tenant's configured weather location"""
-    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
-    
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    
-    settings = tenant.get("settings", {})
-    
-    return {
-        "latitude": settings.get("weather_latitude"),
-        "longitude": settings.get("weather_longitude"),
-        "location_name": settings.get("weather_location_name"),
-        "is_configured": settings.get("weather_latitude") is not None
-    }
-
-
-
 @router.get("/geocode")
 async def geocode_location(
-    query: str = Query(..., description="Location to geocode (city, ZIP, address)"),
+    query: str = Query(..., min_length=2, description="City name, ZIP code, or address"),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Geocode a location string to coordinates.
-    This proxies through the backend to avoid CORS issues with Nominatim.
+    Geocode a location query using WeatherAPI.com's search endpoint.
+    Returns matching locations with coordinates.
     """
+    if not WEATHER_API_KEY:
+        raise HTTPException(status_code=503, detail="Weather service not configured")
+    
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                "https://nominatim.openstreetmap.org/search",
+                f"{WEATHER_API_BASE}/search.json",
                 params={
-                    "q": query,
-                    "format": "json",
-                    "limit": 1,
-                    "addressdetails": 1,
-                    "countrycodes": "us"
-                },
-                headers={
-                    "User-Agent": "BCStaffing/1.0 (Fire Department Staffing Application)"
+                    "key": WEATHER_API_KEY,
+                    "q": query
                 }
             )
+            
+            if response.status_code == 400:
+                return {"results": []}
+            
             response.raise_for_status()
             data = response.json()
             
-            if not data:
-                raise HTTPException(status_code=404, detail="Location not found")
+            results = []
+            for item in data:
+                results.append({
+                    "name": item.get("name"),
+                    "region": item.get("region"),
+                    "country": item.get("country"),
+                    "latitude": item.get("lat"),
+                    "longitude": item.get("lon"),
+                    "display_name": f"{item.get('name')}, {item.get('region')}, {item.get('country')}"
+                })
             
-            result = data[0]
-            return {
-                "latitude": float(result["lat"]),
-                "longitude": float(result["lon"]),
-                "display_name": result["display_name"],
-                "short_name": result["display_name"].split(",")[0]
-            }
+            return {"results": results}
+            
     except httpx.HTTPError as e:
         raise HTTPException(status_code=503, detail=f"Geocoding service unavailable: {str(e)}")
 
 
 @router.get("/reverse-geocode")
-async def reverse_geocode_location(
+async def reverse_geocode(
     latitude: float = Query(..., description="Latitude"),
     longitude: float = Query(..., description="Longitude"),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Reverse geocode coordinates to a location name.
-    This proxies through the backend to avoid CORS issues with Nominatim.
+    Reverse geocode coordinates to get location name.
+    Uses WeatherAPI.com's search with lat,lon query.
     """
+    if not WEATHER_API_KEY:
+        raise HTTPException(status_code=503, detail="Weather service not configured")
+    
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            # WeatherAPI accepts lat,lon as a query
             response = await client.get(
-                "https://nominatim.openstreetmap.org/reverse",
+                f"{WEATHER_API_BASE}/search.json",
                 params={
-                    "lat": latitude,
-                    "lon": longitude,
-                    "format": "json"
-                },
-                headers={
-                    "User-Agent": "BCStaffing/1.0 (Fire Department Staffing Application)"
+                    "key": WEATHER_API_KEY,
+                    "q": f"{latitude},{longitude}"
                 }
             )
+            
             response.raise_for_status()
             data = response.json()
             
-            address = data.get("address", {})
-            name = (
-                address.get("city") or 
-                address.get("town") or 
-                address.get("county") or 
-                address.get("village") or 
-                "Unknown Location"
-            )
+            if data and len(data) > 0:
+                item = data[0]
+                return {
+                    "name": item.get("name"),
+                    "region": item.get("region"),
+                    "country": item.get("country"),
+                    "latitude": item.get("lat"),
+                    "longitude": item.get("lon"),
+                    "display_name": f"{item.get('name')}, {item.get('region')}"
+                }
             
             return {
+                "name": "Unknown",
+                "region": "",
+                "country": "",
                 "latitude": latitude,
                 "longitude": longitude,
-                "location_name": name,
-                "display_name": data.get("display_name", name)
+                "display_name": f"{latitude:.4f}, {longitude:.4f}"
             }
+            
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=503, detail=f"Geocoding service unavailable: {str(e)}")
+        # Return coordinates as fallback
+        return {
+            "name": "Unknown",
+            "latitude": latitude,
+            "longitude": longitude,
+            "display_name": f"{latitude:.4f}, {longitude:.4f}"
+        }
