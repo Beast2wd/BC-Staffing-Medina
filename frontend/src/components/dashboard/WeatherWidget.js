@@ -230,7 +230,6 @@ export const WeatherWidget = () => {
   if (!weather) return null;
 
   const { current, forecast } = weather;
-  const weatherLocationName = weather.location?.name;
 
   return (
     <>
@@ -244,10 +243,12 @@ export const WeatherWidget = () => {
                   {getWeatherIcon(current.icon, "h-8 w-8")}
                 </div>
                 <div>
-                  {weatherLocationName && (
+                  {weather.location && (
                     <p className="text-xs font-medium text-sky-600 dark:text-sky-400 flex items-center gap-1 mb-0.5">
                       <MapPin className="h-3 w-3" />
-                      {weatherLocationName}
+                      {weather.location.city && weather.location.region 
+                        ? `${weather.location.city}, ${weather.location.region}`
+                        : weather.location.name || 'Unknown Location'}
                     </p>
                   )}
                   <div className="flex items-baseline gap-1">

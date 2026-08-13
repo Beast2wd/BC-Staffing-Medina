@@ -97,7 +97,7 @@ async def get_weather_forecast(
     if latitude is None or longitude is None:
         latitude = 29.7969
         longitude = -99.2464
-        location_name = "Medina, TX"
+        location_name = "Medina, Texas"
     
     # Build location query for WeatherAPI (lat,lon format)
     location_query = f"{latitude},{longitude}"
