@@ -82,9 +82,18 @@ export const WeatherWidget = () => {
       if (response.data?.location) {
         setCurrentLocation(response.data.location);
       }
+      // Show notice if using cached data
+      if (response.data?.rate_limited) {
+        setError('Using cached data (service busy)');
+      }
     } catch (err) {
       console.error('Failed to fetch weather:', err);
-      setError('Unable to load weather data');
+      const errorMsg = err.response?.data?.detail || 'Unable to load weather data';
+      if (errorMsg.includes('rate limit')) {
+        setError('Weather service busy - try again later');
+      } else {
+        setError('Unable to load weather data');
+      }
     } finally {
       setLoading(false);
     }

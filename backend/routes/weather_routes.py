@@ -3,7 +3,7 @@ Weather API routes - fetches weather data from Open-Meteo API
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import httpx
 
 from database import db
@@ -13,6 +13,10 @@ router = APIRouter(prefix="/weather", tags=["Weather"])
 
 # Open-Meteo API base URL
 OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
+
+# Simple in-memory cache for weather data (10 minute TTL)
+_weather_cache = {}
+CACHE_TTL_SECONDS = 600  # 10 minutes
 
 # Weather code to description mapping
 WEATHER_CODES = {
@@ -74,6 +78,7 @@ async def get_weather_forecast(
     """
     Get current weather and 3-day forecast.
     If lat/long not provided, uses tenant's configured location.
+    Results are cached for 10 minutes to prevent rate limiting.
     """
     location_name = None
     
@@ -92,6 +97,17 @@ async def get_weather_forecast(
         longitude = -81.8637
         location_name = "Medina, OH"
     
+    # Check cache first
+    cache_key = f"{latitude:.4f},{longitude:.4f}"
+    cached = _weather_cache.get(cache_key)
+    if cached:
+        cache_time, cache_data = cached
+        if datetime.now(timezone.utc) - cache_time < timedelta(seconds=CACHE_TTL_SECONDS):
+            # Return cached data with updated location name
+            cache_data["location"]["name"] = location_name
+            cache_data["cached"] = True
+            return cache_data
+    
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
@@ -108,9 +124,28 @@ async def get_weather_forecast(
                     "forecast_days": 4  # Today + 3 days
                 }
             )
+            
+            # Handle rate limiting specifically
+            if response.status_code == 429:
+                # Return cached data if available, even if expired
+                if cached:
+                    _, cache_data = cached
+                    cache_data["location"]["name"] = location_name
+                    cache_data["cached"] = True
+                    cache_data["rate_limited"] = True
+                    return cache_data
+                raise HTTPException(status_code=503, detail="Weather service is temporarily unavailable due to rate limiting. Please try again in a few minutes.")
+            
             response.raise_for_status()
             data = response.json()
     except httpx.HTTPError as e:
+        # Return cached data if available on error
+        if cached:
+            _, cache_data = cached
+            cache_data["location"]["name"] = location_name
+            cache_data["cached"] = True
+            cache_data["error_fallback"] = True
+            return cache_data
         raise HTTPException(status_code=503, detail=f"Weather service unavailable: {str(e)}")
     
     # Parse current weather
@@ -147,7 +182,7 @@ async def get_weather_forecast(
             "icon": weather_info["icon"]
         })
     
-    return {
+    result = {
         "location": {
             "latitude": latitude,
             "longitude": longitude,
@@ -155,8 +190,14 @@ async def get_weather_forecast(
         },
         "current": current_weather,
         "forecast": forecast,
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "cached": False
     }
+    
+    # Cache the result
+    _weather_cache[cache_key] = (datetime.now(timezone.utc), result.copy())
+    
+    return result
 
 
 @router.put("/location")
