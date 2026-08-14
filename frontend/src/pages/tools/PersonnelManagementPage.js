@@ -9,11 +9,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck, UserPlus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck, UserPlus, Upload, Download, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
+import { Textarea } from '../../components/ui/textarea';
 
 const RANKS = [
   'Fire Chief', 
@@ -378,6 +379,10 @@ export const PersonnelManagementPage = () => {
   const [filterShift, setFilterShift] = useState('all');
   const [filterStation, setFilterStation] = useState('all');
   const [availableUsers, setAvailableUsers] = useState([]);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importData, setImportData] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResults, setImportResults] = useState(null);
 
   // Define rank order for sorting (lower number = higher rank)
   // Includes common aliases to ensure consistent sorting
@@ -533,6 +538,89 @@ export const PersonnelManagementPage = () => {
     }
   }, [api, passwordPerson, tempPassword]);
 
+  // Download CSV template
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      const response = await api.get('/personnel/import/template', {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'personnel_import_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Template downloaded');
+    } catch (error) {
+      toast.error('Failed to download template');
+    }
+  }, [api]);
+
+  // Handle CSV file upload
+  const handleFileUpload = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please upload a CSV file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImportData(e.target.result);
+      setImportResults(null);
+    };
+    reader.readAsText(file);
+  }, []);
+
+  // Process import
+  const handleProcessImport = useCallback(async () => {
+    if (!importData.trim()) {
+      toast.error('No data to import');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportResults(null);
+
+    try {
+      const response = await api.post('/personnel/import/process', {
+        csv_data: importData
+      });
+
+      setImportResults(response.data);
+      
+      if (response.data.errors?.length > 0) {
+        toast.warning(`Import completed with ${response.data.errors.length} errors`);
+      } else {
+        toast.success(response.data.message);
+      }
+
+      // Refresh personnel list
+      await fetchPersonnel();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Import failed');
+      setImportResults({
+        errors: [error.response?.data?.detail || 'Import failed'],
+        created: 0,
+        updated: 0
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  }, [api, importData, fetchPersonnel]);
+
+  // Reset import dialog
+  const handleCloseImportDialog = useCallback(() => {
+    setShowImportDialog(false);
+    setImportData('');
+    setImportResults(null);
+  }, []);
+
   const filteredPersonnel = personnel
     .filter(person => {
       const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -625,8 +713,15 @@ export const PersonnelManagementPage = () => {
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <BattalionSelector />
+            <Button 
+              variant="outline" 
+              onClick={() => setShowImportDialog(true)} 
+              data-testid="import-personnel-btn"
+            >
+              <Upload className="h-4 w-4 mr-2" /> Import CSV
+            </Button>
             <Button onClick={() => setShowAddDialog(true)} data-testid="add-personnel-btn">
               <Plus className="h-4 w-4 mr-2" /> Add Personnel
             </Button>
@@ -710,6 +805,142 @@ export const PersonnelManagementPage = () => {
                 {loading ? 'Setting...' : 'Set Password & Create Account'}
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Import CSV Dialog */}
+        <Dialog open={showImportDialog} onOpenChange={(open) => { if (!open) handleCloseImportDialog(); else setShowImportDialog(true); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Import Personnel from CSV
+              </DialogTitle>
+              <DialogDescription>
+                Upload a CSV file to bulk import or update personnel records. Existing personnel (matched by payroll number) will be updated.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Download Template */}
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">CSV Template</p>
+                    <p className="text-sm text-muted-foreground">Download a template with example data</p>
+                  </div>
+                </div>
+                <Button variant="outline" onClick={handleDownloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" /> Download
+                </Button>
+              </div>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label>Upload CSV File</Label>
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="cursor-pointer"
+                  data-testid="csv-file-input"
+                />
+              </div>
+
+              {/* Or paste CSV data */}
+              <div className="space-y-2">
+                <Label>Or Paste CSV Data</Label>
+                <Textarea
+                  value={importData}
+                  onChange={(e) => { setImportData(e.target.value); setImportResults(null); }}
+                  placeholder="payroll_number,first_name,last_name,rank,shift,station_id,email,phone,certifications,hire_date&#10;100001,John,Smith,Captain,A,station_1,john@fire.gov,555-1234,EMT-P,2020-01-15"
+                  rows={6}
+                  className="font-mono text-sm"
+                  data-testid="csv-data-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Headers: payroll_number, first_name, last_name, rank, shift, station_id, email, phone, certifications, hire_date
+                </p>
+              </div>
+
+              {/* Import Results */}
+              {importResults && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium">{importResults.created} Created</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">{importResults.updated} Updated</span>
+                    </div>
+                    {importResults.errors?.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <span className="text-sm font-medium">{importResults.errors.length} Errors</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {importResults.errors?.length > 0 && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <p className="text-sm font-medium text-red-600 mb-2">Errors:</p>
+                      <ul className="text-sm text-red-600 space-y-1 max-h-32 overflow-y-auto">
+                        {importResults.errors.map((error, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-red-500">•</span>
+                            {error}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {importResults.processed?.length > 0 && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg max-h-40 overflow-y-auto">
+                      <p className="text-sm font-medium text-green-600 mb-2">Processed:</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {importResults.processed.map((p, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Badge variant={p.action === 'created' ? 'default' : 'secondary'} className="text-xs">
+                              {p.action}
+                            </Badge>
+                            <span className="truncate">{p.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={handleCloseImportDialog}>
+                {importResults ? 'Close' : 'Cancel'}
+              </Button>
+              {!importResults && (
+                <Button 
+                  onClick={handleProcessImport} 
+                  disabled={importLoading || !importData.trim()}
+                  data-testid="process-import-btn"
+                >
+                  {importLoading ? (
+                    <>
+                      <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import Personnel
+                    </>
+                  )}
+                </Button>
+              )}
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

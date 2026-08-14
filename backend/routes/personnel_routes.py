@@ -1,7 +1,7 @@
 """
 Personnel routes - Multi-tenant enabled
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from typing import List, Optional
 import uuid
 
@@ -234,3 +234,263 @@ async def delete_personnel(
     await db.users.update_one(user_query, {"$set": {"is_active": False}})
     
     return {"message": "Personnel deactivated"}
+
+
+@router.get("/import/template")
+async def get_import_template(current_user: dict = Depends(get_current_user)):
+    """Download a CSV template with example data for personnel import"""
+    from fastapi.responses import Response
+    
+    # CSV template with headers and example data
+    csv_content = """payroll_number,first_name,last_name,rank,shift,station_id,email,phone,certifications,hire_date
+100001,John,Smith,Captain,A,station_1,john.smith@fire.gov,555-123-4567,"EMT-P,Firefighter II,Hazmat Ops",2015-06-15
+100002,Jane,Doe,Lieutenant,B,station_2,jane.doe@fire.gov,555-234-5678,"EMT-B,Firefighter I",2018-03-20
+100003,Mike,Johnson,Firefighter,C,station_1,mike.j@fire.gov,555-345-6789,"EMT-P,Firefighter II,Rescue Tech",2020-01-10
+100004,Sarah,Williams,Driver Operator,A,station_3,sarah.w@fire.gov,555-456-7890,"EMT-B,Firefighter II",2017-09-01
+"""
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=personnel_import_template.csv"}
+    )
+
+
+@router.post("/import")
+async def import_personnel(
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """
+    Import personnel from CSV data.
+    Expects JSON body with 'csv_data' field containing the CSV content.
+    Updates existing personnel (by payroll_number) or creates new ones.
+    """
+    from fastapi import Request
+    import csv
+    import io
+    from datetime import datetime, timezone
+    
+    # This will be called with JSON body containing csv_data
+    return {"error": "Use /import/process endpoint with file upload"}
+
+
+@router.post("/import/process")
+async def process_personnel_import(
+    request: Request,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """
+    Process personnel CSV import.
+    Accepts JSON with csv_data field containing CSV content as string.
+    Updates existing personnel (by payroll_number) or creates new ones.
+    """
+    import csv
+    import io
+    from datetime import datetime, timezone
+    
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    try:
+        body = await request.json()
+        csv_data = body.get("csv_data", "")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
+    
+    if not csv_data:
+        raise HTTPException(status_code=400, detail="No CSV data provided")
+    
+    # Parse CSV
+    csv_file = io.StringIO(csv_data)
+    reader = csv.DictReader(csv_file)
+    
+    results = {
+        "created": 0,
+        "updated": 0,
+        "errors": [],
+        "processed": []
+    }
+    
+    # Get existing stations for validation
+    station_query = {}
+    if tenant_id:
+        station_query["tenant_id"] = tenant_id
+    existing_stations = await db.stations.find(station_query, {"_id": 0}).to_list(100)
+    station_ids = {s["id"] for s in existing_stations}
+    station_numbers = {s.get("station_number"): s["id"] for s in existing_stations}
+    
+    # Get battalion from first station (or use default)
+    default_battalion_id = existing_stations[0]["battalion_id"] if existing_stations else "battalion_1"
+    
+    row_num = 1
+    for row in reader:
+        row_num += 1
+        try:
+            # Extract and validate fields
+            payroll_number = str(row.get("payroll_number", "")).strip()
+            if not payroll_number:
+                results["errors"].append(f"Row {row_num}: Missing payroll number")
+                continue
+            
+            first_name = row.get("first_name", "").strip()
+            last_name = row.get("last_name", "").strip()
+            name = f"{first_name} {last_name}".strip()
+            if not name:
+                results["errors"].append(f"Row {row_num}: Missing name")
+                continue
+            
+            rank = row.get("rank", "Firefighter").strip() or "Firefighter"
+            shift = row.get("shift", "A").strip().upper()
+            if shift not in ["A", "B", "C"]:
+                shift = "A"
+            
+            # Handle station_id - can be ID or station number
+            station_input = row.get("station_id", "").strip()
+            station_id = None
+            if station_input:
+                if station_input in station_ids:
+                    station_id = station_input
+                elif station_input in station_numbers:
+                    station_id = station_numbers[station_input]
+                elif station_input.isdigit() and station_input in station_numbers:
+                    station_id = station_numbers[station_input]
+                else:
+                    # Try to find by partial match
+                    for sn, sid in station_numbers.items():
+                        if str(sn) == station_input or f"station_{station_input}" == sid:
+                            station_id = sid
+                            break
+            
+            if not station_id and existing_stations:
+                station_id = existing_stations[0]["id"]
+            elif not station_id:
+                station_id = "station_1"
+            
+            email = row.get("email", "").strip() or None
+            phone = row.get("phone", "").strip() or None
+            
+            # Parse certifications (comma-separated)
+            certs_str = row.get("certifications", "").strip()
+            certifications = [c.strip() for c in certs_str.split(",") if c.strip()] if certs_str else []
+            
+            hire_date = row.get("hire_date", "").strip() or None
+            
+            # Check if personnel exists
+            existing_query = {"payroll_number": payroll_number}
+            if tenant_id:
+                existing_query["tenant_id"] = tenant_id
+            
+            existing = await db.personnel.find_one(existing_query)
+            
+            if existing:
+                # Update existing personnel
+                update_data = {
+                    "name": name,
+                    "rank": rank,
+                    "shift": shift,
+                    "station_id": station_id,
+                    "contact_email": email,
+                    "contact_phone": phone,
+                    "certifications": certifications,
+                }
+                if hire_date:
+                    update_data["hire_date"] = hire_date
+                
+                await db.personnel.update_one(
+                    {"id": existing["id"]},
+                    {"$set": update_data}
+                )
+                
+                # Also update corresponding user
+                user_query = {"payroll_number": payroll_number}
+                if tenant_id:
+                    user_query["tenant_id"] = tenant_id
+                await db.users.update_one(
+                    user_query,
+                    {"$set": {
+                        "name": name,
+                        "rank": rank,
+                        "shift": shift,
+                        "station_id": station_id,
+                        "email": email,
+                        "phone_number": phone
+                    }}
+                )
+                
+                results["updated"] += 1
+                results["processed"].append({
+                    "payroll_number": payroll_number,
+                    "name": name,
+                    "action": "updated"
+                })
+            else:
+                # Create new personnel
+                person_id = str(uuid.uuid4())
+                person_doc = {
+                    "id": person_id,
+                    "tenant_id": tenant_id,
+                    "payroll_number": payroll_number,
+                    "name": name,
+                    "rank": rank,
+                    "station_id": station_id,
+                    "shift": shift,
+                    "battalion_id": default_battalion_id,
+                    "certifications": certifications,
+                    "contact_email": email,
+                    "contact_phone": phone,
+                    "is_active": True,
+                    "overtime_hours_worked": 0.0
+                }
+                if hire_date:
+                    person_doc["hire_date"] = hire_date
+                
+                await db.personnel.insert_one(person_doc)
+                
+                # Create user account
+                rank_to_role = {
+                    "Fire Chief": UserRole.ADMIN,
+                    "Asst. Chief": UserRole.ADMIN,
+                    "Deputy Chief": UserRole.BATTALION_CHIEF,
+                    "Battalion Chief": UserRole.BATTALION_CHIEF,
+                    "Captain": UserRole.CAPTAIN,
+                    "Lieutenant": UserRole.LIEUTENANT,
+                    "Volunteer Firefighter": UserRole.VOLUNTEER,
+                }
+                role = rank_to_role.get(rank, UserRole.FIREFIGHTER)
+                
+                user_id = str(uuid.uuid4())
+                user_doc = {
+                    "id": user_id,
+                    "tenant_id": tenant_id,
+                    "payroll_number": payroll_number,
+                    "password_hash": hash_password(DEFAULT_PASSWORD),
+                    "name": name,
+                    "rank": rank,
+                    "role": role,
+                    "station_id": station_id,
+                    "shift": shift,
+                    "is_active": True,
+                    "must_change_password": True,
+                    "email": email,
+                    "phone_number": phone,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.users.insert_one(user_doc)
+                
+                results["created"] += 1
+                results["processed"].append({
+                    "payroll_number": payroll_number,
+                    "name": name,
+                    "action": "created"
+                })
+                
+        except Exception as e:
+            results["errors"].append(f"Row {row_num}: {str(e)}")
+    
+    return {
+        "success": True,
+        "message": f"Import complete: {results['created']} created, {results['updated']} updated, {len(results['errors'])} errors",
+        "created": results["created"],
+        "updated": results["updated"],
+        "errors": results["errors"],
+        "processed": results["processed"]
+    }
