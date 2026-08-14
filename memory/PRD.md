@@ -748,3 +748,23 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - Updated `/app/frontend/src/pages/PlatformSettingsPage.js` - Intro Video tab
   - Updated `/app/backend/routes/platform_routes.py` - Video upload/serve/delete endpoints
 
+
+## Vacation Staffing Integration Fix (December 2025)
+- ✅ **Shift-Filtered Vacation Counts** - Vacation leave records now only count against staffing for personnel on the current shift
+  - B Shift vacation only affects B Shift staffing grid
+  - A Shift vacation only affects A Shift staffing grid
+  - Cross-shift filtering prevents incorrect staffing calculations
+- ✅ **Vacation Notes in Remarks Panel** - Notes entered in Vacation Management now display in the Daily Worksheet's Remarks & Notes panel under the VACATION tab
+  - Shows personnel name, rank, station, shift
+  - Shows vacation date range
+  - Shows the vacation notes text
+  - Supports multiple vacation records per date
+- ✅ **Proper Staffing Deduction** - Vacation now correctly deducts from:
+  - Station VACATION (-) cell
+  - Total Personnel On Duty calculation
+  - Stations Even/Over/Under variance summary
+- ✅ **Files Updated**:
+  - `/app/frontend/src/components/dashboard/StaffingGrid.js` - Added currentShift filter to leaveCounts calculation
+  - `/app/frontend/src/components/dashboard/RemarksPanel.js` - Added vacation notes display from leave records
+
+

@@ -105,7 +105,7 @@ export const StaffingGrid = () => {
     return counts;
   }, [volunteerAssignments]);
 
-  // Calculate leave counts by station and type
+  // Calculate leave counts by station and type - ONLY for current shift personnel
   const leaveCounts = useMemo(() => {
     const counts = {};
     
@@ -115,9 +115,10 @@ export const StaffingGrid = () => {
     approvedLeaves.forEach(leave => {
       // Check if the selected date falls within the leave period
       if (selectedDate >= leave.start_date && selectedDate <= leave.end_date) {
-        // Find the personnel to get their station
+        // Find the personnel to get their station AND shift
         const person = personnel.find(p => p.id === leave.personnel_id);
-        if (person && person.station_id) {
+        // Only count leave for personnel on the CURRENT shift
+        if (person && person.station_id && person.shift === currentShift) {
           const stationId = person.station_id;
           const leaveType = leave.leave_type; // 'vacation', 'sick', 'holiday'
           
@@ -130,7 +131,7 @@ export const StaffingGrid = () => {
     });
     
     return counts;
-  }, [leaveRecords, personnel, selectedDate]);
+  }, [leaveRecords, personnel, selectedDate, currentShift]);
 
   // Calculate data for each station
   const gridData = useMemo(() => {

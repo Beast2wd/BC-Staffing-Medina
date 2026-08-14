@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
 import { Edit2, Save, X } from 'lucide-react';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 const REMARK_TABS = [
   { id: 'remarks', label: 'Remarks/Notes' },
@@ -19,12 +20,43 @@ const REMARK_TABS = [
 
 export const RemarksPanel = () => {
   const { api, canEdit } = useAuth();
-  const { selectedDate, selectedBattalion } = useStaffing();
+  const { selectedDate, selectedBattalion, leaveRecords, personnel } = useStaffing();
   const [activeTab, setActiveTab] = useState('remarks');
   const [remarks, setRemarks] = useState({});
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Calculate leave notes for vacation, sick, and holiday tabs
+  const leaveNotes = useMemo(() => {
+    const notes = { vacation: [], sick: [], holiday: [] };
+    
+    // Filter approved leave records that cover the selected date
+    const activeLeaves = leaveRecords.filter(leave => 
+      leave.status === 'approved' &&
+      selectedDate >= leave.start_date && 
+      selectedDate <= leave.end_date
+    );
+    
+    activeLeaves.forEach(leave => {
+      const person = personnel.find(p => p.id === leave.personnel_id);
+      if (person && leave.notes && leave.notes.trim()) {
+        const leaveType = leave.leave_type;
+        if (notes[leaveType]) {
+          notes[leaveType].push({
+            personnelName: `${person.rank || ''} ${person.name}`.trim(),
+            station: person.station_id?.replace('sta-', 'Station ').replace(/-/g, ' ') || '',
+            shift: person.shift,
+            notes: leave.notes,
+            startDate: leave.start_date,
+            endDate: leave.end_date
+          });
+        }
+      }
+    });
+    
+    return notes;
+  }, [leaveRecords, personnel, selectedDate]);
 
   useEffect(() => {
     fetchRemarks();
@@ -149,11 +181,51 @@ export const RemarksPanel = () => {
                 </div>
               ) : (
                 <div 
-                  className="min-h-[200px] p-3 bg-muted/50 rounded-md text-sm whitespace-pre-wrap"
+                  className="min-h-[200px] p-3 bg-muted/50 rounded-md text-sm"
                   data-testid="remark-content"
                 >
-                  {remarks[tab.id] || (
-                    <span className="text-muted-foreground italic">No {tab.label.toLowerCase()} notes for this date.</span>
+                  {/* Show leave notes from leave records for vacation/sick/holiday tabs */}
+                  {['vacation', 'sick', 'holiday'].includes(tab.id) && leaveNotes[tab.id]?.length > 0 && (
+                    <div className="mb-4 space-y-3">
+                      <div className="font-semibold text-muted-foreground uppercase text-xs tracking-wide border-b pb-1 mb-2">
+                        Leave Notes from Vacation Management
+                      </div>
+                      {leaveNotes[tab.id].map((note, idx) => (
+                        <div key={idx} className="p-2 bg-background/50 rounded border-l-2 border-primary/50">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <span className="font-medium text-foreground">{note.personnelName}</span>
+                            {note.station && <span>• {note.station}</span>}
+                            {note.shift && (
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                note.shift === 'A' ? 'bg-red-500/20 text-red-500' :
+                                note.shift === 'B' ? 'bg-green-500/20 text-green-500' :
+                                'bg-blue-500/20 text-blue-500'
+                              }`}>
+                                {note.shift} Shift
+                              </span>
+                            )}
+                            <span>• {formatDisplayDate(note.startDate)} - {formatDisplayDate(note.endDate)}</span>
+                          </div>
+                          <div className="whitespace-pre-wrap">{note.notes}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Show manual remarks */}
+                  {remarks[tab.id] ? (
+                    <div className="whitespace-pre-wrap">
+                      {['vacation', 'sick', 'holiday'].includes(tab.id) && leaveNotes[tab.id]?.length > 0 && (
+                        <div className="font-semibold text-muted-foreground uppercase text-xs tracking-wide border-b pb-1 mb-2">
+                          Manual Notes
+                        </div>
+                      )}
+                      {remarks[tab.id]}
+                    </div>
+                  ) : (
+                    !(['vacation', 'sick', 'holiday'].includes(tab.id) && leaveNotes[tab.id]?.length > 0) && (
+                      <span className="text-muted-foreground italic">No {tab.label.toLowerCase()} notes for this date.</span>
+                    )
                   )}
                 </div>
               )}
