@@ -1,0 +1,44 @@
+{
+  "summary": "Leave Calendar page tested end-to-end via UI. All 8 acceptance criteria PASS. Page loads at /battalion-chief/leave-calendar, displays monthly grid (August 2026), color-coded vacation entries on 08/14 & 08/15 (and 08/17-18 from other seed records), filters (leave type, shift, station) update stats and grid correctly, prev/next/today month navigation works, clicking a day with leaves opens the detail dialog showing Firefighter Test User / Station 10 / Vacation / 08/14/2026-08/15/2026 with notes 'Family vacation - taking kids to the lake', stats cards show 4/0/0/4 (vacation/sick/holiday/total), shift indicators A/B/C appear on every day cell, and the legend shows leave-type & shift color coding.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "LeaveCalendarPage Day Detail Dialog", "issues": ["DialogContent missing `Description` or `aria-describedby` (a11y warning in console) - non-blocking but should add DialogDescription for screen readers."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional/A11y) Add DialogDescription to Day Detail Dialog to eliminate Radix `aria-describedby` warning.",
+    "(Observation, not a bug) Dialog shows person shift as 'A Shift' for Test User at Station 10 while iteration_20 context noted Test User as 'B Shift'. LeaveCalendar renders whatever `person.shift` is in personnel data; if source-of-truth changed, verify personnel record. Note also the C Shift filter yielded 0 records - consistent with Test User NOT being C shift."
+  ],
+  "critical_code_review_comments": [
+    "LeaveCalendarPage.js line 46-53: fetch triggers on every currentMonth change; response is re-fetched even when the visible week-window range hasn't changed materially. Consider memoizing start/end string keys as dependency. Minor perf item.",
+    "Line 101 filters by `person.station_id` (id) but the Station select uses the same station_id value, so filter works. However station labels use string manipulation `stationId.replace('sta-','Station ').replace(/-/g,' ')` (line 235) - fragile if id format changes; prefer looking up label from `stations` context.",
+    "Line 442 `leave.leave_type.charAt(0).toUpperCase()...` will crash if leave_type is null. Add nullish guard.",
+    "Only approved leaves are shown (line 104). This is intentional but should be surfaced in UI (e.g., an empty-state note) so users don't think pending leaves are missing due to a bug.",
+    "Stats count days-per-approved-leave-entry per rendered date, which is correct for calendar-visible days but includes overlap days from previous/next month rows. Acceptable for a calendar view."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test as requested)", "frontend": "100% (8/8 acceptance criteria)"},
+  "test_credentials": "Admin 100001 / admin123 via /client-login -> 'Medina County BC Staffing' tenant",
+  "seed_data_creation": "None created. Used existing seed vacation records (Test User Aug 14-15 with notes, plus additional Aug 17-18 entries visible on calendar).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Leave Calendar route: /battalion-chief/leave-calendar. Key data-testids: leave-calendar-page, leave-calendar-card, leave-type-filter, shift-filter, station-filter, prev-month-btn, next-month-btn, today-btn, calendar-day-YYYY-MM-DD. To navigate to August 2026, click next-month-btn repeatedly until title reads 'August 2026'. Clicking calendar-day-2026-08-14 opens dialog with Test User vacation entry. Filter validations: Sick filter -> 0 stats & no badges; C Shift filter -> 0 (Test User is not C); Vacation filter and Station 10 filter both retain the 4 vacation days.",
+  "verification_evidence": {
+    "page_load": "leave-calendar-page and leave-calendar-card both visible after auth",
+    "august_2026_stats": "vacation=4, sick=0, holiday=0, total=4",
+    "aug14_cell": "Shows day 14, shift indicator 'B' (operational shift), blue 'User' vacation badge",
+    "aug15_cell": "Shows day 15, shift indicator 'C', blue 'User' vacation badge",
+    "day_dialog": "Opens with title '08/14/2026 B SHIFT', body: 'Firefighter Test User | Station 10 | A Shift | Vacation | 08/14/2026 - 08/15/2026 | Family vacation - taking kids to the lake'",
+    "filter_vacation": "stats remain 4/0/0/4",
+    "filter_sick": "stats 0/0/0/0, Aug14 cell shows no leave badge (only shift indicator)",
+    "filter_C_shift": "stats 0/0/0/0 (Test User not C shift - filter working)",
+    "filter_station_10": "stats 4/0/0/4",
+    "navigation": "Today -> August 2026 (current), Prev -> July 2026, Next -> shows correct sequence",
+    "shift_indicators": "A, B, C all rendered across visible calendar days",
+    "legend": "Vacation (blue), Sick (red), Holiday (green), A/B/C shift indicators all shown"
+  }
+}

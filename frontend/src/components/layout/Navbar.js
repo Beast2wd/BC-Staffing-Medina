@@ -169,6 +169,12 @@ export const Navbar = () => {
                     <Hand className="h-4 w-4" /> Volunteer Scheduled
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/leave-calendar" className="flex items-center gap-2" data-testid="nav-leave-calendar">
+                    <Calendar className="h-4 w-4" /> Leave Calendar
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -463,6 +469,9 @@ export const Navbar = () => {
                 </Link>
                 <Link to="/battalion-chief/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Hand className="h-4 w-4 inline mr-2" /> Volunteer Scheduled
+                </Link>
+                <Link to="/battalion-chief/leave-calendar" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Calendar className="h-4 w-4 inline mr-2" /> Leave Calendar
                 </Link>
               </>
             )}

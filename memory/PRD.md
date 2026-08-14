@@ -767,4 +767,29 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/components/dashboard/StaffingGrid.js` - Added currentShift filter to leaveCounts calculation
   - `/app/frontend/src/components/dashboard/RemarksPanel.js` - Added vacation notes display from leave records
 
+## Leave Calendar View (December 2025)
+- ✅ **Visual Calendar Overview** - New Leave Calendar page at `/battalion-chief/leave-calendar`
+  - Monthly calendar grid showing all leave types across all personnel
+  - Color-coded leave entries: Blue (vacation), Red (sick), Green (holiday)
+  - Shift indicators (A/B/C) displayed on each calendar day
+- ✅ **Filters** - Filter leave by:
+  - Leave type (vacation, sick, holiday, or all)
+  - Shift (A, B, C, or all)
+  - Station assignment
+- ✅ **Stats Dashboard** - Cards showing:
+  - Vacation days count
+  - Sick days count
+  - Holiday days count
+  - Total leave days
+- ✅ **Day Detail Dialog** - Click any day to see:
+  - All leave records for that date
+  - Personnel name, rank, station, shift
+  - Leave type and date range
+  - Leave notes
+- ✅ **Navigation** - Previous/Next month buttons and Today shortcut
+- ✅ **Files Added/Updated**:
+  - `/app/frontend/src/pages/battalion-chief/LeaveCalendarPage.js` - New calendar component
+  - `/app/frontend/src/App.js` - Added route
+  - `/app/frontend/src/components/layout/Navbar.js` - Added navigation link under Battalion Chief menu
+
 

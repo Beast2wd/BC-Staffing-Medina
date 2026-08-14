@@ -51,6 +51,9 @@ import { DeploymentHistoryPage } from "./pages/deployment-tracker/DeploymentHist
 import { TIFMASDeploymentLog } from "./pages/deployment-tracker/TIFMASDeploymentLog";
 import { EMTFDeploymentLog } from "./pages/deployment-tracker/EMTFDeploymentLog";
 
+// Leave Calendar
+import { LeaveCalendarPage } from "./pages/battalion-chief/LeaveCalendarPage";
+
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -170,6 +173,9 @@ const AppContent = () => {
           } />
           <Route path="/battalion-chief/volunteer" element={
             <ProtectedRoute><VolunteerPage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/leave-calendar" element={
+            <ProtectedRoute><LeaveCalendarPage /></ProtectedRoute>
           } />
           
           {/* Deputy Chief Routes */}
