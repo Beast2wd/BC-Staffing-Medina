@@ -36,6 +36,12 @@ import {
 } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip';
 
 // Icon mapping
 const WEATHER_ICONS = {
@@ -424,29 +430,69 @@ export const WeatherWidget = () => {
 
       {/* Heat Index Warning Banner */}
       {current.feels_like && getHeatWarning(current.feels_like) && (
-        <Card 
-          className={`mb-2 ${getHeatWarning(current.feels_like).color} border-2 ${getHeatWarning(current.feels_like).borderColor}`} 
-          data-testid="heat-warning"
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3">
-              <Flame className="h-5 w-5 flex-shrink-0 animate-pulse" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-sm">
-                    {getHeatWarning(current.feels_like).label}
-                  </span>
-                  <span className="text-xs opacity-90">
-                    Heat Index: {current.feels_like}°F
-                  </span>
+        <TooltipProvider>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Card 
+                className={`mb-2 ${getHeatWarning(current.feels_like).color} border-2 ${getHeatWarning(current.feels_like).borderColor} cursor-help`} 
+                data-testid="heat-warning"
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <Flame className="h-5 w-5 flex-shrink-0 animate-pulse" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm">
+                          {getHeatWarning(current.feels_like).label}
+                        </span>
+                        <span className="text-xs opacity-90">
+                          Heat Index: {current.feels_like}°F
+                        </span>
+                      </div>
+                      <p className="text-xs opacity-90 mt-0.5">
+                        {getHeatWarning(current.feels_like).message}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent 
+              side="bottom" 
+              className="w-72 p-0 bg-slate-900 border border-slate-700"
+            >
+              <div className="p-3">
+                <p className="font-semibold text-white text-sm mb-2">Heat Index Safety Levels</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
+                    <span className="text-xs text-slate-300">
+                      <span className="font-medium text-yellow-400">80-89°F</span> - Caution: Fatigue possible
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
+                    <span className="text-xs text-slate-300">
+                      <span className="font-medium text-amber-500">90-102°F</span> - Extreme Caution: Cramps/exhaustion
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
+                    <span className="text-xs text-slate-300">
+                      <span className="font-medium text-orange-500">103-124°F</span> - Danger: Heat stroke risk
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
+                    <span className="text-xs text-slate-300">
+                      <span className="font-medium text-red-500">125°F+</span> - Extreme Danger: Heat stroke likely
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs opacity-90 mt-0.5">
-                  {getHeatWarning(current.feels_like).message}
-                </p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       <Card className="bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 border-sky-200/50 dark:border-sky-800/50 overflow-hidden" data-testid="weather-widget">
