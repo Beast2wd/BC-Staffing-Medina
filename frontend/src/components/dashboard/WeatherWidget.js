@@ -103,6 +103,13 @@ export const WeatherWidget = () => {
 
   useEffect(() => {
     fetchWeather();
+    
+    // Auto-refresh weather every 30 minutes
+    const refreshInterval = setInterval(() => {
+      fetchWeather();
+    }, 30 * 60 * 1000); // 30 minutes in milliseconds
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const handleDetectLocation = () => {
