@@ -56,6 +56,23 @@ const formatDayName = (dateStr, index) => {
   return date.toLocaleDateString('en-US', { weekday: 'short' });
 };
 
+// Format last updated timestamp
+const formatLastUpdated = (isoString) => {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+};
+
 export const WeatherWidget = () => {
   const { api, user } = useAuth();
   const [weather, setWeather] = useState(null);
@@ -355,31 +372,40 @@ export const WeatherWidget = () => {
               })}
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-1 lg:ml-2">
-              {/* Refresh Button */}
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => fetchWeather(undefined, undefined, true)}
-                disabled={loading}
-                data-testid="weather-refresh-btn"
-                title="Refresh weather data"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
-              
-              {/* Settings Button (Admin only) */}
-              {isAdmin && (
+            {/* Action Buttons & Last Updated */}
+            <div className="flex flex-col items-end gap-1 lg:ml-2">
+              <div className="flex items-center gap-1">
+                {/* Refresh Button */}
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => setLocationDialog(true)}
-                  data-testid="weather-settings-btn"
-                  title="Weather location settings"
+                  onClick={() => fetchWeather(undefined, undefined, true)}
+                  disabled={loading}
+                  data-testid="weather-refresh-btn"
+                  title="Refresh weather data"
                 >
-                  <Settings2 className="h-4 w-4" />
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </Button>
+                
+                {/* Settings Button (Admin only) */}
+                {isAdmin && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setLocationDialog(true)}
+                    data-testid="weather-settings-btn"
+                    title="Weather location settings"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              
+              {/* Last Updated Timestamp */}
+              {weather.updated_at && (
+                <span className="text-[10px] text-muted-foreground/70" title={new Date(weather.updated_at).toLocaleString()}>
+                  Updated {formatLastUpdated(weather.updated_at)}
+                </span>
               )}
             </div>
           </div>
