@@ -125,7 +125,7 @@ async def get_weather_forecast(
                     "q": location_query,
                     "days": 4,  # Today + 3 days
                     "aqi": "no",
-                    "alerts": "no"
+                    "alerts": "yes"  # Include weather alerts
                 }
             )
             
@@ -198,6 +198,22 @@ async def get_weather_forecast(
     location_data = data.get("location", {})
     api_location_name = f"{location_data.get('name', '')}, {location_data.get('region', '')}"
     
+    # Parse weather alerts
+    alerts_data = data.get("alerts", {}).get("alert", [])
+    alerts = []
+    for alert in alerts_data:
+        alerts.append({
+            "headline": alert.get("headline", ""),
+            "severity": alert.get("severity", ""),
+            "urgency": alert.get("urgency", ""),
+            "event": alert.get("event", ""),
+            "areas": alert.get("areas", ""),
+            "effective": alert.get("effective", ""),
+            "expires": alert.get("expires", ""),
+            "description": alert.get("desc", ""),
+            "instruction": alert.get("instruction", "")
+        })
+    
     result = {
         "location": {
             "latitude": latitude,
@@ -209,6 +225,7 @@ async def get_weather_forecast(
         },
         "current": current_weather,
         "forecast": forecast,
+        "alerts": alerts,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "cached": False,
         "source": "WeatherAPI.com"

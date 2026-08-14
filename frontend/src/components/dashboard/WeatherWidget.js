@@ -17,7 +17,11 @@ import {
   RefreshCw,
   Settings2,
   Radar,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle,
+  X,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -82,6 +86,8 @@ export const WeatherWidget = () => {
   const [locationName, setLocationName] = useState('');
   const [detecting, setDetecting] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const [alertsDismissed, setAlertsDismissed] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'battalion_chief' || user?.is_super_admin;
 
@@ -264,10 +270,112 @@ export const WeatherWidget = () => {
 
   if (!weather) return null;
 
-  const { current, forecast } = weather;
+  const { current, forecast, alerts } = weather;
+  const hasAlerts = alerts && alerts.length > 0 && !alertsDismissed;
+
+  // Get alert severity color
+  const getAlertColor = (severity) => {
+    switch (severity?.toLowerCase()) {
+      case 'extreme':
+        return 'bg-red-600 border-red-700 text-white';
+      case 'severe':
+        return 'bg-orange-500 border-orange-600 text-white';
+      case 'moderate':
+        return 'bg-yellow-500 border-yellow-600 text-black';
+      case 'minor':
+        return 'bg-blue-500 border-blue-600 text-white';
+      default:
+        return 'bg-amber-500 border-amber-600 text-white';
+    }
+  };
 
   return (
     <>
+      {/* Weather Alerts Banner */}
+      {hasAlerts && (
+        <Card className={`mb-2 ${getAlertColor(alerts[0]?.severity)} border-2 overflow-hidden`} data-testid="weather-alerts">
+          <CardContent className="p-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="font-semibold text-sm truncate">
+                    {alerts[0]?.event || alerts[0]?.headline || 'Weather Alert'}
+                  </h4>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {alerts.length > 1 && (
+                      <span className="text-xs opacity-80 px-1.5 py-0.5 rounded bg-black/20">
+                        +{alerts.length - 1} more
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-black/20"
+                      onClick={() => setAlertsExpanded(!alertsExpanded)}
+                    >
+                      {alertsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-black/20"
+                      onClick={() => setAlertsDismissed(true)}
+                      title="Dismiss alerts"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                {!alertsExpanded && alerts[0]?.headline && (
+                  <p className="text-xs opacity-90 mt-1 line-clamp-1">
+                    {alerts[0].headline}
+                  </p>
+                )}
+                
+                {alertsExpanded && (
+                  <div className="mt-2 space-y-3">
+                    {alerts.map((alert, index) => (
+                      <div key={index} className={`${index > 0 ? 'pt-3 border-t border-white/20' : ''}`}>
+                        {index > 0 && (
+                          <h5 className="font-semibold text-sm mb-1">
+                            {alert.event || alert.headline || 'Weather Alert'}
+                          </h5>
+                        )}
+                        {alert.headline && (
+                          <p className="text-xs opacity-90 mb-1">{alert.headline}</p>
+                        )}
+                        {alert.areas && (
+                          <p className="text-xs opacity-80 mb-1">
+                            <strong>Areas:</strong> {alert.areas}
+                          </p>
+                        )}
+                        {alert.expires && (
+                          <p className="text-xs opacity-80 mb-1">
+                            <strong>Expires:</strong> {new Date(alert.expires).toLocaleString()}
+                          </p>
+                        )}
+                        {alert.description && (
+                          <p className="text-xs opacity-90 mt-2 whitespace-pre-line">
+                            {alert.description.substring(0, 500)}{alert.description.length > 500 ? '...' : ''}
+                          </p>
+                        )}
+                        {alert.instruction && (
+                          <p className="text-xs opacity-90 mt-2 font-medium">
+                            <strong>Instructions:</strong> {alert.instruction}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 border-sky-200/50 dark:border-sky-800/50 overflow-hidden" data-testid="weather-widget">
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
