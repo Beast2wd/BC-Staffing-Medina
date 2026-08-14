@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Flame
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -75,6 +76,51 @@ const formatLastUpdated = (isoString) => {
   if (diffHours < 24) return `${diffHours}h ago`;
   
   return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+};
+
+// Heat index danger levels for firefighter safety
+const getHeatWarning = (feelsLike) => {
+  if (feelsLike >= 125) {
+    return {
+      level: 'extreme',
+      label: 'EXTREME DANGER',
+      message: 'Heat stroke highly likely. Limit outdoor operations.',
+      color: 'bg-red-600 text-white',
+      borderColor: 'border-red-600',
+      iconColor: 'text-red-600'
+    };
+  }
+  if (feelsLike >= 103) {
+    return {
+      level: 'danger',
+      label: 'DANGER',
+      message: 'Heat exhaustion/stroke risk. Mandatory hydration & rest cycles.',
+      color: 'bg-orange-500 text-white',
+      borderColor: 'border-orange-500',
+      iconColor: 'text-orange-500'
+    };
+  }
+  if (feelsLike >= 90) {
+    return {
+      level: 'extreme-caution',
+      label: 'EXTREME CAUTION',
+      message: 'Heat cramps & exhaustion possible. Increase hydration.',
+      color: 'bg-amber-500 text-black',
+      borderColor: 'border-amber-500',
+      iconColor: 'text-amber-500'
+    };
+  }
+  if (feelsLike >= 80) {
+    return {
+      level: 'caution',
+      label: 'CAUTION',
+      message: 'Fatigue possible with prolonged exposure.',
+      color: 'bg-yellow-400 text-black',
+      borderColor: 'border-yellow-400',
+      iconColor: 'text-yellow-500'
+    };
+  }
+  return null;
 };
 
 export const WeatherWidget = () => {
@@ -370,6 +416,33 @@ export const WeatherWidget = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Heat Index Warning Banner */}
+      {current.feels_like && getHeatWarning(current.feels_like) && (
+        <Card 
+          className={`mb-2 ${getHeatWarning(current.feels_like).color} border-2 ${getHeatWarning(current.feels_like).borderColor}`} 
+          data-testid="heat-warning"
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3">
+              <Flame className="h-5 w-5 flex-shrink-0 animate-pulse" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm">
+                    {getHeatWarning(current.feels_like).label}
+                  </span>
+                  <span className="text-xs opacity-90">
+                    Heat Index: {current.feels_like}°F
+                  </span>
+                </div>
+                <p className="text-xs opacity-90 mt-0.5">
+                  {getHeatWarning(current.feels_like).message}
+                </p>
               </div>
             </div>
           </CardContent>
