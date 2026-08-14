@@ -116,19 +116,19 @@ export const WeatherWidget = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // Use backend proxy for reverse geocoding to avoid CORS issues
+          // Use backend proxy for reverse geocoding
           const geoResponse = await api.get('/weather/reverse-geocode', {
             params: { latitude, longitude }
           });
           
-          const locationName = geoResponse.data.location_name;
+          const locationDisplayName = geoResponse.data.display_name || geoResponse.data.name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
           
           // Save the location
           await api.put('/weather/location', null, {
-            params: { latitude, longitude, location_name: locationName }
+            params: { latitude, longitude, location_name: locationDisplayName }
           });
           
-          toast.success(`Weather location set to ${locationName}`);
+          toast.success(`Weather location set to ${locationDisplayName}`);
           setLocationDialog(false);
           
           // Refresh weather with new location
@@ -165,23 +165,32 @@ export const WeatherWidget = () => {
       setDetecting(true);
       toast.info('Looking up location...');
       
-      // Use backend proxy for geocoding to avoid CORS issues
+      // Use backend proxy for geocoding
       const geoResponse = await api.get('/weather/geocode', {
         params: { query: locationName.trim() }
       });
       
-      const { latitude, longitude, short_name } = geoResponse.data;
+      const results = geoResponse.data.results;
+      if (!results || results.length === 0) {
+        toast.error('Location not found. Try a different city name or ZIP code.');
+        return;
+      }
+      
+      // Use the first result
+      const location = results[0];
+      const { latitude, longitude, display_name, name, region } = location;
+      const locationDisplayName = display_name || `${name}, ${region}`;
       
       // Save the location
       await api.put('/weather/location', null, {
         params: { 
           latitude, 
           longitude, 
-          location_name: short_name 
+          location_name: locationDisplayName 
         }
       });
       
-      toast.success(`Weather location set to ${short_name}`);
+      toast.success(`Weather location set to ${locationDisplayName}`);
       setLocationDialog(false);
       setLocationName('');
       
@@ -261,6 +270,12 @@ export const WeatherWidget = () => {
               
               {/* Current Details */}
               <div className="flex flex-col gap-1 text-xs">
+                {current.feels_like !== undefined && current.feels_like !== current.temperature && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Thermometer className="h-3.5 w-3.5 text-orange-500" />
+                    <span>Feels {current.feels_like}°</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Droplets className="h-3.5 w-3.5 text-blue-500" />
                   <span>{current.humidity}%</span>
@@ -339,8 +354,9 @@ export const WeatherWidget = () => {
                 className="lg:ml-2"
                 onClick={() => setLocationDialog(true)}
                 data-testid="weather-settings-btn"
+                title="Weather location settings"
               >
-                <MapPin className="h-4 w-4" />
+                <Settings2 className="h-4 w-4" />
               </Button>
             )}
           </div>
@@ -356,7 +372,7 @@ export const WeatherWidget = () => {
               Weather Location Settings
             </DialogTitle>
             <DialogDescription>
-              Set the weather location for your department's Daily Worksheet.
+              Set the weather location for your department&apos;s Daily Worksheet.
             </DialogDescription>
           </DialogHeader>
           
