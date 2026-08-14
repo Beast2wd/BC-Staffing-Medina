@@ -383,6 +383,8 @@ export const PersonnelManagementPage = () => {
   const [importData, setImportData] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Define rank order for sorting (lower number = higher rank)
   // Includes common aliases to ensure consistent sorting
@@ -559,6 +561,27 @@ export const PersonnelManagementPage = () => {
     }
   }, [api]);
 
+  // Export personnel to CSV
+  const handleExportPersonnel = useCallback(async () => {
+    try {
+      const response = await api.get('/personnel/export', {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `personnel_export_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Personnel exported successfully');
+    } catch (error) {
+      toast.error('Failed to export personnel');
+    }
+  }, [api]);
+
   // Handle CSV file upload
   const handleFileUpload = useCallback((event) => {
     const file = event.target.files?.[0];
@@ -573,9 +596,35 @@ export const PersonnelManagementPage = () => {
     reader.onload = (e) => {
       setImportData(e.target.result);
       setImportResults(null);
+      setImportPreview(null);
+      setShowPreview(false);
     };
     reader.readAsText(file);
   }, []);
+
+  // Preview import data
+  const handlePreviewImport = useCallback(async () => {
+    if (!importData.trim()) {
+      toast.error('No data to preview');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportPreview(null);
+
+    try {
+      const response = await api.post('/personnel/import/preview', {
+        csv_data: importData
+      });
+
+      setImportPreview(response.data);
+      setShowPreview(true);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Preview failed');
+    } finally {
+      setImportLoading(false);
+    }
+  }, [api, importData]);
 
   // Process import
   const handleProcessImport = useCallback(async () => {
@@ -593,6 +642,7 @@ export const PersonnelManagementPage = () => {
       });
 
       setImportResults(response.data);
+      setShowPreview(false);
       
       if (response.data.errors?.length > 0) {
         toast.warning(`Import completed with ${response.data.errors.length} errors`);
@@ -619,6 +669,8 @@ export const PersonnelManagementPage = () => {
     setShowImportDialog(false);
     setImportData('');
     setImportResults(null);
+    setImportPreview(null);
+    setShowPreview(false);
   }, []);
 
   const filteredPersonnel = personnel
@@ -717,10 +769,17 @@ export const PersonnelManagementPage = () => {
             <BattalionSelector />
             <Button 
               variant="outline" 
+              onClick={handleExportPersonnel} 
+              data-testid="export-personnel-btn"
+            >
+              <Download className="h-4 w-4 mr-2" /> Export
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={() => setShowImportDialog(true)} 
               data-testid="import-personnel-btn"
             >
-              <Upload className="h-4 w-4 mr-2" /> Import CSV
+              <Upload className="h-4 w-4 mr-2" /> Import
             </Button>
             <Button onClick={() => setShowAddDialog(true)} data-testid="add-personnel-btn">
               <Plus className="h-4 w-4 mr-2" /> Add Personnel
@@ -810,7 +869,7 @@ export const PersonnelManagementPage = () => {
 
         {/* Import CSV Dialog */}
         <Dialog open={showImportDialog} onOpenChange={(open) => { if (!open) handleCloseImportDialog(); else setShowImportDialog(true); }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
@@ -822,47 +881,139 @@ export const PersonnelManagementPage = () => {
             </DialogHeader>
             
             <div className="space-y-4 py-4">
-              {/* Download Template */}
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">CSV Template</p>
-                    <p className="text-sm text-muted-foreground">Download a template with example data</p>
+              {!showPreview && !importResults && (
+                <>
+                  {/* Download Template */}
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">CSV Template</p>
+                        <p className="text-sm text-muted-foreground">Download a template with example data</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={handleDownloadTemplate}>
+                      <Download className="h-4 w-4 mr-2" /> Download
+                    </Button>
                   </div>
+
+                  {/* File Upload */}
+                  <div className="space-y-2">
+                    <Label>Upload CSV File</Label>
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="cursor-pointer"
+                      data-testid="csv-file-input"
+                    />
+                  </div>
+
+                  {/* Or paste CSV data */}
+                  <div className="space-y-2">
+                    <Label>Or Paste CSV Data</Label>
+                    <Textarea
+                      value={importData}
+                      onChange={(e) => { setImportData(e.target.value); setImportPreview(null); }}
+                      placeholder="payroll_number,first_name,last_name,rank,shift,station_id,email,phone,certifications,hire_date&#10;100001,John,Smith,Captain,A,station_1,john@fire.gov,555-1234,EMT-P,2020-01-15"
+                      rows={6}
+                      className="font-mono text-sm"
+                      data-testid="csv-data-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Headers: payroll_number, first_name, last_name, rank, shift, station_id, email, phone, certifications, hire_date
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Preview Table */}
+              {showPreview && importPreview && (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{importPreview.summary.total_rows} Total Rows</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">{importPreview.summary.to_create} New</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm">{importPreview.summary.to_update} Updates</span>
+                    </div>
+                    {importPreview.summary.errors > 0 && (
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <span className="text-sm text-red-500">{importPreview.summary.errors} Errors</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preview Table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[300px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-16">Row</TableHead>
+                            <TableHead className="w-20">Action</TableHead>
+                            <TableHead>Payroll #</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Rank</TableHead>
+                            <TableHead>Shift</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importPreview.preview.map((row) => (
+                            <TableRow 
+                              key={row.row_number} 
+                              className={!row.valid ? 'bg-red-500/10' : row.action === 'update' ? 'bg-blue-500/5' : ''}
+                            >
+                              <TableCell className="text-muted-foreground">{row.row_number}</TableCell>
+                              <TableCell>
+                                <Badge variant={row.action === 'create' ? 'default' : 'secondary'} className="text-xs">
+                                  {row.action}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-mono">{row.payroll_number}</TableCell>
+                              <TableCell>
+                                {row.full_name}
+                                {row.is_duplicate && row.existing_name && row.existing_name !== row.full_name && (
+                                  <span className="text-xs text-muted-foreground ml-1">(was: {row.existing_name})</span>
+                                )}
+                              </TableCell>
+                              <TableCell>{row.rank}</TableCell>
+                              <TableCell>{row.shift}</TableCell>
+                              <TableCell>
+                                {row.valid ? (
+                                  row.warnings?.length > 0 ? (
+                                    <span className="text-xs text-yellow-600" title={row.warnings.join(', ')}>
+                                      ⚠️ Warnings
+                                    </span>
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                  )
+                                ) : (
+                                  <span className="text-xs text-red-500" title={row.errors.join(', ')}>
+                                    ❌ {row.errors[0]}
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground">
+                    Review the data above. Click &quot;Confirm Import&quot; to proceed or &quot;Back&quot; to make changes.
+                  </p>
                 </div>
-                <Button variant="outline" onClick={handleDownloadTemplate}>
-                  <Download className="h-4 w-4 mr-2" /> Download
-                </Button>
-              </div>
-
-              {/* File Upload */}
-              <div className="space-y-2">
-                <Label>Upload CSV File</Label>
-                <Input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="cursor-pointer"
-                  data-testid="csv-file-input"
-                />
-              </div>
-
-              {/* Or paste CSV data */}
-              <div className="space-y-2">
-                <Label>Or Paste CSV Data</Label>
-                <Textarea
-                  value={importData}
-                  onChange={(e) => { setImportData(e.target.value); setImportResults(null); }}
-                  placeholder="payroll_number,first_name,last_name,rank,shift,station_id,email,phone,certifications,hire_date&#10;100001,John,Smith,Captain,A,station_1,john@fire.gov,555-1234,EMT-P,2020-01-15"
-                  rows={6}
-                  className="font-mono text-sm"
-                  data-testid="csv-data-input"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Headers: payroll_number, first_name, last_name, rank, shift, station_id, email, phone, certifications, hire_date
-                </p>
-              </div>
+              )}
 
               {/* Import Results */}
               {importResults && (
@@ -918,27 +1069,56 @@ export const PersonnelManagementPage = () => {
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={handleCloseImportDialog}>
-                {importResults ? 'Close' : 'Cancel'}
-              </Button>
-              {!importResults && (
-                <Button 
-                  onClick={handleProcessImport} 
-                  disabled={importLoading || !importData.trim()}
-                  data-testid="process-import-btn"
-                >
-                  {importLoading ? (
-                    <>
-                      <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import Personnel
-                    </>
-                  )}
+              {showPreview && !importResults ? (
+                <>
+                  <Button variant="outline" onClick={() => setShowPreview(false)}>
+                    Back
+                  </Button>
+                  <Button 
+                    onClick={handleProcessImport} 
+                    disabled={importLoading || importPreview?.summary?.valid === 0}
+                    data-testid="confirm-import-btn"
+                  >
+                    {importLoading ? (
+                      <>
+                        <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Confirm Import ({importPreview?.summary?.valid || 0} records)
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : importResults ? (
+                <Button onClick={handleCloseImportDialog}>
+                  Close
                 </Button>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={handleCloseImportDialog}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handlePreviewImport} 
+                    disabled={importLoading || !importData.trim()}
+                    data-testid="preview-import-btn"
+                  >
+                    {importLoading ? (
+                      <>
+                        <div className="h-4 w-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Preview Import
+                      </>
+                    )}
+                  </Button>
+                </>
               )}
             </DialogFooter>
           </DialogContent>

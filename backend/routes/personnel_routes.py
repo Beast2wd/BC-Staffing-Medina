@@ -256,6 +256,198 @@ async def get_import_template(current_user: dict = Depends(get_current_user)):
     )
 
 
+@router.get("/export")
+async def export_personnel(
+    current_user: dict = Depends(get_current_user)
+):
+    """Export all personnel to CSV format"""
+    from fastapi.responses import Response
+    import csv
+    import io
+    from datetime import datetime
+    
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    # Get all active personnel
+    query = {"is_active": {"$ne": False}}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    personnel_list = await db.personnel.find(query, {"_id": 0}).to_list(1000)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write headers
+    headers = ["payroll_number", "first_name", "last_name", "rank", "shift", "station_id", "email", "phone", "certifications", "hire_date"]
+    writer.writerow(headers)
+    
+    # Write data rows
+    for person in personnel_list:
+        name_parts = person.get("name", "").split(" ", 1)
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        
+        certifications = person.get("certifications", [])
+        if isinstance(certifications, list):
+            certifications = ",".join(certifications)
+        
+        writer.writerow([
+            person.get("payroll_number", ""),
+            first_name,
+            last_name,
+            person.get("rank", ""),
+            person.get("shift", ""),
+            person.get("station_id", ""),
+            person.get("contact_email", "") or person.get("email", ""),
+            person.get("contact_phone", "") or person.get("phone", ""),
+            certifications,
+            person.get("hire_date", "")
+        ])
+    
+    csv_content = output.getvalue()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=personnel_export_{timestamp}.csv"}
+    )
+
+
+@router.post("/import/preview")
+async def preview_personnel_import(
+    request: Request,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """
+    Preview personnel CSV import without actually importing.
+    Returns parsed data with validation status for each row.
+    """
+    import csv
+    import io
+    
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    try:
+        body = await request.json()
+        csv_data = body.get("csv_data", "")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
+    
+    if not csv_data:
+        raise HTTPException(status_code=400, detail="No CSV data provided")
+    
+    # Parse CSV
+    csv_file = io.StringIO(csv_data)
+    reader = csv.DictReader(csv_file)
+    
+    preview_rows = []
+    
+    # Get existing personnel for duplicate check
+    existing_query = {}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing_personnel = await db.personnel.find(existing_query, {"_id": 0, "payroll_number": 1, "name": 1}).to_list(1000)
+    existing_payroll_numbers = {p["payroll_number"]: p["name"] for p in existing_personnel}
+    
+    # Get stations for validation
+    station_query = {}
+    if tenant_id:
+        station_query["tenant_id"] = tenant_id
+    existing_stations = await db.stations.find(station_query, {"_id": 0}).to_list(100)
+    station_ids = {s["id"] for s in existing_stations}
+    station_numbers = {str(s.get("station_number", "")): s["id"] for s in existing_stations}
+    
+    row_num = 0
+    for row in reader:
+        row_num += 1
+        errors = []
+        warnings = []
+        
+        # Validate payroll number
+        payroll_number = str(row.get("payroll_number", "")).strip()
+        if not payroll_number:
+            errors.append("Missing payroll number")
+        
+        # Validate name
+        first_name = row.get("first_name", "").strip()
+        last_name = row.get("last_name", "").strip()
+        full_name = f"{first_name} {last_name}".strip()
+        if not full_name:
+            errors.append("Missing name")
+        
+        # Validate shift
+        shift = row.get("shift", "").strip().upper()
+        if shift and shift not in ["A", "B", "C"]:
+            warnings.append(f"Invalid shift '{shift}', will default to 'A'")
+            shift = "A"
+        elif not shift:
+            shift = "A"
+        
+        # Validate station
+        station_input = row.get("station_id", "").strip()
+        station_valid = False
+        resolved_station = station_input
+        if station_input:
+            if station_input in station_ids:
+                station_valid = True
+            elif station_input in station_numbers:
+                station_valid = True
+                resolved_station = station_numbers[station_input]
+            elif f"station_{station_input}" in station_ids:
+                station_valid = True
+                resolved_station = f"station_{station_input}"
+        if not station_valid and station_input:
+            warnings.append(f"Station '{station_input}' not found, will use default")
+        
+        # Check if duplicate
+        is_duplicate = payroll_number in existing_payroll_numbers
+        existing_name = existing_payroll_numbers.get(payroll_number, "")
+        
+        # Parse certifications
+        certs_str = row.get("certifications", "").strip()
+        certifications = [c.strip() for c in certs_str.split(",") if c.strip()] if certs_str else []
+        
+        preview_rows.append({
+            "row_number": row_num,
+            "payroll_number": payroll_number,
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": full_name,
+            "rank": row.get("rank", "Firefighter").strip() or "Firefighter",
+            "shift": shift,
+            "station_id": resolved_station or "station_1",
+            "email": row.get("email", "").strip(),
+            "phone": row.get("phone", "").strip(),
+            "certifications": certifications,
+            "hire_date": row.get("hire_date", "").strip(),
+            "is_duplicate": is_duplicate,
+            "existing_name": existing_name,
+            "action": "update" if is_duplicate else "create",
+            "errors": errors,
+            "warnings": warnings,
+            "valid": len(errors) == 0
+        })
+    
+    total_valid = sum(1 for r in preview_rows if r["valid"])
+    total_create = sum(1 for r in preview_rows if r["valid"] and r["action"] == "create")
+    total_update = sum(1 for r in preview_rows if r["valid"] and r["action"] == "update")
+    total_errors = sum(1 for r in preview_rows if not r["valid"])
+    
+    return {
+        "preview": preview_rows,
+        "summary": {
+            "total_rows": len(preview_rows),
+            "valid": total_valid,
+            "to_create": total_create,
+            "to_update": total_update,
+            "errors": total_errors
+        }
+    }
+
+
 @router.post("/import")
 async def import_personnel(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
