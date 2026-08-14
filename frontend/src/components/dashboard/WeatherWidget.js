@@ -68,7 +68,7 @@ export const WeatherWidget = () => {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'battalion_chief' || user?.is_super_admin;
 
-  const fetchWeather = async (lat, lon) => {
+  const fetchWeather = async (lat, lon, showToast = false) => {
     try {
       setLoading(true);
       setError(null);
@@ -85,6 +85,8 @@ export const WeatherWidget = () => {
       // Show notice if using cached data
       if (response.data?.rate_limited) {
         setError('Using cached data (service busy)');
+      } else if (showToast) {
+        toast.success('Weather updated');
       }
     } catch (err) {
       console.error('Failed to fetch weather:', err);
@@ -346,19 +348,33 @@ export const WeatherWidget = () => {
               })}
             </div>
 
-            {/* Settings Button (Admin only) */}
-            {isAdmin && (
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1 lg:ml-2">
+              {/* Refresh Button */}
               <Button 
                 variant="ghost" 
-                size="sm" 
-                className="lg:ml-2"
-                onClick={() => setLocationDialog(true)}
-                data-testid="weather-settings-btn"
-                title="Weather location settings"
+                size="sm"
+                onClick={() => fetchWeather(undefined, undefined, true)}
+                disabled={loading}
+                data-testid="weather-refresh-btn"
+                title="Refresh weather data"
               >
-                <Settings2 className="h-4 w-4" />
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
-            )}
+              
+              {/* Settings Button (Admin only) */}
+              {isAdmin && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setLocationDialog(true)}
+                  data-testid="weather-settings-btn"
+                  title="Weather location settings"
+                >
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
