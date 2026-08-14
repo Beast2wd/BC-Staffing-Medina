@@ -428,117 +428,125 @@ export const WeatherWidget = () => {
         </Card>
       )}
 
-      {/* Heat Index Warning Banner */}
-      {current.feels_like && getHeatWarning(current.feels_like) && (
-        <TooltipProvider>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Card 
-                className={`mb-2 ${getHeatWarning(current.feels_like).color} border-2 ${getHeatWarning(current.feels_like).borderColor} cursor-help`} 
-                data-testid="heat-warning"
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <Flame className="h-5 w-5 flex-shrink-0 animate-pulse" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm">
-                          {getHeatWarning(current.feels_like).label}
-                        </span>
-                        <span className="text-xs opacity-90">
-                          Heat Index: {current.feels_like}°F
-                        </span>
-                      </div>
-                      <p className="text-xs opacity-90 mt-0.5">
-                        {getHeatWarning(current.feels_like).message}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent 
-              side="bottom" 
-              className="w-72 p-0 bg-slate-900 border border-slate-700"
-            >
-              <div className="p-3">
-                <p className="font-semibold text-white text-sm mb-2">Heat Index Safety Levels</p>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
-                    <span className="text-xs text-slate-300">
-                      <span className="font-medium text-yellow-400">80-89°F</span> - Caution: Fatigue possible
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
-                    <span className="text-xs text-slate-300">
-                      <span className="font-medium text-amber-500">90-102°F</span> - Extreme Caution: Cramps/exhaustion
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
-                    <span className="text-xs text-slate-300">
-                      <span className="font-medium text-orange-500">103-124°F</span> - Danger: Heat stroke risk
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
-                    <span className="text-xs text-slate-300">
-                      <span className="font-medium text-red-500">125°F+</span> - Extreme Danger: Heat stroke likely
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-
       <Card className="bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 border-sky-200/50 dark:border-sky-800/50 overflow-hidden" data-testid="weather-widget">
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            {/* Current Weather */}
-            <div className="flex items-center gap-4 lg:border-r lg:border-sky-200/30 dark:lg:border-sky-700/30 lg:pr-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
-                  {getWeatherIcon(current.icon, "h-8 w-8")}
-                </div>
-                <div>
-                  {weather.location && (
-                    <p className="text-xs font-medium text-sky-600 dark:text-sky-400 flex items-center gap-1 mb-0.5">
-                      <MapPin className="h-3 w-3" />
-                      {weather.location.city && weather.location.region 
-                        ? `${weather.location.city}, ${weather.location.region}`
-                        : weather.location.name || 'Unknown Location'}
-                    </p>
-                  )}
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-foreground">{current.temperature}°</span>
-                    <span className="text-sm text-muted-foreground">F</span>
+            {/* Current Weather - with heat warning background */}
+            {(() => {
+              const heatWarning = current.feels_like ? getHeatWarning(current.feels_like) : null;
+              const currentWeatherContent = (
+                <div 
+                  className={`flex items-center gap-4 lg:pr-4 p-3 -m-3 lg:mr-0 rounded-lg transition-colors ${
+                    heatWarning 
+                      ? `${heatWarning.color} cursor-help` 
+                      : ''
+                  }`}
+                  data-testid={heatWarning ? "heat-warning" : undefined}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${heatWarning ? 'bg-black/20' : 'bg-sky-500/20'} ${heatWarning ? 'text-current' : 'text-sky-600 dark:text-sky-400'}`}>
+                      {heatWarning ? <Flame className="h-8 w-8 animate-pulse" /> : getWeatherIcon(current.icon, "h-8 w-8")}
+                    </div>
+                    <div>
+                      {weather.location && (
+                        <p className={`text-xs font-medium flex items-center gap-1 mb-0.5 ${heatWarning ? 'opacity-90' : 'text-sky-600 dark:text-sky-400'}`}>
+                          <MapPin className="h-3 w-3" />
+                          {weather.location.city && weather.location.region 
+                            ? `${weather.location.city}, ${weather.location.region}`
+                            : weather.location.name || 'Unknown Location'}
+                        </p>
+                      )}
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-3xl font-bold ${heatWarning ? '' : 'text-foreground'}`}>{current.temperature}°</span>
+                        <span className={`text-sm ${heatWarning ? 'opacity-80' : 'text-muted-foreground'}`}>F</span>
+                      </div>
+                      <p className={`text-xs ${heatWarning ? 'opacity-80' : 'text-muted-foreground'}`}>{current.description}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{current.description}</p>
-                </div>
-              </div>
-              
-              {/* Current Details */}
-              <div className="flex flex-col gap-1 text-xs">
-                {current.feels_like !== undefined && current.feels_like !== current.temperature && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Thermometer className="h-3.5 w-3.5 text-orange-500" />
-                    <span>Feels {current.feels_like}°</span>
+                  
+                  {/* Current Details */}
+                  <div className={`flex flex-col gap-1 text-xs ${heatWarning ? '' : ''}`}>
+                    {heatWarning && (
+                      <div className={`flex items-center gap-1.5 font-semibold`}>
+                        <span>{heatWarning.label}</span>
+                      </div>
+                    )}
+                    {current.feels_like !== undefined && (
+                      <div className={`flex items-center gap-1.5 ${heatWarning ? 'opacity-90' : 'text-muted-foreground'}`}>
+                        <Thermometer className={`h-3.5 w-3.5 ${heatWarning ? '' : 'text-orange-500'}`} />
+                        <span>Feels {current.feels_like}°</span>
+                      </div>
+                    )}
+                    <div className={`flex items-center gap-1.5 ${heatWarning ? 'opacity-90' : 'text-muted-foreground'}`}>
+                      <Droplets className={`h-3.5 w-3.5 ${heatWarning ? '' : 'text-blue-500'}`} />
+                      <span>{current.humidity}%</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 ${heatWarning ? 'opacity-90' : 'text-muted-foreground'}`}>
+                      <Wind className={`h-3.5 w-3.5 ${heatWarning ? '' : 'text-slate-500'}`} />
+                      <span>{current.wind_direction} {current.wind_speed} mph</span>
+                    </div>
                   </div>
-                )}
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Droplets className="h-3.5 w-3.5 text-blue-500" />
-                  <span>{current.humidity}%</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Wind className="h-3.5 w-3.5 text-slate-500" />
-                  <span>{current.wind_direction} {current.wind_speed} mph</span>
+              );
+
+              // Wrap with tooltip if there's a heat warning
+              if (heatWarning) {
+                return (
+                  <div className="lg:border-r lg:border-sky-200/30 dark:lg:border-sky-700/30 lg:pr-4">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          {currentWeatherContent}
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          side="bottom" 
+                          className="w-72 p-0 bg-slate-900 border border-slate-700"
+                        >
+                          <div className="p-3">
+                            <p className="font-semibold text-white text-sm mb-2">Heat Index Safety Levels</p>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
+                                <span className="text-xs text-slate-300">
+                                  <span className="font-medium text-yellow-400">80-89°F</span> - Caution: Fatigue possible
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
+                                <span className="text-xs text-slate-300">
+                                  <span className="font-medium text-amber-500">90-102°F</span> - Extreme Caution: Cramps/exhaustion
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
+                                <span className="text-xs text-slate-300">
+                                  <span className="font-medium text-orange-500">103-124°F</span> - Danger: Heat stroke risk
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
+                                <span className="text-xs text-slate-300">
+                                  <span className="font-medium text-red-500">125°F+</span> - Extreme Danger: Heat stroke likely
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
+                              {heatWarning.message}
+                            </p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="lg:border-r lg:border-sky-200/30 dark:lg:border-sky-700/30 lg:pr-4">
+                  {currentWeatherContent}
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* 3-Day Forecast */}
             <div className="flex-1 grid grid-cols-4 gap-2 sm:gap-3">
