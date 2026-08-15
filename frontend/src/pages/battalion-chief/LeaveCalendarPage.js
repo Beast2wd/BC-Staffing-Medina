@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { ChevronLeft, ChevronRight, Calendar, Filter, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
 const LEAVE_TYPES = [
@@ -104,8 +104,9 @@ export const LeaveCalendarPage = () => {
       if (leave.status !== 'approved') return;
       
       // Add to each date in the leave range
-      const startDate = new Date(leave.start_date);
-      const endDate = new Date(leave.end_date);
+      // Use parseISO to correctly parse date strings without timezone shift
+      const startDate = parseISO(leave.start_date);
+      const endDate = parseISO(leave.end_date);
       
       const daysInRange = eachDayOfInterval({ start: startDate, end: endDate });
       daysInRange.forEach(day => {
