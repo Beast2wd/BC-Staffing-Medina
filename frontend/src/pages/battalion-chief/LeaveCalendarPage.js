@@ -108,7 +108,17 @@ export const LeaveCalendarPage = () => {
       const startDate = parseISO(leave.start_date);
       const endDate = parseISO(leave.end_date);
       
-      const daysInRange = eachDayOfInterval({ start: startDate, end: endDate });
+      // For 24-hour shift work (0600-0600), the end_date represents when the shift ends,
+      // not a separate day of leave. Only show leave on shift START dates.
+      // Example: Vacation Aug 17-18 = one 24hr shift starting Aug 17
+      // Example: Vacation Aug 17-19 = two 24hr shifts starting Aug 17 and Aug 18
+      const lastShiftDate = new Date(endDate);
+      lastShiftDate.setDate(lastShiftDate.getDate() - 1); // Exclude the end date (shift end time)
+      
+      // If start and adjusted end are the same or end is before start, just use start date
+      const effectiveEndDate = lastShiftDate >= startDate ? lastShiftDate : startDate;
+      
+      const daysInRange = eachDayOfInterval({ start: startDate, end: effectiveEndDate });
       daysInRange.forEach(day => {
         const dateKey = format(day, 'yyyy-MM-dd');
         if (!byDate[dateKey]) {
