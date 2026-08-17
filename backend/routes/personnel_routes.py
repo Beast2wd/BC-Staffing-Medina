@@ -61,6 +61,11 @@ async def create_personnel(
 ):
     tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
     
+    # Validate sick balance cannot be negative per Policy P-021
+    if hasattr(data, 'sick_current_balance') and data.sick_current_balance is not None:
+        if data.sick_current_balance < 0:
+            raise HTTPException(status_code=400, detail="Sick time balance cannot be negative per policy P-021")
+    
     # Check for existing payroll number within the same tenant
     existing_query = {"payroll_number": data.payroll_number}
     if tenant_id:
@@ -133,6 +138,10 @@ async def update_personnel(
     current_user: dict = Depends(require_role([UserRole.ADMIN]))
 ):
     tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    # Validate sick balance cannot be negative per Policy P-021
+    if data.sick_current_balance is not None and data.sick_current_balance < 0:
+        raise HTTPException(status_code=400, detail="Sick time balance cannot be negative per policy P-021")
     
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     if not update_data:

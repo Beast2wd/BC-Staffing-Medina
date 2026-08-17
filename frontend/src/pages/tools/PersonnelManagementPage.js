@@ -66,12 +66,12 @@ const PersonnelFormDialog = memo(({
   const [annualSickHours, setAnnualSickHours] = useState(288);
   const [annualHolidayDays, setAnnualHolidayDays] = useState(11);
   const [annualHolidayHours, setAnnualHolidayHours] = useState(264);
-  // Holiday accrual override fields
-  const [holidayAccrualOverride, setHolidayAccrualOverride] = useState(false);
-  const [holidayAccrualRateOverride, setHolidayAccrualRateOverride] = useState('');
+  // PTO (Paid Time Off) fields - applies to vacation, sick, and holiday per P-021
+  const [personnelType, setPersonnelType] = useState('operations');  // operations or administrative
+  const [hireDate, setHireDate] = useState('');
+  const [vacationCurrentBalance, setVacationCurrentBalance] = useState(0);
+  const [sickCurrentBalance, setSickCurrentBalance] = useState(0);
   const [holidayCurrentBalance, setHolidayCurrentBalance] = useState(0);
-  const [holidayPersonnelType, setHolidayPersonnelType] = useState('shift');
-  const [holidayHireDate, setHolidayHireDate] = useState('');
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (isOpen && initialData) {
@@ -84,19 +84,19 @@ const PersonnelFormDialog = memo(({
       setContactEmail(initialData.contact_email || '');
       setCertifications(initialData.certifications || []);
       setSelectedUserId('');
-      // Leave allocations - days and hours
+      // Leave allocations - days and hours (legacy, still supported)
       setAnnualVacationDays(initialData.annual_vacation_days ?? 15);
       setAnnualVacationHours(initialData.annual_vacation_hours ?? 360);
       setAnnualSickDays(initialData.annual_sick_days ?? 12);
       setAnnualSickHours(initialData.annual_sick_hours ?? 288);
       setAnnualHolidayDays(initialData.annual_holiday_days ?? 11);
       setAnnualHolidayHours(initialData.annual_holiday_hours ?? 264);
-      // Holiday accrual override fields
-      setHolidayAccrualOverride(initialData.holiday_accrual_override ?? false);
-      setHolidayAccrualRateOverride(initialData.holiday_accrual_rate_override ?? '');
+      // PTO fields - universal for all leave types
+      setPersonnelType(initialData.personnel_type || initialData.holiday_personnel_type || 'operations');
+      setHireDate(initialData.hire_date || initialData.holiday_hire_date || '');
+      setVacationCurrentBalance(initialData.vacation_current_balance ?? 0);
+      setSickCurrentBalance(initialData.sick_current_balance ?? 0);
       setHolidayCurrentBalance(initialData.holiday_current_balance ?? 0);
-      setHolidayPersonnelType(initialData.holiday_personnel_type ?? 'shift');
-      setHolidayHireDate(initialData.holiday_hire_date ?? '');
     } else if (isOpen && !initialData) {
       // Reset for add mode
       setPayrollNumber('');
@@ -115,12 +115,12 @@ const PersonnelFormDialog = memo(({
       setAnnualSickHours(288);
       setAnnualHolidayDays(11);
       setAnnualHolidayHours(264);
-      // Reset holiday accrual fields
-      setHolidayAccrualOverride(false);
-      setHolidayAccrualRateOverride('');
+      // Reset PTO fields
+      setPersonnelType('operations');
+      setHireDate('');
+      setVacationCurrentBalance(0);
+      setSickCurrentBalance(0);
       setHolidayCurrentBalance(0);
-      setHolidayPersonnelType('shift');
-      setHolidayHireDate('');
     }
     setCertInput('');
     setUserSearchTerm('');
@@ -176,12 +176,12 @@ const PersonnelFormDialog = memo(({
       annual_sick_hours: parseInt(annualSickHours) || 288,
       annual_holiday_days: parseInt(annualHolidayDays) || 11,
       annual_holiday_hours: parseInt(annualHolidayHours) || 264,
-      // Holiday accrual override fields
-      holiday_accrual_override: holidayAccrualOverride,
-      holiday_accrual_rate_override: holidayAccrualOverride && holidayAccrualRateOverride ? parseFloat(holidayAccrualRateOverride) : null,
-      holiday_current_balance: parseFloat(holidayCurrentBalance) || 0,
-      holiday_personnel_type: holidayPersonnelType,
-      holiday_hire_date: holidayHireDate || null
+      // PTO fields - universal for all leave types per P-021
+      personnel_type: personnelType,
+      hire_date: hireDate || null,
+      vacation_current_balance: parseFloat(vacationCurrentBalance) || 0,
+      sick_current_balance: parseFloat(sickCurrentBalance) || 0,
+      holiday_current_balance: parseFloat(holidayCurrentBalance) || 0
     });
   };
 
@@ -499,88 +499,95 @@ const PersonnelFormDialog = memo(({
             </p>
           </div>
 
-          {/* Holiday Accrual Override Section */}
+          {/* PTO Settings Section - Per P-021 Policy */}
           <div className="space-y-3 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-green-600" />
-                Holiday Accrual Settings
-              </Label>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Custom Rate</Label>
-                <Switch
-                  checked={holidayAccrualOverride}
-                  onCheckedChange={setHolidayAccrualOverride}
-                  data-testid="holiday-accrual-override-switch"
-                />
-              </div>
-            </div>
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              PTO Settings (Per Policy P-021)
+            </Label>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Determines accrual rates for vacation, sick, and holiday time
+            </p>
 
-            {/* Personnel Type */}
+            {/* Personnel Type - Critical for rate calculation */}
             <div className="space-y-2">
-              <Label className="text-xs">Personnel Type</Label>
+              <Label className="text-xs font-medium">Personnel Type *</Label>
               <Select
-                value={holidayPersonnelType}
-                onValueChange={setHolidayPersonnelType}
+                value={personnelType}
+                onValueChange={setPersonnelType}
               >
-                <SelectTrigger className="h-8" data-testid="holiday-personnel-type-select">
+                <SelectTrigger className="h-8" data-testid="personnel-type-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="shift">Shift Personnel (24hr)</SelectItem>
+                  <SelectItem value="operations">Operations (Shift - 24hr)</SelectItem>
                   <SelectItem value="administrative">Administrative (8hr)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Operations: Higher accrual rates, 240hr vacation rollover cap
+                <br />
+                Administrative: Standard rates, 120hr vacation rollover cap
+              </p>
             </div>
 
-            {/* Hire Date for Accrual */}
+            {/* Hire Date - Critical for years of service calculation */}
             <div className="space-y-2">
-              <Label className="text-xs">Hire Date (for accrual start)</Label>
+              <Label className="text-xs font-medium">Hire Date *</Label>
               <Input
                 type="date"
-                value={holidayHireDate}
-                onChange={(e) => setHolidayHireDate(e.target.value)}
+                value={hireDate}
+                onChange={(e) => setHireDate(e.target.value)}
                 className="h-8"
-                data-testid="holiday-hire-date-input"
+                data-testid="hire-date-input"
               />
+              <p className="text-[10px] text-muted-foreground">
+                Used to calculate years of service and accrual rate tier
+              </p>
             </div>
 
-            {/* Custom Accrual Rate (only if override enabled) */}
-            {holidayAccrualOverride && (
-              <div className="space-y-2">
-                <Label className="text-xs">Custom Accrual Rate (hrs/pay period)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  placeholder="e.g., 4.0"
-                  value={holidayAccrualRateOverride}
-                  onChange={(e) => setHolidayAccrualRateOverride(e.target.value)}
-                  className="h-8"
-                  data-testid="holiday-accrual-rate-input"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Overrides department default rate for this employee
-                </p>
-              </div>
-            )}
-
-            {/* Current Balance */}
+            {/* Current Balances */}
             <div className="space-y-2">
-              <Label className="text-xs">Current Holiday Balance (hours)</Label>
-              <Input
-                type="number"
-                step="0.5"
-                value={holidayCurrentBalance}
-                onChange={(e) => setHolidayCurrentBalance(e.target.value)}
-                className={`h-8 ${parseFloat(holidayCurrentBalance) < 0 ? 'border-red-500 text-red-600' : ''}`}
-                data-testid="holiday-current-balance-input"
-              />
-              {parseFloat(holidayCurrentBalance) < 0 && (
-                <p className="text-xs text-red-500">
-                  Negative balance - will build back up with accrual
-                </p>
-              )}
+              <Label className="text-xs font-medium">Current Balances (hours)</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-blue-600">Vacation</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={vacationCurrentBalance}
+                    onChange={(e) => setVacationCurrentBalance(e.target.value)}
+                    className={`h-8 text-center ${parseFloat(vacationCurrentBalance) < 0 ? 'border-amber-500 text-amber-600' : ''}`}
+                    data-testid="vacation-balance-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-red-600">Sick</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={sickCurrentBalance}
+                    onChange={(e) => setSickCurrentBalance(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="h-8 text-center"
+                    data-testid="sick-balance-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-green-600">Holiday</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={holidayCurrentBalance}
+                    onChange={(e) => setHolidayCurrentBalance(e.target.value)}
+                    className={`h-8 text-center ${parseFloat(holidayCurrentBalance) < 0 ? 'border-amber-500 text-amber-600' : ''}`}
+                    data-testid="holiday-balance-input"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Vacation/Holiday can go negative. <span className="text-red-600 font-medium">Sick cannot go negative per policy.</span>
+              </p>
             </div>
           </div>
 
@@ -738,12 +745,12 @@ export const PersonnelManagementPage = () => {
         annual_sick_hours: formData.annual_sick_hours,
         annual_holiday_days: formData.annual_holiday_days,
         annual_holiday_hours: formData.annual_holiday_hours,
-        // Holiday accrual fields
-        holiday_accrual_override: formData.holiday_accrual_override,
-        holiday_accrual_rate_override: formData.holiday_accrual_rate_override,
-        holiday_current_balance: formData.holiday_current_balance,
-        holiday_personnel_type: formData.holiday_personnel_type,
-        holiday_hire_date: formData.holiday_hire_date
+        // PTO fields - universal for all leave types per P-021
+        personnel_type: formData.personnel_type,
+        hire_date: formData.hire_date,
+        vacation_current_balance: formData.vacation_current_balance,
+        sick_current_balance: formData.sick_current_balance,
+        holiday_current_balance: formData.holiday_current_balance
       });
       toast.success('Personnel updated');
       setShowEditDialog(false);

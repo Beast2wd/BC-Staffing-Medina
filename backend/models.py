@@ -114,14 +114,19 @@ class PersonnelBase(BaseModel):
     annual_holiday_days: int = 11  # Default 11 holidays per year
     annual_holiday_hours: int = 264  # Default 264 hours (11 days x 24 hours)
     leave_year_start: Optional[str] = None  # YYYY-MM-DD, defaults to Jan 1
-    # Holiday Accrual - Per Personnel Override
-    holiday_accrual_override: bool = False  # If true, use personnel-specific rate
-    holiday_accrual_rate_override: Optional[float] = None  # Hours per period (overrides tenant default)
-    holiday_accrual_mode_override: Optional[str] = None  # per_period or yearly (overrides tenant)
+    # PTO Settings - Universal for all leave types per Policy P-021
+    personnel_type: str = "operations"  # operations or administrative (determines accrual rates)
+    hire_date: Optional[str] = None  # YYYY-MM-DD, for years of service calculation
+    vacation_current_balance: float = 0.0  # Current vacation balance (can be negative)
+    sick_current_balance: float = 0.0  # Current sick balance (CANNOT be negative per policy)
     holiday_current_balance: float = 0.0  # Current holiday balance (can be negative)
-    holiday_last_accrual_date: Optional[str] = None  # Last date accrual was processed
-    holiday_hire_date: Optional[str] = None  # For calculating accrual start
-    holiday_personnel_type: str = "shift"  # shift or administrative (different default rates)
+    # Legacy fields for backward compatibility
+    holiday_accrual_override: bool = False
+    holiday_accrual_rate_override: Optional[float] = None
+    holiday_accrual_mode_override: Optional[str] = None
+    holiday_last_accrual_date: Optional[str] = None
+    holiday_hire_date: Optional[str] = None  # Deprecated: use hire_date instead
+    holiday_personnel_type: str = "shift"  # Deprecated: use personnel_type instead
 
 
 class PersonnelCreate(BaseModel):
@@ -141,13 +146,12 @@ class PersonnelCreate(BaseModel):
     annual_holiday_days: int = 11
     annual_holiday_hours: int = 264
     leave_year_start: Optional[str] = None
-    # Holiday Accrual fields
-    holiday_accrual_override: bool = False
-    holiday_accrual_rate_override: Optional[float] = None
-    holiday_accrual_mode_override: Optional[str] = None
+    # PTO fields - Universal for all leave types per P-021
+    personnel_type: str = "operations"
+    hire_date: Optional[str] = None
+    vacation_current_balance: float = 0.0
+    sick_current_balance: float = 0.0
     holiday_current_balance: float = 0.0
-    holiday_hire_date: Optional[str] = None
-    holiday_personnel_type: str = "shift"
 
 
 class PersonnelUpdate(BaseModel):
@@ -168,11 +172,16 @@ class PersonnelUpdate(BaseModel):
     annual_holiday_days: Optional[int] = None
     annual_holiday_hours: Optional[int] = None
     leave_year_start: Optional[str] = None
-    # Holiday Accrual fields
+    # PTO fields - Universal for all leave types per P-021
+    personnel_type: Optional[str] = None
+    hire_date: Optional[str] = None
+    vacation_current_balance: Optional[float] = None
+    sick_current_balance: Optional[float] = None
+    holiday_current_balance: Optional[float] = None
+    # Legacy fields for backward compatibility
     holiday_accrual_override: Optional[bool] = None
     holiday_accrual_rate_override: Optional[float] = None
     holiday_accrual_mode_override: Optional[str] = None
-    holiday_current_balance: Optional[float] = None
     holiday_hire_date: Optional[str] = None
     holiday_personnel_type: Optional[str] = None
     holiday_last_accrual_date: Optional[str] = None

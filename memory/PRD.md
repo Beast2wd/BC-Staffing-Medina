@@ -985,3 +985,30 @@ Restructured leave accrual to match Medina County ESD1 Department Policy P-021 (
 - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Replaced HolidayAccrualSettings with PaidTimeOffSettings
 - Removed `/app/frontend/src/components/settings/HolidayAccrualSettings.js` (superseded)
 
+
+
+## Personnel Management - PTO Integration (December 2025)
+Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow:
+
+### PTO Settings Section
+- ✅ **Personnel Type** (required) - Determines which accrual rate table to use
+  - Operations (Shift - 24hr): Higher rates, 240hr vacation rollover cap
+  - Administrative (8hr): Standard rates, 120hr vacation rollover cap
+- ✅ **Hire Date** (required) - Used to calculate years of service for accrual tier
+- ✅ **Current Balances** - All three leave types tracked:
+  - Vacation: Can go negative (must reimburse if leave before earning)
+  - Sick: **CANNOT go negative** (enforced both client-side and server-side)
+  - Holiday: Can go negative (will accrue back)
+
+### Server-Side Validation
+- ✅ Sick balance cannot be negative - returns 400 error with "Sick time balance cannot be negative per policy P-021"
+
+### Files Updated
+- `/app/backend/models.py` - Added personnel_type, hire_date, vacation_current_balance, sick_current_balance, holiday_current_balance fields
+- `/app/backend/routes/personnel_routes.py` - Added server-side validation for sick balance >= 0
+- `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - New PTO Settings section in Add/Edit dialogs with client-side validation
+
+### Backward Compatibility
+- Legacy fields (holiday_personnel_type, holiday_hire_date) retained and mapped to new fields
+- Existing personnel records continue to work; new fields default to operations/0 balance
+
