@@ -772,6 +772,8 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - Monthly calendar grid showing all leave types across all personnel
   - Color-coded leave entries: Blue (vacation), Red (sick), Green (holiday)
   - Shift indicators (A/B/C) displayed on each calendar day
+  - **24-Hour Shift Support**: Leave records show on shift START date only (not end date)
+    - Example: Vacation Aug 17-18 (one 24hr shift) shows only on Aug 17
 - ✅ **Filters** - Filter leave by:
   - Leave type (vacation, sick, holiday, or all)
   - Shift (A, B, C, or all)
@@ -792,4 +794,19 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/App.js` - Added route
   - `/app/frontend/src/components/layout/Navbar.js` - Added navigation link under Battalion Chief menu
 
+
+
+
+## Leave Management Shift-Based Entry (December 2025)
+- ✅ **On-Duty Shift Indicator** - Shows the working shift next to the date at the top of Vacation/Sick/Holiday Management pages
+  - Color-coded badge: Red (A Shift), Green (B Shift), Blue (C Shift)
+  - Updates dynamically when navigating dates
+- ✅ **Shift-Filtered Personnel Entry** - Prevents mis-entry by filtering personnel dropdown:
+  - User must select start date FIRST
+  - Shows on-duty shift indicator with message "(Only X Shift personnel shown below)"
+  - Personnel dropdown only shows members assigned to the on-duty shift
+  - Changing start date clears personnel selection and updates available personnel
+- ✅ **Applies to all leave types**: Vacation, Sick Leave, and Holiday Management
+- ✅ **Files Updated**:
+  - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Added shift indicator and filtered personnel logic
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -21,7 +21,7 @@ import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const LeaveManagementPage = ({ leaveType }) => {
   const { api, canEdit } = useAuth();
-  const { personnel, fetchAllData, selectedBattalion } = useStaffing();
+  const { personnel, fetchAllData, selectedBattalion, getShiftForDate } = useStaffing();
   const [leaveRecords, setLeaveRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -73,6 +73,27 @@ export const LeaveManagementPage = ({ leaveType }) => {
   };
 
   const config = pageConfig[leaveType] || pageConfig.sick;
+
+  // Get the on-duty shift for the selected start date in the Add form
+  const addFormShift = useMemo(() => {
+    if (!formData.start_date) return null;
+    return getShiftForDate(formData.start_date);
+  }, [formData.start_date, getShiftForDate]);
+
+  // Filter personnel to only show those assigned to the on-duty shift
+  const filteredPersonnelForAdd = useMemo(() => {
+    if (!addFormShift) {
+      // No start date selected yet - show message to select date first
+      return [];
+    }
+    return personnel.filter(p => p.shift === addFormShift);
+  }, [personnel, addFormShift]);
+
+  // Get the on-duty shift for the selected start date in the Edit form
+  const editFormShift = useMemo(() => {
+    if (!editFormData.start_date) return null;
+    return getShiftForDate(editFormData.start_date);
+  }, [editFormData.start_date, getShiftForDate]);
 
   // Navigate to previous day
   const goToPreviousDay = () => {
@@ -244,28 +265,10 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     <DialogTitle className="font-heading uppercase">New {config.title} Record</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Personnel</Label>
-                      <Select 
-                        value={formData.personnel_id} 
-                        onValueChange={(v) => setFormData({...formData, personnel_id: v})}
-                      >
-                        <SelectTrigger data-testid="personnel-select">
-                          <SelectValue placeholder="Select Personnel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {personnel.map(person => (
-                            <SelectItem key={person.id} value={person.id}>
-                              {person.rank} {person.name} ({person.shift} Shift)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
+                    {/* Start Date - Select First to determine which shift personnel to show */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Start Date</Label>
+                        <Label>Start Date <span className="text-red-500">*</span></Label>
                         <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
                           <PopoverTrigger asChild>
                             <Button
@@ -274,7 +277,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
                               data-testid="start-date-input"
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date'}
+                              {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date first'}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -282,7 +285,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
                               mode="single"
                               selected={parseDate(formData.start_date)}
                               onSelect={(date) => {
-                                setFormData({...formData, start_date: formatDateString(date)});
+                                // Clear personnel selection when date changes (shift may change)
+                                setFormData({...formData, start_date: formatDateString(date), personnel_id: ''});
                                 setStartDateOpen(false);
                               }}
                               initialFocus
@@ -291,13 +295,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
                         </Popover>
                       </div>
                       <div className="space-y-2">
-                        <Label>End Date</Label>
+                        <Label>End Date <span className="text-red-500">*</span></Label>
                         <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
                               className="w-full justify-start text-left font-normal"
                               data-testid="end-date-input"
+                              disabled={!formData.start_date}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {formData.end_date ? format(parseDate(formData.end_date), 'PPP') : 'Select date'}
@@ -317,6 +322,55 @@ export const LeaveManagementPage = ({ leaveType }) => {
                           </PopoverContent>
                         </Popover>
                       </div>
+                    </div>
+
+                    {/* On-Duty Shift Indicator */}
+                    {addFormShift && (
+                      <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                        <span className="text-sm text-muted-foreground">On-Duty Shift:</span>
+                        <Badge 
+                          className={`${
+                            addFormShift === 'A' ? 'bg-red-500' :
+                            addFormShift === 'B' ? 'bg-green-500' :
+                            'bg-blue-500'
+                          }`}
+                        >
+                          {addFormShift} Shift
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          (Only {addFormShift} Shift personnel shown below)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Personnel - Filtered by on-duty shift */}
+                    <div className="space-y-2">
+                      <Label>Personnel <span className="text-red-500">*</span></Label>
+                      {!formData.start_date ? (
+                        <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground italic">
+                          Please select a start date first to see available personnel
+                        </div>
+                      ) : filteredPersonnelForAdd.length === 0 ? (
+                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md text-sm text-yellow-600">
+                          No {addFormShift} Shift personnel found in the system
+                        </div>
+                      ) : (
+                        <Select 
+                          value={formData.personnel_id} 
+                          onValueChange={(v) => setFormData({...formData, personnel_id: v})}
+                        >
+                          <SelectTrigger data-testid="personnel-select">
+                            <SelectValue placeholder="Select Personnel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredPersonnelForAdd.map(person => (
+                              <SelectItem key={person.id} value={person.id}>
+                                {person.rank} {person.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -489,6 +543,18 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     />
                   </PopoverContent>
                 </Popover>
+                
+                {/* On-Duty Shift Indicator */}
+                <Badge 
+                  className={`text-sm px-3 py-1 ${
+                    getShiftForDate(formatDateString(viewDate)) === 'A' ? 'bg-red-500 hover:bg-red-600' :
+                    getShiftForDate(formatDateString(viewDate)) === 'B' ? 'bg-green-500 hover:bg-green-600' :
+                    'bg-blue-500 hover:bg-blue-600'
+                  }`}
+                  data-testid="on-duty-shift-badge"
+                >
+                  {getShiftForDate(formatDateString(viewDate))} Shift On Duty
+                </Badge>
                 
                 <Button variant="outline" size="icon" onClick={goToNextDay} data-testid="next-day-btn">
                   <ChevronRight className="h-4 w-4" />
