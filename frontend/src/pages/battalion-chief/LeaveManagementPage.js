@@ -163,10 +163,13 @@ export const LeaveManagementPage = ({ leaveType }) => {
         adjustedEndDate = endDateObj.toISOString().split('T')[0];
       }
       
+      // Check if record matches the view date
+      const matchesDate = viewDateStr >= startDate && viewDateStr <= adjustedEndDate;
+      
       switch (viewMode) {
         case 'current':
           // Records where viewDate falls within the leave period
-          return viewDateStr >= startDate && viewDateStr <= adjustedEndDate;
+          return matchesDate;
         case 'future':
           // Records that start after viewDate
           return startDate > viewDateStr;
@@ -175,8 +178,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
           return adjustedEndDate < viewDateStr;
         case 'all':
         default:
-          // Show all records for the on-duty shift
-          return true;
+          // Show all records for this date and shift (not ALL records in the system)
+          return matchesDate;
       }
     });
   }, [leaveRecords, viewDate, viewMode, personnel, getShiftForDate]);

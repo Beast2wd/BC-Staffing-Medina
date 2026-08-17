@@ -1,0 +1,32 @@
+{
+  "summary": "Verified sick/vacation carry-over bug fix. Sick leave for 8/18/2026 shows ONLY on 8/18/2026 (not on 8/17). Vacation for 8/17/2026 shows ONLY on 8/17/2026 (not on 8/18). Navigation between dates via prev/next-day and calendar picker correctly filters records. 'All Records' view mode also filters by date (does not show records from other dates). View modes current/future/past also behave correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "LeaveManagementPage.js filteredRecords logic (lines 137-183) is correct: for hours<=24 adjustedEndDate stays equal to start_date, so viewDateStr must equal start_date to match — this prevents next-day carry-over. Only concern: viewMode 'all' and 'current' are now behaviorally identical since both return matchesDate; consider removing 'All Records' option or restoring cross-shift 'all' semantics if that was ever intended."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "admin 100001 / admin123 via /client-login -> Medina County BC Staffing",
+  "seed_data_creation": "Used pre-seeded records: Vacation Aug 17 24hrs (Firefighter Test User) and Sick Aug 18 24hrs (Firefighter Test User).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Route path is /battalion-chief/sick (NOT /sick-leave) and /battalion-chief/vacation. Login button label is 'Sign In'. View-date picker uses data-testid='view-date-btn'; navigation via prev-day-btn/next-day-btn. On-duty shift badge testid='on-duty-shift-badge'. On Aug 17 (A Shift) vacation page shows 1 record; sick shows 0. On Aug 18 (A Shift) sick shows 1 record; vacation shows 0. Bug fix confirmed working across all view modes.",
+  "verification_matrix": {
+    "sick_aug17_all": "0 rows (No records) PASS",
+    "sick_aug17_current": "0 rows PASS",
+    "sick_aug18_all": "1 row PASS",
+    "sick_aug18_current": "1 row PASS",
+    "sick_aug18_future": "0 rows PASS",
+    "sick_aug18_past": "0 rows PASS",
+    "vacation_aug17": "1 row PASS",
+    "vacation_aug18": "0 rows PASS",
+    "navigation_prev_next": "prev/next-day buttons correctly update filtered records PASS"
+  }
+}
