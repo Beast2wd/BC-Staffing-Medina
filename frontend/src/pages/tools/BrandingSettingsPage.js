@@ -19,7 +19,7 @@ import {
 import { Badge } from '../../components/ui/badge';
 import { TimezoneSettings } from '../../components/settings/TimezoneSettings';
 import { LeaveYearSettings } from '../../components/settings/LeaveYearSettings';
-import { HolidayAccrualSettings } from '../../components/settings/HolidayAccrualSettings';
+import { PaidTimeOffSettings } from '../../components/settings/PaidTimeOffSettings';
 
 export const BrandingSettingsPage = () => {
   const { api, user } = useAuth();
@@ -611,9 +611,9 @@ export const BrandingSettingsPage = () => {
           <LeaveYearSettings />
         </div>
 
-        {/* Holiday Accrual Settings Section */}
+        {/* Paid Time Off Settings Section */}
         <div className="mt-8">
-          <HolidayAccrualSettings />
+          <PaidTimeOffSettings />
         </div>
       </main>
     </div>

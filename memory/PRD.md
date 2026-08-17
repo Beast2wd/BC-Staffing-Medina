@@ -944,33 +944,44 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 
 
 
-## Holiday Accrual System (December 2025)
-- ✅ **Negative Balance Support** - Personnel can go negative on holiday time and build back up when they accrue time
-- ✅ **Tenant-Level Settings** (Branding Settings > Holiday Accrual Settings):
-  - Pay Period Frequency: Weekly (52/year), Bi-weekly (26/year), Semi-monthly (24/year), Monthly (12/year)
-  - Pay Period Anchor Date: Aligns accrual calculations with actual payroll schedule
-  - Accrual Rate Mode: Per Pay Period OR Yearly Total (auto-calculates between them)
-  - Year-End Reset Mode: No Reset (rollover), Calendar Year (Jan 1), Fiscal Year (uses Leave Year setting)
-  - Allow Negative Balance toggle
-- ✅ **Per-Personnel Override** (Personnel Management > Holiday Accrual Settings):
-  - Personnel Type: Shift (24hr) or Administrative (8hr) - different default rates
-  - Hire Date for accrual start calculation
-  - Custom Accrual Rate override (hrs/pay period) for individual employees
-  - Current Holiday Balance (can be negative, shows red styling)
-- ✅ **API Endpoints**:
-  - `GET /api/holiday-accrual/settings` - Get tenant holiday accrual settings
-  - `PUT /api/holiday-accrual/settings` - Update tenant settings (Admin/BC only)
-  - `GET /api/holiday-accrual/balances` - Get all personnel balances with next accrual date
-  - `GET /api/holiday-accrual/balance/{personnel_id}` - Get individual balance details
-  - `POST /api/holiday-accrual/process` - Manual trigger to process accrual for pay period
-  - `POST /api/holiday-accrual/reset-year` - Reset all balances for new year (Admin only)
-  - `PUT /api/holiday-accrual/personnel/{id}/balance` - Manually adjust balance
-  - `PUT /api/holiday-accrual/personnel/{id}/accrual-settings` - Update personnel override settings
-- ✅ **Files Created/Updated**:
-  - `/app/backend/routes/holiday_accrual_routes.py` - Holiday accrual API endpoints
-  - `/app/backend/models.py` - Personnel model with holiday_accrual_override, holiday_current_balance, holiday_personnel_type, holiday_hire_date fields
-  - `/app/backend/tenant_models.py` - TenantSettings with holiday_pay_period, holiday_accrual_mode, holiday_accrual_rate_per_period, holiday_reset_mode fields
-  - `/app/frontend/src/components/settings/HolidayAccrualSettings.js` - New settings component
-  - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Added HolidayAccrualSettings section
-  - `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added holiday accrual override fields to Add/Edit form
+## Paid Time Off Policy Settings (December 2025) - Based on P-021
+Restructured leave accrual to match Medina County ESD1 Department Policy P-021 (Paid Benefit Time Policy).
+
+### VACATION TIME
+- ✅ **Monthly Accrual** - Accrued on 1st of each month
+- ✅ **Years of Service Tiers**:
+  - Operations: 60 hrs (0-2yrs), 96 hrs (3-5yrs), 144 hrs (6-10yrs), 168 hrs (10+yrs)
+  - Administrative: 40 hrs (0-2yrs), 80 hrs (3-5yrs), 120 hrs (6-10yrs), 140 hrs (10+yrs)
+- ✅ **Rollover Caps**: Operations 240 hrs, Admin 120 hrs
+- ✅ **6-Month New Hire Waiting Period** - Can't use until 6 months employed
+- ✅ **Allow Negative Balance** - Must reimburse if leave before earning
+
+### HOLIDAY TIME
+- ✅ **11 Federal Holidays Recognized**:
+  New Year's, MLK Day, Presidents Day, Good Friday, Memorial Day, Independence Day, Labor Day, Veteran's Day, Thanksgiving + Friday after, Christmas Eve & Christmas
+- ✅ **Hours Per Holiday**: Operations 12 hrs, Administrative 8 hrs
+- ✅ **Annual Totals**: Operations 132 hrs/yr, Admin 88 hrs/yr
+- ✅ **Allow Negative Balance** - Can use before earned
+- ✅ **50% December Cash-Out** - Operations can cash in up to 50% in first week of December
+- ✅ **Call-Off Penalty** - No accrual if call off day before/of/after holiday
+
+### SICK TIME
+- ✅ **Monthly Accrual** - Same method as vacation
+- ✅ **Years of Service Tiers**:
+  - Operations: 48 hrs (0-5yrs), 72 hrs (6-10yrs), 96 hrs (10+yrs)
+  - Administrative: 40 hrs (0-5yrs), 64 hrs (6-10yrs), 80 hrs (10+yrs)
+- ✅ **Maximum Balance Cap**: 1,080 hours
+- ✅ **CANNOT Go Negative** - If more used than accumulated, not paid for hours missed
+
+### API Endpoints
+- `GET /api/pto-settings` - Get all PTO settings (vacation/holiday/sick)
+- `PUT /api/pto-settings` - Update all PTO settings (Admin/BC only)
+- `GET /api/pto-settings/rates-summary` - Get organized rates summary
+- `GET /api/pto-settings/calculate-accrual/{personnel_id}` - Calculate accrual for specific personnel
+
+### Files Created/Updated
+- `/app/backend/routes/pto_settings_routes.py` - New comprehensive PTO settings API
+- `/app/frontend/src/components/settings/PaidTimeOffSettings.js` - New 3-tab settings component
+- `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Replaced HolidayAccrualSettings with PaidTimeOffSettings
+- Removed `/app/frontend/src/components/settings/HolidayAccrualSettings.js` (superseded)
 
