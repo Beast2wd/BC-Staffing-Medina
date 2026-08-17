@@ -113,41 +113,68 @@ export const LeaveManagementPage = ({ leaveType }) => {
     setViewDate(new Date());
   };
 
-  // Filter records based on view date
-  const filteredRecords = leaveRecords.filter(record => {
+  // Filter records based on view date AND on-duty shift
+  // For 24-hour shifts (0600-0600), we only show leave on shift START dates
+  const filteredRecords = useMemo(() => {
     const viewDateStr = formatDateString(viewDate);
-    const startDate = record.start_date;
-    const endDate = record.end_date;
+    const onDutyShift = getShiftForDate(viewDateStr);
     
-    switch (viewMode) {
-      case 'current':
-        // Records where viewDate falls within the leave period
-        return viewDateStr >= startDate && viewDateStr <= endDate;
-      case 'future':
-        // Records that start after viewDate
-        return startDate > viewDateStr;
-      case 'past':
-        // Records that ended before viewDate
-        return endDate < viewDateStr;
-      case 'all':
-      default:
-        // Show all records that overlap with or are near the view date (within 30 days)
-        return true;
-    }
-  });
+    return leaveRecords.filter(record => {
+      // Get the personnel's shift
+      const person = personnel.find(p => p.id === record.personnel_id);
+      if (!person) return false;
+      
+      // Only show records for personnel on the ON-DUTY shift
+      if (person.shift !== onDutyShift) return false;
+      
+      const startDate = record.start_date;
+      const endDate = record.end_date;
+      
+      // For 24-hour shifts: the end_date is when the shift ends (0600), not a full day
+      // So we check if viewDate falls within [start_date, end_date - 1 day]
+      // This matches the Leave Calendar logic
+      const endDateObj = new Date(endDate + 'T00:00:00');
+      endDateObj.setDate(endDateObj.getDate() - 1);
+      const effectiveEndDate = endDateObj.toISOString().split('T')[0];
+      // If effective end is before start (single day leave), use start date
+      const adjustedEndDate = effectiveEndDate >= startDate ? effectiveEndDate : startDate;
+      
+      switch (viewMode) {
+        case 'current':
+          // Records where viewDate falls within the leave period (using 24hr shift logic)
+          return viewDateStr >= startDate && viewDateStr <= adjustedEndDate;
+        case 'future':
+          // Records that start after viewDate
+          return startDate > viewDateStr;
+        case 'past':
+          // Records that ended before viewDate (using adjusted end date)
+          return adjustedEndDate < viewDateStr;
+        case 'all':
+        default:
+          // Show all records for the on-duty shift
+          return true;
+      }
+    });
+  }, [leaveRecords, viewDate, viewMode, personnel, getShiftForDate]);
 
   useEffect(() => {
     fetchAllData();
-    fetchLeaveRecords();
-    fetchLeaveBalances();
-  }, [selectedBattalion, leaveType, viewDate]);
+  }, [selectedBattalion]);
+
+  // Fetch leave records after personnel is loaded
+  useEffect(() => {
+    if (personnel.length > 0) {
+      fetchLeaveRecords();
+      fetchLeaveBalances();
+    }
+  }, [selectedBattalion, leaveType, personnel.length]);
 
   const fetchLeaveRecords = async () => {
     try {
       const response = await api.get('/leave-records', {
         params: { leave_type: leaveType }
       });
-      // Filter by battalion personnel
+      // Filter by battalion personnel IDs
       const battalionPersonnelIds = personnel.map(p => p.id);
       const filtered = response.data.filter(r => battalionPersonnelIds.includes(r.personnel_id));
       setLeaveRecords(filtered);
@@ -704,7 +731,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
                 {filteredRecords.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-8">
-                      No {leaveType} records found for {viewMode === 'current' ? 'current date' : viewMode === 'future' ? 'future dates' : viewMode === 'past' ? 'past dates' : 'this selection'}
+                      No {leaveType} records for {getShiftForDate(formatDateString(viewDate))} Shift on {formatDisplayDate(formatDateString(viewDate))}
+                      {viewMode !== 'all' && ` (${viewMode})`}
                     </TableCell>
                   </TableRow>
                 ) : (

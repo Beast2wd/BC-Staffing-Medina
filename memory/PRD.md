@@ -875,3 +875,20 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/backend/tenant_models.py` - Added leave_year_start_month, leave_year_start_day fields
 
 
+
+## Leave Records Shift Filtering & 24-Hour Shift Logic Fix (December 2025)
+- ✅ **On-Duty Shift Filtering** - Leave records now only show for personnel on the ON-DUTY shift:
+  - Aug 17 (A Shift day) → Only shows A Shift personnel's leave
+  - Aug 19 (B Shift day) → Only shows B Shift personnel's leave
+  - No carryover when navigating between dates
+- ✅ **24-Hour Shift Date Logic** - Consistent with Leave Calendar:
+  - Leave record Aug 17-18 (single 24hr shift ending at 0600 Aug 18) → Shows ONLY on Aug 17
+  - Leave record Aug 17-19 (two 24hr shifts) → Shows on Aug 17 AND Aug 18
+  - End date is excluded because it represents shift end time (0600), not a full leave day
+- ✅ **Applied to All Leave Types** - Vacation, Sick Leave, and Holiday Management all use same logic
+- ✅ **Improved Empty State Message** - Shows "No {leave_type} records for {shift} Shift on {date}"
+- ✅ **Fixed Data Loading Race Condition** - Leave records now wait for personnel to load before filtering
+- ✅ **Files Updated**:
+  - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Updated filteredRecords useMemo with shift filtering and 24hr logic
+
+
