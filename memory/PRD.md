@@ -1012,3 +1012,40 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - Legacy fields (holiday_personnel_type, holiday_hire_date) retained and mapped to new fields
 - Existing personnel records continue to work; new fields default to operations/0 balance
 
+
+
+## Accrual Rate Display & Processing (December 2025)
+
+### Accrual Rate Display (Personnel Edit Dialog)
+- ✅ **PersonnelAccrualRates Component** - Shows calculated rates when editing personnel
+  - Personnel Type badge (Operations/Administrative)
+  - Hire date and calculated years of service
+  - **Vacation**: Tier label, hrs/month, current balance, rollover cap
+  - **Sick**: Tier label, hrs/month, current balance, 1080hr cap
+  - **Holiday**: Hours per holiday, count, annual total, current balance
+  - Color-coded cards (blue vacation, red sick, green holiday)
+
+### Accrual Processing Panel (Branding Settings)
+- ✅ **Monthly Accrual Processing** - Button to process vacation + sick accrual for all personnel
+  - Calculates based on years of service tier per P-021
+  - Respects rollover caps (Ops: 240hr vacation, Admin: 120hr)
+  - Applies 6-month new hire waiting period for vacation
+  - Sick cap: 1,080 hours maximum
+  - Shows results dialog with summary and per-person breakdown
+- ✅ **Holiday Accrual Processing** - Button to credit holiday hours
+  - Select from 11 federal holidays dropdown
+  - Operations: 12 hrs/holiday, Administrative: 8 hrs/holiday
+  - Shows results dialog with totals
+
+### API Endpoints Added
+- `GET /api/pto-settings/personnel/{id}/all-rates` - Get calculated accrual rates for personnel
+- `POST /api/pto-settings/process-monthly-accrual` - Process monthly vacation/sick accrual
+- `POST /api/pto-settings/process-holiday-accrual?holiday_name=X` - Process holiday accrual
+
+### Files Created/Updated
+- `/app/backend/routes/pto_settings_routes.py` - Added accrual rate calculation and processing endpoints
+- `/app/frontend/src/components/personnel/PersonnelAccrualRates.js` - New component showing calculated rates
+- `/app/frontend/src/components/settings/AccrualProcessingPanel.js` - New panel for processing accrual
+- `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added PersonnelAccrualRates to Edit dialog
+- `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Added AccrualProcessingPanel section
+

@@ -264,3 +264,294 @@ async def get_rates_summary(current_user: dict = Depends(get_current_user)):
             "allow_negative": settings.get("sick_allow_negative", False)
         }
     }
+
+
+
+@router.get("/personnel/{personnel_id}/all-rates")
+async def get_personnel_all_accrual_rates(
+    personnel_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all accrual rates (vacation, sick, holiday) for a specific personnel member"""
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    # Get personnel
+    personnel = await db.personnel.find_one({"id": personnel_id, "tenant_id": tenant_id}, {"_id": 0})
+    if not personnel:
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Get PTO settings
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    settings = tenant.get("settings", {}).get("pto_settings") or get_default_settings()
+    
+    # Determine personnel type - check new field first, fall back to legacy
+    personnel_type = personnel.get("personnel_type") or personnel.get("holiday_personnel_type", "operations")
+    is_operations = personnel_type in ["shift", "operations"]
+    type_label = "operations" if is_operations else "administrative"
+    
+    # Calculate years of service
+    from datetime import datetime, date
+    hire_date_str = personnel.get("hire_date") or personnel.get("holiday_hire_date") or personnel.get("created_at", "")[:10]
+    hire_date = None
+    years_of_service = 0
+    
+    if hire_date_str:
+        try:
+            hire_date = datetime.strptime(hire_date_str[:10], "%Y-%m-%d").date()
+            years_of_service = (date.today() - hire_date).days / 365.25
+        except (ValueError, TypeError):
+            pass
+    
+    # Helper to find rate tier
+    def find_rate_tier(rates, yos):
+        for rate in rates:
+            if rate.get("minYears", 0) <= yos <= rate.get("maxYears", 99):
+                return rate.get("hoursPerYear", 0), rate.get("label", "")
+        return 0, "N/A"
+    
+    # Get vacation rate
+    vacation_rates = settings.get("vacation_rates_operations" if is_operations else "vacation_rates_admin", [])
+    vacation_hours_year, vacation_tier = find_rate_tier(vacation_rates, years_of_service)
+    
+    # Get sick rate
+    sick_rates = settings.get("sick_rates_operations" if is_operations else "sick_rates_admin", [])
+    sick_hours_year, sick_tier = find_rate_tier(sick_rates, years_of_service)
+    
+    # Get holiday rate (per-holiday based, not tiered)
+    holiday_hours_per = settings.get(
+        "holiday_hours_per_holiday_operations" if is_operations else "holiday_hours_per_holiday_admin",
+        12 if is_operations else 8
+    )
+    holiday_count = settings.get("holiday_count", 11)
+    holiday_hours_year = holiday_hours_per * holiday_count
+    
+    # Current balances
+    vacation_balance = personnel.get("vacation_current_balance", 0)
+    sick_balance = personnel.get("sick_current_balance", 0)
+    holiday_balance = personnel.get("holiday_current_balance", 0)
+    
+    # Rollover caps
+    vacation_cap = settings.get("vacation_rollover_cap_operations" if is_operations else "vacation_rollover_cap_admin", 240 if is_operations else 120)
+    sick_cap = settings.get("sick_rollover_cap", 1080)
+    
+    return {
+        "personnel_id": personnel_id,
+        "personnel_name": personnel.get("name", ""),
+        "payroll_number": personnel.get("payroll_number", ""),
+        "personnel_type": type_label,
+        "hire_date": hire_date_str if hire_date else None,
+        "years_of_service": round(years_of_service, 2),
+        "vacation": {
+            "tier": vacation_tier,
+            "hours_per_year": vacation_hours_year,
+            "hours_per_month": round(vacation_hours_year / 12, 2),
+            "current_balance": vacation_balance,
+            "rollover_cap": vacation_cap,
+            "allow_negative": settings.get("vacation_allow_negative", True)
+        },
+        "sick": {
+            "tier": sick_tier,
+            "hours_per_year": sick_hours_year,
+            "hours_per_month": round(sick_hours_year / 12, 2),
+            "current_balance": sick_balance,
+            "rollover_cap": sick_cap,
+            "allow_negative": False  # Per P-021, sick cannot go negative
+        },
+        "holiday": {
+            "hours_per_holiday": holiday_hours_per,
+            "holiday_count": holiday_count,
+            "hours_per_year": holiday_hours_year,
+            "current_balance": holiday_balance,
+            "allow_negative": settings.get("holiday_allow_negative", True)
+        }
+    }
+
+
+@router.post("/process-monthly-accrual")
+async def process_monthly_accrual(
+    current_user: dict = Depends(get_current_user)
+):
+    """Process monthly accrual for all active personnel based on P-021 rates (Admin only)"""
+    if current_user.get("role") not in ["admin", "battalion_chief"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    from datetime import datetime, date
+    
+    # Get PTO settings
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    settings = tenant.get("settings", {}).get("pto_settings") or get_default_settings()
+    
+    # Get all active personnel
+    personnel_list = await db.personnel.find({
+        "tenant_id": tenant_id,
+        "is_active": True
+    }, {"_id": 0}).to_list(None)
+    
+    # Helper to find rate tier
+    def find_rate_tier(rates, yos):
+        for rate in rates:
+            if rate.get("minYears", 0) <= yos <= rate.get("maxYears", 99):
+                return rate.get("hoursPerYear", 0)
+        return 0
+    
+    processed = []
+    today = date.today()
+    
+    for person in personnel_list:
+        # Determine personnel type
+        personnel_type = person.get("personnel_type") or person.get("holiday_personnel_type", "operations")
+        is_operations = personnel_type in ["shift", "operations"]
+        
+        # Calculate years of service
+        hire_date_str = person.get("hire_date") or person.get("holiday_hire_date") or person.get("created_at", "")[:10]
+        years_of_service = 0
+        if hire_date_str:
+            try:
+                hire_date = datetime.strptime(hire_date_str[:10], "%Y-%m-%d").date()
+                years_of_service = (today - hire_date).days / 365.25
+            except (ValueError, TypeError):
+                pass
+        
+        # Check new hire waiting period for vacation
+        waiting_months = settings.get("vacation_new_hire_waiting_months", 6)
+        months_employed = years_of_service * 12
+        vacation_eligible = months_employed >= waiting_months
+        
+        # Get vacation accrual rate
+        vacation_rates = settings.get("vacation_rates_operations" if is_operations else "vacation_rates_admin", [])
+        vacation_monthly = find_rate_tier(vacation_rates, years_of_service) / 12 if vacation_eligible else 0
+        
+        # Get sick accrual rate
+        sick_rates = settings.get("sick_rates_operations" if is_operations else "sick_rates_admin", [])
+        sick_monthly = find_rate_tier(sick_rates, years_of_service) / 12
+        
+        # Current balances
+        current_vacation = person.get("vacation_current_balance", 0)
+        current_sick = person.get("sick_current_balance", 0)
+        current_holiday = person.get("holiday_current_balance", 0)
+        
+        # Calculate new balances (respecting caps)
+        vacation_cap = settings.get("vacation_rollover_cap_operations" if is_operations else "vacation_rollover_cap_admin", 240 if is_operations else 120)
+        sick_cap = settings.get("sick_rollover_cap", 1080)
+        
+        new_vacation = min(current_vacation + vacation_monthly, vacation_cap)
+        new_sick = min(current_sick + sick_monthly, sick_cap)
+        # Holiday doesn't accrue monthly - it accrues per holiday occurrence
+        
+        # Update personnel record
+        await db.personnel.update_one(
+            {"id": person["id"]},
+            {
+                "$set": {
+                    "vacation_current_balance": round(new_vacation, 2),
+                    "sick_current_balance": round(new_sick, 2),
+                    "last_accrual_date": today.isoformat()
+                }
+            }
+        )
+        
+        processed.append({
+            "personnel_id": person["id"],
+            "name": person.get("name", ""),
+            "payroll_number": person.get("payroll_number", ""),
+            "personnel_type": "operations" if is_operations else "administrative",
+            "years_of_service": round(years_of_service, 1),
+            "vacation_accrued": round(vacation_monthly, 2),
+            "vacation_new_balance": round(new_vacation, 2),
+            "vacation_eligible": vacation_eligible,
+            "sick_accrued": round(sick_monthly, 2),
+            "sick_new_balance": round(new_sick, 2)
+        })
+    
+    return {
+        "message": f"Monthly accrual processed for {len(processed)} personnel",
+        "process_date": today.isoformat(),
+        "personnel_processed": processed,
+        "summary": {
+            "total_personnel": len(processed),
+            "total_vacation_accrued": round(sum(p["vacation_accrued"] for p in processed), 2),
+            "total_sick_accrued": round(sum(p["sick_accrued"] for p in processed), 2)
+        }
+    }
+
+
+@router.post("/process-holiday-accrual")
+async def process_holiday_accrual(
+    holiday_name: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Process holiday accrual for all active personnel for a specific holiday (Admin only)"""
+    if current_user.get("role") not in ["admin", "battalion_chief"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+    
+    from datetime import date
+    
+    # Get PTO settings
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    settings = tenant.get("settings", {}).get("pto_settings") or get_default_settings()
+    
+    # Get all active personnel
+    personnel_list = await db.personnel.find({
+        "tenant_id": tenant_id,
+        "is_active": True
+    }, {"_id": 0}).to_list(None)
+    
+    processed = []
+    today = date.today()
+    
+    for person in personnel_list:
+        # Determine personnel type
+        personnel_type = person.get("personnel_type") or person.get("holiday_personnel_type", "operations")
+        is_operations = personnel_type in ["shift", "operations"]
+        
+        # Get holiday hours per holiday based on type
+        holiday_hours = settings.get(
+            "holiday_hours_per_holiday_operations" if is_operations else "holiday_hours_per_holiday_admin",
+            12 if is_operations else 8
+        )
+        
+        # Current balance
+        current_holiday = person.get("holiday_current_balance", 0)
+        new_holiday = current_holiday + holiday_hours
+        
+        # Update personnel record
+        await db.personnel.update_one(
+            {"id": person["id"]},
+            {
+                "$set": {
+                    "holiday_current_balance": round(new_holiday, 2),
+                    "last_holiday_accrual_date": today.isoformat(),
+                    "last_holiday_accrued": holiday_name
+                }
+            }
+        )
+        
+        processed.append({
+            "personnel_id": person["id"],
+            "name": person.get("name", ""),
+            "payroll_number": person.get("payroll_number", ""),
+            "personnel_type": "operations" if is_operations else "administrative",
+            "holiday_accrued": holiday_hours,
+            "holiday_new_balance": round(new_holiday, 2)
+        })
+    
+    return {
+        "message": f"Holiday accrual processed for {len(processed)} personnel",
+        "holiday_name": holiday_name,
+        "process_date": today.isoformat(),
+        "personnel_processed": processed,
+        "summary": {
+            "total_personnel": len(processed),
+            "total_holiday_hours_accrued": sum(p["holiday_accrued"] for p in processed)
+        }
+    }

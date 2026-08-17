@@ -20,6 +20,7 @@ import { Badge } from '../../components/ui/badge';
 import { TimezoneSettings } from '../../components/settings/TimezoneSettings';
 import { LeaveYearSettings } from '../../components/settings/LeaveYearSettings';
 import { PaidTimeOffSettings } from '../../components/settings/PaidTimeOffSettings';
+import { AccrualProcessingPanel } from '../../components/settings/AccrualProcessingPanel';
 
 export const BrandingSettingsPage = () => {
   const { api, user } = useAuth();
@@ -614,6 +615,11 @@ export const BrandingSettingsPage = () => {
         {/* Paid Time Off Settings Section */}
         <div className="mt-8">
           <PaidTimeOffSettings />
+        </div>
+
+        {/* Accrual Processing Section */}
+        <div className="mt-8">
+          <AccrualProcessingPanel />
         </div>
       </main>
     </div>

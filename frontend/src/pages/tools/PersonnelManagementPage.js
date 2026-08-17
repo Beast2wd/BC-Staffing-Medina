@@ -10,12 +10,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck, UserPlus, Upload, Download, FileText, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Search, X, Key, UserCheck, UserPlus, Upload, Download, FileText, AlertCircle, CheckCircle2, Calendar, TrendingUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
 import { Textarea } from '../../components/ui/textarea';
+import { PersonnelAccrualRates } from '../../components/personnel/PersonnelAccrualRates';
 
 const RANKS = [
   'Fire Chief', 
@@ -195,6 +196,14 @@ const PersonnelFormDialog = memo(({
             {isEdit ? 'Edit Personnel' : 'Add New Personnel'}
           </DialogTitle>
         </DialogHeader>
+        
+        {/* Accrual Rates Display - Only show for Edit mode */}
+        {isEdit && initialData?.id && (
+          <div className="mb-4">
+            <PersonnelAccrualRates personnelId={initialData.id} />
+          </div>
+        )}
+        
         <div className="space-y-4 py-4">
           {/* User Selection - Only show for Add mode */}
           {!isEdit && availableUsers.length > 0 && (
