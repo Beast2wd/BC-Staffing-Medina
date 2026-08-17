@@ -892,3 +892,25 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Updated filteredRecords useMemo with shift filtering and 24hr logic
 
 
+
+## Leave Hours Selection & Single-Day Display (December 2025)
+- ✅ **Hours Dropdown** - Add/Edit dialogs now include hours selection:
+  - Preset options: 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24 hours (Full Shift)
+  - Custom Hours option for any value (0.5-240 hours)
+  - Default: 24 hours (full shift)
+- ✅ **Single-Day Display** - 24 hours or less leave shows on ONE day only:
+  - No rollover to the following calendar day
+  - Even though shift is 0600-0600, displays as single calendar day
+  - End Date field hidden for ≤24 hour leave (auto-set to start date)
+- ✅ **Multi-Day Leave** - Hours > 24:
+  - End Date field appears for selecting date range
+  - Calculates display days based on hours (e.g., 48hrs = 2 days)
+- ✅ **Table Updates**:
+  - New "Hours" column with badge showing hours value
+  - Date column shows single date for ≤24hr, date range for >24hr
+- ✅ **Applied to All Leave Types** - Vacation, Sick, and Holiday Management
+- ✅ **Files Updated**:
+  - `/app/backend/models.py` - Added hours field to LeaveRecord (default 24.0)
+  - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Added hours dropdown, custom hours input, single-day display logic
+
+

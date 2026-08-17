@@ -39,11 +39,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
   const [viewDate, setViewDate] = useState(new Date());
   const [viewDateCalendarOpen, setViewDateCalendarOpen] = useState(false);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'current', 'future', 'past'
+  const [customHours, setCustomHours] = useState('');
+  const [editCustomHours, setEditCustomHours] = useState('');
   
   const [formData, setFormData] = useState({
     personnel_id: '',
     start_date: '',
     end_date: '',
+    hours: 24,
     status: 'approved',
     notes: ''
   });
@@ -52,9 +55,27 @@ export const LeaveManagementPage = ({ leaveType }) => {
     personnel_id: '',
     start_date: '',
     end_date: '',
+    hours: 24,
     status: 'approved',
     notes: ''
   });
+
+  // Hours presets for dropdown
+  const HOURS_PRESETS = [
+    { value: 2, label: '2 Hours' },
+    { value: 4, label: '4 Hours' },
+    { value: 6, label: '6 Hours' },
+    { value: 8, label: '8 Hours' },
+    { value: 10, label: '10 Hours' },
+    { value: 12, label: '12 Hours' },
+    { value: 14, label: '14 Hours' },
+    { value: 16, label: '16 Hours' },
+    { value: 18, label: '18 Hours' },
+    { value: 20, label: '20 Hours' },
+    { value: 22, label: '22 Hours' },
+    { value: 24, label: '24 Hours (Full Shift)' },
+    { value: 'custom', label: 'Custom Hours...' }
+  ];
 
   // Parse date string to Date object
   const parseDate = (dateStr) => {
@@ -114,7 +135,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
   };
 
   // Filter records based on view date AND on-duty shift
-  // For 24-hour shifts (0600-0600), we only show leave on shift START dates
+  // For 24-hour or less leave, show only on the start date (single day display)
   const filteredRecords = useMemo(() => {
     const viewDateStr = formatDateString(viewDate);
     const onDutyShift = getShiftForDate(viewDateStr);
@@ -128,26 +149,29 @@ export const LeaveManagementPage = ({ leaveType }) => {
       if (person.shift !== onDutyShift) return false;
       
       const startDate = record.start_date;
-      const endDate = record.end_date;
+      const hours = record.hours || 24;
       
-      // For 24-hour shifts: the end_date is when the shift ends (0600), not a full day
-      // So we check if viewDate falls within [start_date, end_date - 1 day]
-      // This matches the Leave Calendar logic
-      const endDateObj = new Date(endDate + 'T00:00:00');
-      endDateObj.setDate(endDateObj.getDate() - 1);
-      const effectiveEndDate = endDateObj.toISOString().split('T')[0];
-      // If effective end is before start (single day leave), use start date
-      const adjustedEndDate = effectiveEndDate >= startDate ? effectiveEndDate : startDate;
+      // For 24 hours or less: show ONLY on start_date (single day display)
+      // For more than 24 hours (multiple shifts): calculate effective end date
+      let adjustedEndDate = startDate;
+      
+      if (hours > 24) {
+        // Multiple shifts - calculate how many days based on hours
+        const shiftDays = Math.ceil(hours / 24);
+        const endDateObj = new Date(startDate + 'T00:00:00');
+        endDateObj.setDate(endDateObj.getDate() + shiftDays - 1);
+        adjustedEndDate = endDateObj.toISOString().split('T')[0];
+      }
       
       switch (viewMode) {
         case 'current':
-          // Records where viewDate falls within the leave period (using 24hr shift logic)
+          // Records where viewDate falls within the leave period
           return viewDateStr >= startDate && viewDateStr <= adjustedEndDate;
         case 'future':
           // Records that start after viewDate
           return startDate > viewDateStr;
         case 'past':
-          // Records that ended before viewDate (using adjusted end date)
+          // Records that ended before viewDate
           return adjustedEndDate < viewDateStr;
         case 'all':
         default:
@@ -193,8 +217,17 @@ export const LeaveManagementPage = ({ leaveType }) => {
   };
 
   const handleAddRecord = async () => {
-    if (!formData.personnel_id || !formData.start_date || !formData.end_date) {
+    if (!formData.personnel_id || !formData.start_date) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    // For single-day leave (24 hours or less), set end_date same as start_date
+    const hours = formData.hours || 24;
+    const endDate = hours <= 24 ? formData.start_date : formData.end_date;
+    
+    if (hours > 24 && !formData.end_date) {
+      toast.error('Please select an end date for multi-day leave');
       return;
     }
     
@@ -202,13 +235,16 @@ export const LeaveManagementPage = ({ leaveType }) => {
     try {
       await api.post('/leave-records', {
         ...formData,
+        end_date: endDate,
+        hours: hours,
         leave_type: leaveType
       });
       toast.success('Leave record created');
       setShowAddDialog(false);
       fetchLeaveRecords();
       refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
-      setFormData({ personnel_id: '', start_date: '', end_date: '', status: 'approved', notes: '' });
+      setFormData({ personnel_id: '', start_date: '', end_date: '', hours: 24, status: 'approved', notes: '' });
+      setCustomHours('');
     } catch (error) {
       toast.error('Failed to create leave record');
     } finally {
@@ -231,19 +267,37 @@ export const LeaveManagementPage = ({ leaveType }) => {
 
   const handleOpenEdit = (record) => {
     setEditingRecord(record);
+    const hours = record.hours || 24;
     setEditFormData({
       personnel_id: record.personnel_id,
       start_date: record.start_date,
       end_date: record.end_date,
+      hours: hours,
       status: record.status,
       notes: record.notes || ''
     });
+    // Check if hours is a custom value (not in presets)
+    const isPreset = HOURS_PRESETS.some(p => p.value === hours);
+    if (!isPreset && hours !== 24) {
+      setEditCustomHours(hours.toString());
+    } else {
+      setEditCustomHours('');
+    }
     setShowEditDialog(true);
   };
 
   const handleEditRecord = async () => {
-    if (!editFormData.start_date || !editFormData.end_date) {
+    if (!editFormData.start_date) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    // For single-day leave (24 hours or less), set end_date same as start_date
+    const hours = editFormData.hours || 24;
+    const endDate = hours <= 24 ? editFormData.start_date : editFormData.end_date;
+    
+    if (hours > 24 && !editFormData.end_date) {
+      toast.error('Please select an end date for multi-day leave');
       return;
     }
     
@@ -251,11 +305,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
     try {
       await api.put(`/leave-records/${editingRecord.id}`, {
         ...editFormData,
+        end_date: endDate,
+        hours: hours,
         leave_type: leaveType
       });
       toast.success('Leave record updated');
       setShowEditDialog(false);
       setEditingRecord(null);
+      setEditCustomHours('');
       fetchLeaveRecords();
       refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
     } catch (error) {
@@ -317,34 +374,84 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     {/* Start Date - Select First to determine which shift personnel to show */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Start Date <span className="text-red-500">*</span></Label>
-                        <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal"
-                              data-testid="start-date-input"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date first'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={parseDate(formData.start_date)}
-                              onSelect={(date) => {
-                                // Clear personnel selection when date changes (shift may change)
-                                setFormData({...formData, start_date: formatDateString(date), personnel_id: ''});
-                                setStartDateOpen(false);
-                              }}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                    <div className="space-y-2">
+                      <Label>Date <span className="text-red-500">*</span></Label>
+                      <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                            data-testid="start-date-input"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date first'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={parseDate(formData.start_date)}
+                            onSelect={(date) => {
+                              // Clear personnel selection when date changes (shift may change)
+                              setFormData({...formData, start_date: formatDateString(date), end_date: formatDateString(date), personnel_id: ''});
+                              setStartDateOpen(false);
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Hours Selection */}
+                    <div className="space-y-2">
+                      <Label>Hours <span className="text-red-500">*</span></Label>
+                      <Select 
+                        value={formData.hours === parseFloat(customHours) ? 'custom' : formData.hours.toString()} 
+                        onValueChange={(v) => {
+                          if (v === 'custom') {
+                            // Keep current hours, show custom input
+                            setCustomHours(formData.hours.toString());
+                          } else {
+                            setFormData({...formData, hours: parseFloat(v)});
+                            setCustomHours('');
+                          }
+                        }}
+                      >
+                        <SelectTrigger data-testid="hours-select">
+                          <SelectValue placeholder="Select hours" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HOURS_PRESETS.map(preset => (
+                            <SelectItem key={preset.value} value={preset.value.toString()}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {(customHours || formData.hours === parseFloat(customHours)) && (
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            type="number"
+                            min="0.5"
+                            max="240"
+                            step="0.5"
+                            placeholder="Enter custom hours"
+                            value={customHours}
+                            onChange={(e) => {
+                              setCustomHours(e.target.value);
+                              const hrs = parseFloat(e.target.value);
+                              if (hrs > 0) {
+                                setFormData({...formData, hours: hrs});
+                              }
+                            }}
+                            data-testid="custom-hours-input"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* End Date - Only show for multi-day leave (>24 hours) */}
+                    {formData.hours > 24 && (
                       <div className="space-y-2">
                         <Label>End Date <span className="text-red-500">*</span></Label>
                         <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
@@ -356,7 +463,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
                               disabled={!formData.start_date}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {formData.end_date ? format(parseDate(formData.end_date), 'PPP') : 'Select date'}
+                              {formData.end_date ? format(parseDate(formData.end_date), 'PPP') : 'Select end date'}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -373,7 +480,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
                           </PopoverContent>
                         </Popover>
                       </div>
-                    </div>
+                    )}
 
                     {/* On-Duty Shift Indicator */}
                     {addFormShift && (
@@ -473,33 +580,83 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Popover open={editStartDateOpen} onOpenChange={setEditStartDateOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                            data-testid="edit-start-date-input"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editFormData.start_date ? format(parseDate(editFormData.start_date), 'PPP') : 'Select date'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={parseDate(editFormData.start_date)}
-                            onSelect={(date) => {
-                              setEditFormData({...editFormData, start_date: formatDateString(date)});
-                              setEditStartDateOpen(false);
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                  {/* Date */}
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Popover open={editStartDateOpen} onOpenChange={setEditStartDateOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                          data-testid="edit-start-date-input"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editFormData.start_date ? format(parseDate(editFormData.start_date), 'PPP') : 'Select date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={parseDate(editFormData.start_date)}
+                          onSelect={(date) => {
+                            setEditFormData({...editFormData, start_date: formatDateString(date), end_date: formatDateString(date)});
+                            setEditStartDateOpen(false);
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Hours Selection */}
+                  <div className="space-y-2">
+                    <Label>Hours</Label>
+                    <Select 
+                      value={editFormData.hours === parseFloat(editCustomHours) ? 'custom' : editFormData.hours.toString()} 
+                      onValueChange={(v) => {
+                        if (v === 'custom') {
+                          setEditCustomHours(editFormData.hours.toString());
+                        } else {
+                          setEditFormData({...editFormData, hours: parseFloat(v)});
+                          setEditCustomHours('');
+                        }
+                      }}
+                    >
+                      <SelectTrigger data-testid="edit-hours-select">
+                        <SelectValue placeholder="Select hours" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HOURS_PRESETS.map(preset => (
+                          <SelectItem key={preset.value} value={preset.value.toString()}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {(editCustomHours || editFormData.hours === parseFloat(editCustomHours)) && (
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          type="number"
+                          min="0.5"
+                          max="240"
+                          step="0.5"
+                          placeholder="Enter custom hours"
+                          value={editCustomHours}
+                          onChange={(e) => {
+                            setEditCustomHours(e.target.value);
+                            const hrs = parseFloat(e.target.value);
+                            if (hrs > 0) {
+                              setEditFormData({...editFormData, hours: hrs});
+                            }
+                          }}
+                          data-testid="edit-custom-hours-input"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* End Date - Only show for multi-day leave (>24 hours) */}
+                  {editFormData.hours > 24 && (
                     <div className="space-y-2">
                       <Label>End Date</Label>
                       <Popover open={editEndDateOpen} onOpenChange={setEditEndDateOpen}>
@@ -527,7 +684,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
                         </PopoverContent>
                       </Popover>
                     </div>
-                  </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Status</Label>
@@ -720,8 +877,8 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   <TableHead>Personnel</TableHead>
                   <TableHead>Station</TableHead>
                   <TableHead>Shift</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>End Date</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Hours</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Notes</TableHead>
                   {canEdit && <TableHead className="w-20">Actions</TableHead>}
@@ -738,6 +895,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
                 ) : (
                   filteredRecords.map(record => {
                     const person = personnel.find(p => p.id === record.personnel_id);
+                    const hours = record.hours || 24;
                     return (
                       <TableRow key={record.id} data-testid={`leave-row-${record.id}`}>
                         <TableCell className="font-medium">{getPersonnelName(record.personnel_id)}</TableCell>
@@ -751,8 +909,17 @@ export const LeaveManagementPage = ({ leaveType }) => {
                             {person?.shift || '-'}
                           </span>
                         </TableCell>
-                        <TableCell>{formatDisplayDate(record.start_date)}</TableCell>
-                        <TableCell>{formatDisplayDate(record.end_date)}</TableCell>
+                        <TableCell>
+                          {formatDisplayDate(record.start_date)}
+                          {hours > 24 && record.end_date !== record.start_date && (
+                            <span className="text-muted-foreground"> - {formatDisplayDate(record.end_date)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={hours === 24 ? 'bg-primary/10' : ''}>
+                            {hours} hrs
+                          </Badge>
+                        </TableCell>
                         <TableCell>{getStatusBadge(record.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{record.notes || '-'}</TableCell>
                         {canEdit && (

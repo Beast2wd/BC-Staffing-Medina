@@ -267,6 +267,7 @@ class LeaveRecord(BaseModel):
     leave_type: str  # sick, vacation, holiday, fmla, etc.
     start_date: str
     end_date: str
+    hours: float = 24.0  # Hours of leave (default 24 for full shift)
     status: str = "approved"  # pending, approved, denied
     notes: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -277,6 +278,7 @@ class LeaveRecordCreate(BaseModel):
     leave_type: str
     start_date: str
     end_date: str
+    hours: float = 24.0  # Hours of leave (default 24 for full shift)
     status: str = "approved"
     notes: str = ""
 
