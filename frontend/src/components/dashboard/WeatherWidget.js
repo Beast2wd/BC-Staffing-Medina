@@ -42,6 +42,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../ui/popover';
 
 // Icon mapping
 const WEATHER_ICONS = {
@@ -140,6 +145,7 @@ export const WeatherWidget = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [alertsExpanded, setAlertsExpanded] = useState(false);
   const [alertsDismissed, setAlertsDismissed] = useState(false);
+  const [heatIndexOpen, setHeatIndexOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'battalion_chief' || user?.is_super_admin;
 
@@ -489,61 +495,86 @@ export const WeatherWidget = () => {
                 </div>
               );
 
-              // Always wrap with tooltip to show heat index safety chart
+              // Heat Index Safety Chart content
+              const heatIndexChartContent = (
+                <div className="p-3">
+                  <p className="font-semibold text-white text-sm mb-2">Heat Index Safety Levels</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
+                      <span className="text-xs text-slate-300">
+                        <span className="font-medium text-yellow-400">80-89°F</span> - Caution: Fatigue possible
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
+                      <span className="text-xs text-slate-300">
+                        <span className="font-medium text-amber-500">90-102°F</span> - Extreme Caution: Cramps/exhaustion
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
+                      <span className="text-xs text-slate-300">
+                        <span className="font-medium text-orange-500">103-124°F</span> - Danger: Heat stroke risk
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
+                      <span className="text-xs text-slate-300">
+                        <span className="font-medium text-red-500">125°F+</span> - Extreme Danger: Heat stroke likely
+                      </span>
+                    </div>
+                  </div>
+                  {heatWarning && (
+                    <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
+                      Current: {heatWarning.message}
+                    </p>
+                  )}
+                  {!heatWarning && (
+                    <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
+                      Current conditions are within safe heat index levels.
+                    </p>
+                  )}
+                </div>
+              );
+
+              // Use Popover for click support (mobile) with hover behavior on desktop
               return (
                 <div className="lg:border-r lg:border-sky-200/30 dark:lg:border-sky-700/30 lg:pr-4">
-                  <TooltipProvider>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        {currentWeatherContent}
-                      </TooltipTrigger>
-                      <TooltipContent 
+                  {/* Desktop: Tooltip on hover */}
+                  <div className="hidden sm:block">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          {currentWeatherContent}
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          side="bottom" 
+                          className="w-72 p-0 bg-slate-900 border border-slate-700"
+                          data-testid="heat-index-tooltip"
+                        >
+                          {heatIndexChartContent}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  {/* Mobile: Popover on click/tap */}
+                  <div className="sm:hidden">
+                    <Popover open={heatIndexOpen} onOpenChange={setHeatIndexOpen}>
+                      <PopoverTrigger asChild>
+                        <div className="cursor-pointer">
+                          {currentWeatherContent}
+                        </div>
+                      </PopoverTrigger>
+                      <PopoverContent 
                         side="bottom" 
                         className="w-72 p-0 bg-slate-900 border border-slate-700"
-                        data-testid="heat-index-tooltip"
+                        data-testid="heat-index-popover"
                       >
-                        <div className="p-3">
-                          <p className="font-semibold text-white text-sm mb-2">Heat Index Safety Levels</p>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
-                              <span className="text-xs text-slate-300">
-                                <span className="font-medium text-yellow-400">80-89°F</span> - Caution: Fatigue possible
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
-                              <span className="text-xs text-slate-300">
-                                <span className="font-medium text-amber-500">90-102°F</span> - Extreme Caution: Cramps/exhaustion
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
-                              <span className="text-xs text-slate-300">
-                                <span className="font-medium text-orange-500">103-124°F</span> - Danger: Heat stroke risk
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
-                              <span className="text-xs text-slate-300">
-                                <span className="font-medium text-red-500">125°F+</span> - Extreme Danger: Heat stroke likely
-                              </span>
-                            </div>
-                          </div>
-                          {heatWarning && (
-                            <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
-                              Current: {heatWarning.message}
-                            </p>
-                          )}
-                          {!heatWarning && (
-                            <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
-                              Current conditions are within safe heat index levels.
-                            </p>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                        {heatIndexChartContent}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               );
             })()}
@@ -646,57 +677,6 @@ export const WeatherWidget = () => {
           </div>
         </CardContent>
       </Card>
-
-      {/* Heat Index Safety Chart - Always Visible */}
-      <div className="mt-2 p-3 rounded-lg bg-slate-900/95 border border-slate-700" data-testid="heat-index-chart">
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-white text-sm flex items-center gap-2">
-            <Flame className="h-4 w-4 text-orange-500" />
-            Heat Index Safety Chart
-          </p>
-          {current.feels_like !== undefined && (
-            <span className="text-xs text-slate-400">
-              Current: {current.feels_like}°F
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className={`flex items-center gap-2 p-2 rounded ${current.feels_like >= 80 && current.feels_like < 90 ? 'ring-2 ring-yellow-400 bg-yellow-400/20' : 'bg-slate-800/50'}`}>
-            <div className="w-3 h-3 rounded bg-yellow-400 flex-shrink-0"></div>
-            <div>
-              <span className="text-xs font-medium text-yellow-400 block">80-89°F</span>
-              <span className="text-[10px] text-slate-400">Caution</span>
-            </div>
-          </div>
-          <div className={`flex items-center gap-2 p-2 rounded ${current.feels_like >= 90 && current.feels_like < 103 ? 'ring-2 ring-amber-500 bg-amber-500/20' : 'bg-slate-800/50'}`}>
-            <div className="w-3 h-3 rounded bg-amber-500 flex-shrink-0"></div>
-            <div>
-              <span className="text-xs font-medium text-amber-500 block">90-102°F</span>
-              <span className="text-[10px] text-slate-400">Extreme Caution</span>
-            </div>
-          </div>
-          <div className={`flex items-center gap-2 p-2 rounded ${current.feels_like >= 103 && current.feels_like < 125 ? 'ring-2 ring-orange-500 bg-orange-500/20' : 'bg-slate-800/50'}`}>
-            <div className="w-3 h-3 rounded bg-orange-500 flex-shrink-0"></div>
-            <div>
-              <span className="text-xs font-medium text-orange-500 block">103-124°F</span>
-              <span className="text-[10px] text-slate-400">Danger</span>
-            </div>
-          </div>
-          <div className={`flex items-center gap-2 p-2 rounded ${current.feels_like >= 125 ? 'ring-2 ring-red-600 bg-red-600/20' : 'bg-slate-800/50'}`}>
-            <div className="w-3 h-3 rounded bg-red-600 flex-shrink-0"></div>
-            <div>
-              <span className="text-xs font-medium text-red-500 block">125°F+</span>
-              <span className="text-[10px] text-slate-400">Extreme Danger</span>
-            </div>
-          </div>
-        </div>
-        {getHeatWarning(current.feels_like) && (
-          <p className="text-xs text-slate-300 mt-2 pt-2 border-t border-slate-700 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
-            {getHeatWarning(current.feels_like).message}
-          </p>
-        )}
-      </div>
 
       {/* Location Settings Dialog */}
       <Dialog open={locationDialog} onOpenChange={setLocationDialog}>

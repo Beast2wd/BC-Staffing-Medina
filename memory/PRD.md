@@ -325,15 +325,12 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Browser Geolocation** - Auto-detect location option for admins
 - ✅ **Manual Location Entry** - Search by city name, ZIP code, or address
 - ✅ **Weather Icons** - Sun, cloud, rain, snow, lightning, fog icons
-- ✅ **Heat Index Safety Chart** - Always-visible chart showing four danger levels (December 2025):
-  - Caution (80-89°F) - Yellow
-  - Extreme Caution (90-102°F) - Amber
-  - Danger (103-124°F) - Orange
-  - Extreme Danger (125°F+) - Red
-  - Current level highlighted with ring/background when within range
-  - Displays current feels-like temperature
-  - Warning message shown when heat warning is active
-  - data-testid: `heat-index-chart`
+- ✅ **Heat Index Safety Chart** (December 2025):
+  - Desktop: Hover over temperature area shows tooltip with all four danger levels
+  - Mobile: Tap temperature area shows popover with all four danger levels
+  - Caution (80-89°F), Extreme Caution (90-102°F), Danger (103-124°F), Extreme Danger (125°F+)
+  - Shows chart regardless of current heat warning status
+  - data-testids: `heat-index-tooltip` (desktop), `heat-index-popover` (mobile)
 - ✅ **Live Radar Link** - Click "Today" forecast card to open Windy radar
 - ✅ **Auto-Refresh** - Weather updates every 30 minutes automatically
 - ✅ **Files Created**:
