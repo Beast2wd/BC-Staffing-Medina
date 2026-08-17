@@ -106,10 +106,13 @@ class PersonnelBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     overtime_hours_worked: float = 0.0  # Running total of overtime hours worked
-    # Leave balance allocation (annual)
+    # Leave balance allocation (annual) - days and hours
     annual_vacation_days: int = 15  # Default 15 days per year
+    annual_vacation_hours: int = 360  # Default 360 hours (15 days x 24 hours)
     annual_sick_days: int = 12  # Default 12 days per year
+    annual_sick_hours: int = 288  # Default 288 hours (12 days x 24 hours)
     annual_holiday_days: int = 11  # Default 11 holidays per year
+    annual_holiday_hours: int = 264  # Default 264 hours (11 days x 24 hours)
     leave_year_start: Optional[str] = None  # YYYY-MM-DD, defaults to Jan 1
 
 
@@ -124,8 +127,11 @@ class PersonnelCreate(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     annual_vacation_days: int = 15
+    annual_vacation_hours: int = 360
     annual_sick_days: int = 12
+    annual_sick_hours: int = 288
     annual_holiday_days: int = 11
+    annual_holiday_hours: int = 264
     leave_year_start: Optional[str] = None
 
 
@@ -141,8 +147,11 @@ class PersonnelUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     annual_vacation_days: Optional[int] = None
+    annual_vacation_hours: Optional[int] = None
     annual_sick_days: Optional[int] = None
+    annual_sick_hours: Optional[int] = None
     annual_holiday_days: Optional[int] = None
+    annual_holiday_hours: Optional[int] = None
     leave_year_start: Optional[str] = None
 
 

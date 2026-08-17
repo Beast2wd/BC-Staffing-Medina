@@ -60,8 +60,11 @@ const PersonnelFormDialog = memo(({
   const [userSearchTerm, setUserSearchTerm] = useState('');
   // Leave allocation fields
   const [annualVacationDays, setAnnualVacationDays] = useState(15);
+  const [annualVacationHours, setAnnualVacationHours] = useState(360);
   const [annualSickDays, setAnnualSickDays] = useState(12);
+  const [annualSickHours, setAnnualSickHours] = useState(288);
   const [annualHolidayDays, setAnnualHolidayDays] = useState(11);
+  const [annualHolidayHours, setAnnualHolidayHours] = useState(264);
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (isOpen && initialData) {
@@ -74,10 +77,13 @@ const PersonnelFormDialog = memo(({
       setContactEmail(initialData.contact_email || '');
       setCertifications(initialData.certifications || []);
       setSelectedUserId('');
-      // Leave allocations
+      // Leave allocations - days and hours
       setAnnualVacationDays(initialData.annual_vacation_days ?? 15);
+      setAnnualVacationHours(initialData.annual_vacation_hours ?? 360);
       setAnnualSickDays(initialData.annual_sick_days ?? 12);
+      setAnnualSickHours(initialData.annual_sick_hours ?? 288);
       setAnnualHolidayDays(initialData.annual_holiday_days ?? 11);
+      setAnnualHolidayHours(initialData.annual_holiday_hours ?? 264);
     } else if (isOpen && !initialData) {
       // Reset for add mode
       setPayrollNumber('');
@@ -89,10 +95,13 @@ const PersonnelFormDialog = memo(({
       setContactEmail('');
       setCertifications([]);
       setSelectedUserId('');
-      // Default leave allocations
+      // Default leave allocations - days and hours
       setAnnualVacationDays(15);
+      setAnnualVacationHours(360);
       setAnnualSickDays(12);
+      setAnnualSickHours(288);
       setAnnualHolidayDays(11);
+      setAnnualHolidayHours(264);
     }
     setCertInput('');
     setUserSearchTerm('');
@@ -143,8 +152,11 @@ const PersonnelFormDialog = memo(({
       certifications,
       user_id: selectedUserId || null,  // Link to user if selected
       annual_vacation_days: parseInt(annualVacationDays) || 15,
+      annual_vacation_hours: parseInt(annualVacationHours) || 360,
       annual_sick_days: parseInt(annualSickDays) || 12,
-      annual_holiday_days: parseInt(annualHolidayDays) || 11
+      annual_sick_hours: parseInt(annualSickHours) || 288,
+      annual_holiday_days: parseInt(annualHolidayDays) || 11,
+      annual_holiday_hours: parseInt(annualHolidayHours) || 264
     });
   };
 
@@ -346,50 +358,119 @@ const PersonnelFormDialog = memo(({
 
           {/* Leave Allocation Section */}
           <div className="space-y-3 pt-4 border-t">
-            <Label className="text-sm font-semibold flex items-center gap-2">
+            <Label className="text-sm font-semibold">
               Annual Leave Allocation
-              <Badge variant="outline" className="text-xs">Days/Year</Badge>
             </Label>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-blue-600">Vacation</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="365"
-                  value={annualVacationDays}
-                  onChange={(e) => setAnnualVacationDays(e.target.value)}
-                  className="text-center"
-                  data-testid="vacation-allocation-input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-red-600">Sick</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="365"
-                  value={annualSickDays}
-                  onChange={(e) => setAnnualSickDays(e.target.value)}
-                  className="text-center"
-                  data-testid="sick-allocation-input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-green-600">Holiday</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="365"
-                  value={annualHolidayDays}
-                  onChange={(e) => setAnnualHolidayDays(e.target.value)}
-                  className="text-center"
-                  data-testid="holiday-allocation-input"
-                />
+            
+            {/* Vacation */}
+            <div className="space-y-2">
+              <Label className="text-xs text-blue-600 font-medium">Vacation</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Days/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={annualVacationDays}
+                    onChange={(e) => {
+                      const days = e.target.value;
+                      setAnnualVacationDays(days);
+                      // Auto-calculate hours (24 hours per day)
+                      setAnnualVacationHours(parseInt(days) * 24 || 0);
+                    }}
+                    className="text-center h-8"
+                    data-testid="vacation-days-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Hours/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="8760"
+                    value={annualVacationHours}
+                    onChange={(e) => setAnnualVacationHours(e.target.value)}
+                    className="text-center h-8"
+                    data-testid="vacation-hours-input"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Sick */}
+            <div className="space-y-2">
+              <Label className="text-xs text-red-600 font-medium">Sick</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Days/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={annualSickDays}
+                    onChange={(e) => {
+                      const days = e.target.value;
+                      setAnnualSickDays(days);
+                      setAnnualSickHours(parseInt(days) * 24 || 0);
+                    }}
+                    className="text-center h-8"
+                    data-testid="sick-days-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Hours/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="8760"
+                    value={annualSickHours}
+                    onChange={(e) => setAnnualSickHours(e.target.value)}
+                    className="text-center h-8"
+                    data-testid="sick-hours-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Holiday */}
+            <div className="space-y-2">
+              <Label className="text-xs text-green-600 font-medium">Holiday</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Days/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={annualHolidayDays}
+                    onChange={(e) => {
+                      const days = e.target.value;
+                      setAnnualHolidayDays(days);
+                      setAnnualHolidayHours(parseInt(days) * 24 || 0);
+                    }}
+                    className="text-center h-8"
+                    data-testid="holiday-days-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Hours/Year</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="8760"
+                    value={annualHolidayHours}
+                    onChange={(e) => setAnnualHolidayHours(e.target.value)}
+                    className="text-center h-8"
+                    data-testid="holiday-hours-input"
+                  />
+                </div>
+              </div>
+            </div>
+
             <p className="text-xs text-muted-foreground">
-              Customize annual leave days for this employee. Defaults: 15 vacation, 12 sick, 11 holiday.
+              Set annual leave allocation in days and/or hours. Days auto-calculate to hours (24hr shifts). 
+              Defaults: Vacation 15d/360h, Sick 12d/288h, Holiday 11d/264h.
             </p>
           </div>
 
@@ -542,8 +623,11 @@ export const PersonnelManagementPage = () => {
         contact_phone: formData.contact_phone,
         contact_email: formData.contact_email,
         annual_vacation_days: formData.annual_vacation_days,
+        annual_vacation_hours: formData.annual_vacation_hours,
         annual_sick_days: formData.annual_sick_days,
-        annual_holiday_days: formData.annual_holiday_days
+        annual_sick_hours: formData.annual_sick_hours,
+        annual_holiday_days: formData.annual_holiday_days,
+        annual_holiday_hours: formData.annual_holiday_hours
       });
       toast.success('Personnel updated');
       setShowEditDialog(false);
@@ -1307,16 +1391,22 @@ export const PersonnelManagementPage = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <div className="flex gap-1.5 text-[10px]" title="Vacation / Sick / Holiday days per year">
-                                      <span className="bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded">
-                                        V:{person.annual_vacation_days ?? 15}
-                                      </span>
-                                      <span className="bg-red-500/20 text-red-600 px-1.5 py-0.5 rounded">
-                                        S:{person.annual_sick_days ?? 12}
-                                      </span>
-                                      <span className="bg-green-500/20 text-green-600 px-1.5 py-0.5 rounded">
-                                        H:{person.annual_holiday_days ?? 11}
-                                      </span>
+                                    <div className="flex flex-col gap-0.5 text-[10px]" title="Days / Hours per year">
+                                      <div className="flex gap-1">
+                                        <span className="bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded">
+                                          V:{person.annual_vacation_days ?? 15}d/{person.annual_vacation_hours ?? 360}h
+                                        </span>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <span className="bg-red-500/20 text-red-600 px-1.5 py-0.5 rounded">
+                                          S:{person.annual_sick_days ?? 12}d/{person.annual_sick_hours ?? 288}h
+                                        </span>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <span className="bg-green-500/20 text-green-600 px-1.5 py-0.5 rounded">
+                                          H:{person.annual_holiday_days ?? 11}d/{person.annual_holiday_hours ?? 264}h
+                                        </span>
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>

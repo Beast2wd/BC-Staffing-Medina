@@ -845,16 +845,19 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 
 ## Leave Allocation Editor (December 2025)
 - ✅ **Personnel Table Leave Column** - New "Leave Alloc." column in Personnel Management table
-  - Shows compact V:X S:X H:X format (Vacation/Sick/Holiday days)
+  - Shows format V:Xd/Yh S:Xd/Yh H:Xd/Yh (Days/Hours for Vacation/Sick/Holiday)
   - Color-coded badges: Blue (Vacation), Red (Sick), Green (Holiday)
 - ✅ **Add/Edit Personnel Dialog** - "Annual Leave Allocation" section at bottom of form
-  - Three number inputs for Vacation, Sick, Holiday days per year
-  - Default values: 15 vacation, 12 sick, 11 holiday
+  - Six number inputs: Days/Year AND Hours/Year for Vacation, Sick, Holiday
+  - Changing Days auto-calculates Hours (x24 for 24-hour fire shifts)
+  - Hours can also be manually edited independently
+  - Default values: Vacation 15d/360h, Sick 12d/288h, Holiday 11d/264h
   - Persists correctly on both Add and Edit operations
 - ✅ **Integration with Leave Balances** - Custom allocations reflect in Leave Balances panel
   - When admin changes an employee's allocation, their balance updates accordingly
 - ✅ **Files Updated**:
-  - `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added leave allocation state, form fields, table column, and fixed handleEditPersonnel to include allocation fields
+  - `/app/backend/models.py` - Added annual_vacation_hours, annual_sick_hours, annual_holiday_hours fields
+  - `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added hours state, form fields, table display with days/hours format
 
 
 

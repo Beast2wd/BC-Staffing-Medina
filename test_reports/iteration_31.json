@@ -1,0 +1,19 @@
+{
+  "summary": "Verified Personnel Management annual leave allocation now supports both days and hours. Backend PersonnelCreate/Update accept annual_{vacation,sick,holiday}_{days,hours} and persist correctly (verified via GET). Defaults on create when omitted: 15/360, 12/288, 11/264. Frontend Add/Edit Personnel dialogs render all 6 inputs with correct data-testids (vacation/sick/holiday - days/hours-input). Changing Days auto-calculates Hours (x24): 20->480, 10->240, 8->192. Editing Hours independently does NOT change Days (verified). Personnel table renders leave allocation in V:15d/360h / S:12d/288h / H:11d/264h format. Edit dialog pre-populates existing values correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_personnel_leave_hours.py", "/app/test_reports/pytest/personnel_leave_hours.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PersonnelManagementPage.js is 1462 lines - consider splitting the Add/Edit dialog into its own component for maintainability.",
+    "Hours field state is stored as string when user edits directly (setAnnualVacationHours(e.target.value)) but as int when auto-calculated from days. Consistent numeric handling would prevent potential type mismatch when submitting to backend. Backend currently coerces via Pydantic int, so no functional bug.",
+    "Auto-calc uses parseInt(days) * 24 which yields NaN when input is cleared; the `|| 0` fallback handles it, but leaves Hours=0 after clearing Days which may surprise users."
+  ],
+  "updated_files": ["/app/backend/tests/test_personnel_leave_hours.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin payroll 100001 / admin123",
+  "seed_data_creation": "Test personnel TEST_LH_001/TEST_LH_002 created and deleted during backend tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Personnel Management route is /tools/personnel (not /tools/personnel-management). Data-testids: vacation-days-input, vacation-hours-input, sick-days-input, sick-hours-input, holiday-days-input, holiday-hours-input. Edit buttons: [data-testid^='edit-']. Table renders leave in V/S/H:{d}d/{h}h chips."
+}
