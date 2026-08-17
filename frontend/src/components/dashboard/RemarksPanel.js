@@ -32,11 +32,26 @@ export const RemarksPanel = () => {
     const notes = { vacation: [], sick: [], holiday: [] };
     
     // Filter approved leave records that cover the selected date
-    const activeLeaves = leaveRecords.filter(leave => 
-      leave.status === 'approved' &&
-      selectedDate >= leave.start_date && 
-      selectedDate <= leave.end_date
-    );
+    // Using hours-based single-day logic: for ≤24 hours, only show on start_date
+    const activeLeaves = leaveRecords.filter(leave => {
+      if (leave.status !== 'approved') return false;
+      
+      const hours = leave.hours || 24;
+      const startDate = leave.start_date;
+      
+      // For 24 hours or less: only show on start_date (single day)
+      if (hours <= 24) {
+        return selectedDate === startDate;
+      }
+      
+      // For >24 hours: calculate effective end date based on hours
+      const shiftDays = Math.ceil(hours / 24);
+      const endDateObj = new Date(startDate + 'T00:00:00');
+      endDateObj.setDate(endDateObj.getDate() + shiftDays - 1);
+      const effectiveEndDate = endDateObj.toISOString().split('T')[0];
+      
+      return selectedDate >= startDate && selectedDate <= effectiveEndDate;
+    });
     
     activeLeaves.forEach(leave => {
       const person = personnel.find(p => p.id === leave.personnel_id);
@@ -49,7 +64,8 @@ export const RemarksPanel = () => {
             shift: person.shift,
             notes: leave.notes,
             startDate: leave.start_date,
-            endDate: leave.end_date
+            endDate: leave.end_date,
+            hours: leave.hours || 24
           });
         }
       }
@@ -188,7 +204,7 @@ export const RemarksPanel = () => {
                   {['vacation', 'sick', 'holiday'].includes(tab.id) && leaveNotes[tab.id]?.length > 0 && (
                     <div className="mb-4 space-y-3">
                       <div className="font-semibold text-muted-foreground uppercase text-xs tracking-wide border-b pb-1 mb-2">
-                        Leave Notes from Vacation Management
+                        {tab.id === 'vacation' ? 'Vacation' : tab.id === 'sick' ? 'Sick Leave' : 'Holiday'} Notes from Leave Management
                       </div>
                       {leaveNotes[tab.id].map((note, idx) => (
                         <div key={idx} className="p-2 bg-background/50 rounded border-l-2 border-primary/50">
@@ -204,7 +220,7 @@ export const RemarksPanel = () => {
                                 {note.shift} Shift
                               </span>
                             )}
-                            <span>• {formatDisplayDate(note.startDate)} - {formatDisplayDate(note.endDate)}</span>
+                            <span>• {formatDisplayDate(note.startDate)}{note.hours > 24 ? ` - ${formatDisplayDate(note.endDate)}` : ''} ({note.hours}hrs)</span>
                           </div>
                           <div className="whitespace-pre-wrap">{note.notes}</div>
                         </div>

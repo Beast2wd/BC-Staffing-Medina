@@ -914,3 +914,20 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Added hours dropdown, custom hours input, single-day display logic
 
 
+
+## Sick & Holiday Notes in Remarks Panel (December 2025)
+- ✅ **SICK Tab Notes** - Sick leave notes now appear in SICK tab of Remarks & Notes panel
+  - Header: "Sick Leave Notes from Leave Management"
+  - Shows personnel name, station, shift badge, date, hours, and note text
+- ✅ **HOLIDAY Tab Notes** - Holiday notes now appear in HOLIDAY tab of Remarks & Notes panel
+  - Header: "Holiday Notes from Leave Management"
+  - Shows personnel name, station, shift badge, date, hours, and note text
+- ✅ **Consistent with VACATION** - All three tabs now work identically:
+  - Vacation → "Vacation Notes from Leave Management"
+  - Sick → "Sick Leave Notes from Leave Management"  
+  - Holiday → "Holiday Notes from Leave Management"
+- ✅ **Hours-Based Date Logic** - Notes only show on correct date using single-day display logic
+- ✅ **Files Updated**:
+  - `/app/frontend/src/components/dashboard/RemarksPanel.js` - Updated leaveNotes with hours-based logic, type-specific headers
+
+
