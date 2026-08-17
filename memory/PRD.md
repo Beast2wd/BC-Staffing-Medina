@@ -318,13 +318,24 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 
 ## Weather Widget (July 29, 2026)
 - ✅ **Daily Worksheet Weather Display** - Real-time weather widget on Daily Worksheet page
-- ✅ **Open-Meteo Integration** - Free API, no key required
+- ✅ **WeatherAPI.com Integration** - Replaced Open-Meteo due to rate limiting; uses WEATHER_API_KEY env var
 - ✅ **Current Conditions** - Temperature, humidity, wind speed, weather description with icon
 - ✅ **4-Day Forecast** - Today + 3 days with high/low temps, humidity, precipitation chance
 - ✅ **Tenant-Configurable Location** - Each department can set their own weather location
 - ✅ **Browser Geolocation** - Auto-detect location option for admins
 - ✅ **Manual Location Entry** - Search by city name, ZIP code, or address
 - ✅ **Weather Icons** - Sun, cloud, rain, snow, lightning, fog icons
+- ✅ **Heat Index Safety Chart** - Always-visible chart showing four danger levels (December 2025):
+  - Caution (80-89°F) - Yellow
+  - Extreme Caution (90-102°F) - Amber
+  - Danger (103-124°F) - Orange
+  - Extreme Danger (125°F+) - Red
+  - Current level highlighted with ring/background when within range
+  - Displays current feels-like temperature
+  - Warning message shown when heat warning is active
+  - data-testid: `heat-index-chart`
+- ✅ **Live Radar Link** - Click "Today" forecast card to open Windy radar
+- ✅ **Auto-Refresh** - Weather updates every 30 minutes automatically
 - ✅ **Files Created**:
   - `/app/backend/routes/weather_routes.py` - Weather API endpoints
   - `/app/frontend/src/components/dashboard/WeatherWidget.js` - Weather display component
