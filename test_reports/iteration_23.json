@@ -1,0 +1,40 @@
+{
+  "summary": "Tested Leave Allocation Editor UI on Personnel Management page. UI elements (Leave Alloc. column, V:X S:X H:X badges, dialog inputs for Vacation/Sick/Holiday with defaults 15/12/11) all render correctly. However, CRITICAL BUG: Editing an existing personnel's leave allocations does NOT persist - the PUT /api/personnel/{id} payload from handleEditPersonnel omits annual_vacation_days, annual_sick_days, and annual_holiday_days (and also contact_email). Toast says 'Personnel updated' but backend keeps old values (verified via GET /api/personnel). Add Personnel path uses ...formData spread so it likely works; edit path does not.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PersonnelManagementPage - handleEditPersonnel",
+        "issue": "Edit save payload omits annual_vacation_days, annual_sick_days, annual_holiday_days (and contact_email). Values entered in the Annual Leave Allocation section of the Edit dialog are silently discarded even though toast shows success. Reopening dialog and API GET both confirm values were never sent to backend.",
+        "selector": "[data-testid=\"vacation-allocation-input\"], sick-allocation-input, holiday-allocation-input",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Edit Personnel -> Save leave allocation",
+        "issue": "PUT /api/personnel/{id} body observed: {payroll_number,name,rank,station_id,shift,certifications,contact_phone} only. Missing the three allocation fields wired up in the form. Backend model already supports annual_vacation_days/sick/holiday (confirmed via GET response).",
+        "affected_selectors": ["button:has-text('Update Personnel')"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix handleEditPersonnel in /app/frontend/src/pages/tools/PersonnelManagementPage.js (lines 530-553): include annual_vacation_days, annual_sick_days, annual_holiday_days, and contact_email in the PUT payload. Simplest fix: pass the entire formData like handleAddPersonnel does (or spread formData) since backend already accepts the fields.",
+    "After fix, re-verify: (1) editing V/S/H updates the Leave Alloc. column in table, (2) reopening Edit dialog shows persisted values, (3) GET /api/personnel returns updated annual_* days."
+  ],
+  "critical_code_review_comments": [
+    "handleEditPersonnel manually enumerates fields, which is error-prone. Every new field must be added here. Recommend passing full formData to the PUT (backend uses Pydantic model that will ignore extras / validate).",
+    "contact_email is also silently dropped on edit - same root cause.",
+    "PersonnelManagementPage.js is 1368 lines - consider splitting the memoized form component into its own file for maintainability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test)", "frontend": "60% - UI renders correctly, defaults work, Add dialog works, but Edit save does NOT persist leave allocations"},
+  "test_credentials": "admin: 100001 / admin123 (Medina County BC Staffing tenant)",
+  "seed_data_creation": "None - used existing Test User (payroll 200001, id dc36c5fa-d52f-4e04-9cbc-ed78b6c01b89). Restored allocations to defaults 15/12/11 after testing.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Route is /tools/personnel (NOT /tools/personnel-management). Test User exists at Station 10, A Shift, id dc36c5fa-d52f-4e04-9cbc-ed78b6c01b89. Leave Balances panel on Vacation Management page was not reachable via /deputy-chief/vacation-management (redirected to /dashboard) - the location of the Leave Balances panel needs clarification from main agent. Confirmed backend Personnel model returns annual_vacation_days/annual_sick_days/annual_holiday_days/leave_year_start so backend supports the feature.",
+  "rca of the issue": "RCA: In /app/frontend/src/pages/tools/PersonnelManagementPage.js line 535-543, handleEditPersonnel explicitly cherry-picks only 7 fields into the PUT body, omitting the three annual leave allocation fields (and contact_email). PersonnelFormDialog.handleSave (line 134-149) correctly builds the object with annual_vacation_days/sick/holiday, but the parent's edit handler discards them. Reproduction: (1) login as admin, (2) go to /tools/personnel, (3) click edit (pencil) on Test User, (4) change Vacation=20, Sick=14, Holiday=13, (5) click 'Update Personnel'. Observed: green toast 'Personnel updated' appears but table Leave Alloc badges remain V:15 S:12 H:11; reopening edit shows 15/12/11; GET /api/personnel returns 15/12/11. Mitigation: change the PUT payload in handleEditPersonnel to include annual_vacation_days, annual_sick_days, annual_holiday_days, contact_email - or simply spread formData."
+}

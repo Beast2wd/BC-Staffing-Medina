@@ -58,7 +58,10 @@ const PersonnelFormDialog = memo(({
   const [certifications, setCertifications] = useState([]);
   const [certInput, setCertInput] = useState('');
   const [userSearchTerm, setUserSearchTerm] = useState('');
-
+  // Leave allocation fields
+  const [annualVacationDays, setAnnualVacationDays] = useState(15);
+  const [annualSickDays, setAnnualSickDays] = useState(12);
+  const [annualHolidayDays, setAnnualHolidayDays] = useState(11);
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (isOpen && initialData) {
@@ -71,6 +74,10 @@ const PersonnelFormDialog = memo(({
       setContactEmail(initialData.contact_email || '');
       setCertifications(initialData.certifications || []);
       setSelectedUserId('');
+      // Leave allocations
+      setAnnualVacationDays(initialData.annual_vacation_days ?? 15);
+      setAnnualSickDays(initialData.annual_sick_days ?? 12);
+      setAnnualHolidayDays(initialData.annual_holiday_days ?? 11);
     } else if (isOpen && !initialData) {
       // Reset for add mode
       setPayrollNumber('');
@@ -82,6 +89,10 @@ const PersonnelFormDialog = memo(({
       setContactEmail('');
       setCertifications([]);
       setSelectedUserId('');
+      // Default leave allocations
+      setAnnualVacationDays(15);
+      setAnnualSickDays(12);
+      setAnnualHolidayDays(11);
     }
     setCertInput('');
     setUserSearchTerm('');
@@ -130,7 +141,10 @@ const PersonnelFormDialog = memo(({
       contact_phone: contactPhone,
       contact_email: contactEmail,
       certifications,
-      user_id: selectedUserId || null  // Link to user if selected
+      user_id: selectedUserId || null,  // Link to user if selected
+      annual_vacation_days: parseInt(annualVacationDays) || 15,
+      annual_sick_days: parseInt(annualSickDays) || 12,
+      annual_holiday_days: parseInt(annualHolidayDays) || 11
     });
   };
 
@@ -330,6 +344,55 @@ const PersonnelFormDialog = memo(({
             </div>
           </div>
 
+          {/* Leave Allocation Section */}
+          <div className="space-y-3 pt-4 border-t">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              Annual Leave Allocation
+              <Badge variant="outline" className="text-xs">Days/Year</Badge>
+            </Label>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-blue-600">Vacation</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={annualVacationDays}
+                  onChange={(e) => setAnnualVacationDays(e.target.value)}
+                  className="text-center"
+                  data-testid="vacation-allocation-input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-red-600">Sick</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={annualSickDays}
+                  onChange={(e) => setAnnualSickDays(e.target.value)}
+                  className="text-center"
+                  data-testid="sick-allocation-input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-green-600">Holiday</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={annualHolidayDays}
+                  onChange={(e) => setAnnualHolidayDays(e.target.value)}
+                  className="text-center"
+                  data-testid="holiday-allocation-input"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Customize annual leave days for this employee. Defaults: 15 vacation, 12 sick, 11 holiday.
+            </p>
+          </div>
+
           {!isEdit && !selectedUserId && (
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
               <p className="font-medium text-blue-600 dark:text-blue-400">Note:</p>
@@ -476,7 +539,11 @@ export const PersonnelManagementPage = () => {
         station_id: formData.station_id,
         shift: formData.shift,
         certifications: formData.certifications,
-        contact_phone: formData.contact_phone
+        contact_phone: formData.contact_phone,
+        contact_email: formData.contact_email,
+        annual_vacation_days: formData.annual_vacation_days,
+        annual_sick_days: formData.annual_sick_days,
+        annual_holiday_days: formData.annual_holiday_days
       });
       toast.success('Personnel updated');
       setShowEditDialog(false);
@@ -1214,6 +1281,7 @@ export const PersonnelManagementPage = () => {
                                 <TableHead>Rank</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Certifications</TableHead>
+                                <TableHead className="w-32">Leave Alloc.</TableHead>
                                 <TableHead className="w-24">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -1236,6 +1304,19 @@ export const PersonnelManagementPage = () => {
                                           +{person.certifications.length - 3}
                                         </span>
                                       )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1.5 text-[10px]" title="Vacation / Sick / Holiday days per year">
+                                      <span className="bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded">
+                                        V:{person.annual_vacation_days ?? 15}
+                                      </span>
+                                      <span className="bg-red-500/20 text-red-600 px-1.5 py-0.5 rounded">
+                                        S:{person.annual_sick_days ?? 12}
+                                      </span>
+                                      <span className="bg-green-500/20 text-green-600 px-1.5 py-0.5 rounded">
+                                        H:{person.annual_holiday_days ?? 11}
+                                      </span>
                                     </div>
                                   </TableCell>
                                   <TableCell>
