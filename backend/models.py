@@ -106,6 +106,11 @@ class PersonnelBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     overtime_hours_worked: float = 0.0  # Running total of overtime hours worked
+    # Leave balance allocation (annual)
+    annual_vacation_days: int = 15  # Default 15 days per year
+    annual_sick_days: int = 12  # Default 12 days per year
+    annual_holiday_days: int = 11  # Default 11 holidays per year
+    leave_year_start: Optional[str] = None  # YYYY-MM-DD, defaults to Jan 1
 
 
 class PersonnelCreate(BaseModel):
@@ -118,6 +123,10 @@ class PersonnelCreate(BaseModel):
     certifications: List[str] = []
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+    annual_vacation_days: int = 15
+    annual_sick_days: int = 12
+    annual_holiday_days: int = 11
+    leave_year_start: Optional[str] = None
 
 
 class PersonnelUpdate(BaseModel):
@@ -131,6 +140,10 @@ class PersonnelUpdate(BaseModel):
     certifications: Optional[List[str]] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
+    annual_vacation_days: Optional[int] = None
+    annual_sick_days: Optional[int] = None
+    annual_holiday_days: Optional[int] = None
+    leave_year_start: Optional[str] = None
 
 
 class Station(BaseModel):

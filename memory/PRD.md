@@ -810,3 +810,27 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
 - ✅ **Files Updated**:
   - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Added shift indicator and filtered personnel logic
 
+
+## Leave Deletion Sync Fix & Leave Balance Tracking (December 2025)
+- ✅ **Bug Fix: Leave Deletion Now Syncs to Daily Worksheet**
+  - Previously, deleting a leave record didn't update the Daily Worksheet - the vacation/sick/holiday count still showed
+  - Fixed by calling `refreshGlobalLeaveRecords()` from StaffingContext after create/edit/delete operations
+  - Daily Worksheet now immediately reflects leave record changes
+- ✅ **Leave Balance Tracking** - New feature showing remaining leave days per employee:
+  - "Show Balances" / "Hide Balances" toggle button on Vacation, Sick, and Holiday Management pages
+  - Displays collapsible panel with personnel leave balances for the current year
+  - Shows for each employee: Annual allocation, Days used, Days remaining
+  - Progress bar visualizes usage percentage
+  - Cards turn red when employee has used more than their allocation (negative balance)
+  - Filters by on-duty shift for the selected date
+- ✅ **Default Annual Allocations** (configurable per employee):
+  - Vacation: 15 days/year
+  - Sick: 12 days/year
+  - Holiday: 11 days/year
+- ✅ **24-Hour Shift Calculation**: Leave days counted as shift START dates only (end_date - start_date in days)
+- ✅ **Files Updated**:
+  - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Added balance tracking UI and global state sync
+  - `/app/backend/routes/overtime_routes.py` - Added /leave-balances endpoint
+  - `/app/backend/models.py` - Added annual allocation fields to PersonnelBase/Create/Update
+
+

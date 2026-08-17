@@ -9,23 +9,26 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Plus, Save, Trash2, CalendarIcon, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Plus, Save, Trash2, CalendarIcon, ChevronLeft, ChevronRight, Pencil, BarChart3, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Calendar } from '../../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Progress } from '../../components/ui/progress';
 import { format, addDays, subDays } from 'date-fns';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
 export const LeaveManagementPage = ({ leaveType }) => {
   const { api, canEdit } = useAuth();
-  const { personnel, fetchAllData, selectedBattalion, getShiftForDate } = useStaffing();
+  const { personnel, fetchAllData, selectedBattalion, getShiftForDate, fetchLeaveRecords: refreshGlobalLeaveRecords } = useStaffing();
   const [leaveRecords, setLeaveRecords] = useState([]);
+  const [leaveBalances, setLeaveBalances] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showBalancesPanel, setShowBalancesPanel] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
@@ -136,6 +139,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
   useEffect(() => {
     fetchAllData();
     fetchLeaveRecords();
+    fetchLeaveBalances();
   }, [selectedBattalion, leaveType, viewDate]);
 
   const fetchLeaveRecords = async () => {
@@ -149,6 +153,15 @@ export const LeaveManagementPage = ({ leaveType }) => {
       setLeaveRecords(filtered);
     } catch (error) {
       console.error('Error fetching leave records:', error);
+    }
+  };
+
+  const fetchLeaveBalances = async () => {
+    try {
+      const response = await api.get('/leave-balances');
+      setLeaveBalances(response.data);
+    } catch (error) {
+      console.error('Error fetching leave balances:', error);
     }
   };
 
@@ -167,6 +180,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
       toast.success('Leave record created');
       setShowAddDialog(false);
       fetchLeaveRecords();
+      refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
       setFormData({ personnel_id: '', start_date: '', end_date: '', status: 'approved', notes: '' });
     } catch (error) {
       toast.error('Failed to create leave record');
@@ -182,6 +196,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
       await api.delete(`/leave-records/${recordId}`);
       toast.success('Record deleted');
       fetchLeaveRecords();
+      refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
     } catch (error) {
       toast.error('Failed to delete record');
     }
@@ -215,6 +230,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
       setShowEditDialog(false);
       setEditingRecord(null);
       fetchLeaveRecords();
+      refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
     } catch (error) {
       toast.error('Failed to update leave record');
     } finally {
@@ -253,6 +269,14 @@ export const LeaveManagementPage = ({ leaveType }) => {
           
           <div className="flex items-center gap-4">
             <BattalionSelector />
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBalancesPanel(!showBalancesPanel)}
+              data-testid="toggle-balances-btn"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" /> 
+              {showBalancesPanel ? 'Hide' : 'Show'} Balances
+            </Button>
             {canEdit && (
               <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogTrigger asChild>
@@ -510,6 +534,85 @@ export const LeaveManagementPage = ({ leaveType }) => {
             </Dialog>
           </div>
         </div>
+
+        {/* Leave Balances Panel */}
+        {showBalancesPanel && (
+          <Card className="mb-6" data-testid="leave-balances-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-heading uppercase flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  {new Date().getFullYear()} Leave Balances
+                </CardTitle>
+                <Button variant="ghost" size="icon" onClick={() => setShowBalancesPanel(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {leaveBalances
+                  .filter(b => {
+                    // Filter by current shift on duty
+                    const currentShift = getShiftForDate(formatDateString(viewDate));
+                    return b.shift === currentShift;
+                  })
+                  .map(balance => {
+                    const leaveData = balance[leaveType] || { annual: 0, used: 0, remaining: 0 };
+                    const usedPercent = leaveData.annual > 0 
+                      ? Math.min(100, (leaveData.used / leaveData.annual) * 100) 
+                      : 0;
+                    const isOverused = leaveData.remaining < 0;
+                    
+                    return (
+                      <div 
+                        key={balance.personnel_id} 
+                        className={`p-3 rounded-lg border ${isOverused ? 'border-red-500 bg-red-500/5' : 'bg-muted/30'}`}
+                        data-testid={`balance-${balance.personnel_id}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="font-medium text-sm">{balance.rank} {balance.name}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded ${
+                                balance.shift === 'A' ? 'bg-red-500/20 text-red-500' :
+                                balance.shift === 'B' ? 'bg-green-500/20 text-green-500' :
+                                'bg-blue-500/20 text-blue-500'
+                              }`}>
+                                {balance.shift}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-lg font-bold ${isOverused ? 'text-red-500' : ''}`}>
+                              {leaveData.remaining}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground uppercase">Remaining</div>
+                          </div>
+                        </div>
+                        <Progress 
+                          value={usedPercent} 
+                          className={`h-2 ${isOverused ? '[&>div]:bg-red-500' : ''}`}
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                          <span>{leaveData.used} used</span>
+                          <span>{leaveData.annual} annual</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              {leaveBalances.filter(b => b.shift === getShiftForDate(formatDateString(viewDate))).length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  No personnel on {getShiftForDate(formatDateString(viewDate))} Shift
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                Showing {getShiftForDate(formatDateString(viewDate))} Shift personnel balances for {leaveType}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card data-testid="leave-records-card">
           <CardHeader>

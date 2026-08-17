@@ -312,3 +312,99 @@ async def delete_leave_record(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Leave record not found")
     return {"message": "Leave record deleted"}
+
+
+@router.get("/leave-balances")
+async def get_leave_balances(
+    personnel_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get leave balances for personnel showing annual allocation vs used days.
+    For 24-hour shifts, each leave record day counts as 1 shift day used.
+    """
+    from datetime import datetime
+    
+    # Determine the current leave year (calendar year by default)
+    today = datetime.now()
+    year_start = f"{today.year}-01-01"
+    year_end = f"{today.year}-12-31"
+    
+    # Get personnel
+    personnel_query = {}
+    personnel_query = add_tenant_to_query(personnel_query, current_user)
+    if personnel_id:
+        personnel_query["id"] = personnel_id
+    
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
+    
+    # Get all approved leave records for the current year
+    leave_query = {
+        "status": "approved",
+        "$or": [
+            {"start_date": {"$lte": year_end}, "end_date": {"$gte": year_start}}
+        ]
+    }
+    leave_query = add_tenant_to_query(leave_query, current_user)
+    
+    leave_records = await db.leave_records.find(leave_query, {"_id": 0}).to_list(5000)
+    
+    # Calculate used days per person
+    # For 24-hour shifts, we count the number of shift START dates (end_date - 1 day for each shift)
+    balances = []
+    
+    for person in personnel_list:
+        person_leaves = [l for l in leave_records if l.get("personnel_id") == person.get("id")]
+        
+        vacation_used = 0
+        sick_used = 0
+        holiday_used = 0
+        
+        for leave in person_leaves:
+            start = datetime.strptime(leave["start_date"], "%Y-%m-%d")
+            end = datetime.strptime(leave["end_date"], "%Y-%m-%d")
+            # For 24-hour shifts: number of shift days = (end - start).days
+            # Because end_date is when shift ends, not a separate day
+            shift_days = (end - start).days
+            if shift_days < 1:
+                shift_days = 1  # Minimum 1 day
+            
+            leave_type = leave.get("leave_type", "")
+            if leave_type == "vacation":
+                vacation_used += shift_days
+            elif leave_type == "sick":
+                sick_used += shift_days
+            elif leave_type == "holiday":
+                holiday_used += shift_days
+        
+        # Get allocations with defaults
+        annual_vacation = person.get("annual_vacation_days", 15)
+        annual_sick = person.get("annual_sick_days", 12)
+        annual_holiday = person.get("annual_holiday_days", 11)
+        
+        balances.append({
+            "personnel_id": person.get("id"),
+            "payroll_number": person.get("payroll_number"),
+            "name": person.get("name"),
+            "rank": person.get("rank"),
+            "shift": person.get("shift"),
+            "station_id": person.get("station_id"),
+            "vacation": {
+                "annual": annual_vacation,
+                "used": vacation_used,
+                "remaining": annual_vacation - vacation_used
+            },
+            "sick": {
+                "annual": annual_sick,
+                "used": sick_used,
+                "remaining": annual_sick - sick_used
+            },
+            "holiday": {
+                "annual": annual_holiday,
+                "used": holiday_used,
+                "remaining": annual_holiday - holiday_used
+            },
+            "year": today.year
+        })
+    
+    return balances

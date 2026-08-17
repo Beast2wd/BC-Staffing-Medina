@@ -1,0 +1,31 @@
+{
+  "summary": "Tested both bug fix (leave record deletion syncing to Daily Worksheet) and new feature (Leave Balance Tracking). Created /app/backend/tests/test_leave_balances.py with 4 pytest cases; all PASS (4/4). Frontend UI verified: Show/Hide Balances toggle works on Vacation Management page, Leave Balances panel appears with correct card showing 'Firefighter Test User' (A Shift, 15 annual, 0 used, 15 remaining), progress bar renders, filtering by on-duty shift (A) works, panel closes via X. Daily Worksheet on Aug 17 2026 A Shift shows VACATION (-) count = 2 at Station 10 from existing seed vacation records, confirming the read/sync path is intact. Backend endpoint /api/leave-balances returns correct structure (personnel_id/name/rank/shift/vacation/sick/holiday/year with annual/used/remaining). Balance-update-on-create and balance-restore-on-delete both verified via backend integration test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_leave_balances.py",
+    "/app/test_reports/pytest/leave_balances.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "overtime_routes.py:317 /leave-balances uses calendar year via datetime.now().year with no override; if fiscal year differs the balance year is wrong. Consider accepting a ?year= query param.",
+    "overtime_routes.py:368 shift_days = (end - start).days -- if start == end (single 24h shift stored with same start/end), .days == 0 and the code coerces to 1 (OK). But if a user enters a 3-day continuous vacation start=D1 end=D3, this counts 2 shift days rather than 3 (they may have expected 3). Documented behavior should be clear to users.",
+    "LeaveManagementPage.js:557 filter uses getShiftForDate(viewDate) but if getShiftForDate returns null/undefined (e.g. no shift schedule for that date), all balance cards are hidden with only an 'No personnel on undefined Shift' message. Add a fallback.",
+    "LeaveManagementPage.js:561 leaveData = balance[leaveType] || {annual:0, used:0, remaining:0} -- safe fallback good; but leaveType comes from route and if a typo/route mismatch occurs the card still renders with zeros. Consider a warning log.",
+    "Leave Balances card always uses new Date().getFullYear() for header (line 545) but backend uses today.year server-side; consistent but not tied to viewDate. A user viewing Dec 30 -> Jan 1 wouldn't see next year until backend switches. Minor."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_leave_balances.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (all acceptance criteria met via UI + backend integration)"},
+  "test_credentials": "Admin 100001 / admin123 via /client-login -> 'Medina County BC Staffing'",
+  "seed_data_creation": "Tests create+delete transient TEST_ vacation records for Aug 17-18 and Aug 19-20 on Test User; cleaned up in the same test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Leave Balances feature: GET /api/leave-balances (optional ?personnel_id=). Returns list with vacation/sick/holiday {annual,used,remaining}. Default allocations 15/12/11 read from personnel.annual_{vacation,sick,holiday}_days. UI: LeaveManagementPage 'Show Balances' (data-testid=toggle-balances-btn) -> renders leave-balances-card with balance-<personnel_id> cards, filtered by getShiftForDate(viewDate). Sync path: after POST/PUT/DELETE /leave-records, LeaveManagementPage calls refreshGlobalLeaveRecords from StaffingContext which triggers DailyWorksheet re-render with updated counts. Test User (Firefighter, A Shift, Station 10) has vacation records on Aug 14-15 (seed) and Aug 17-18 (seed) - the Daily Worksheet Aug 17 A Shift showed VACATION (-) 2 at Station 10 confirming those seeded records flow correctly to worksheet grid.",
+  "rca_of_the_issue": "Original bug: LeaveManagementPage was only updating local leaveRecords state via setLeaveRecords, not the global StaffingContext state which DailyWorksheet reads from. Fix (verified in code): imported fetchLeaveRecords as refreshGlobalLeaveRecords from useStaffing() and called it after create/edit/delete (lines 175, 188, 222). Backend endpoint /api/leave-records DELETE returns 200 and removes doc; subsequent GETs from StaffingContext return updated list. Integration test test_daily_worksheet_reflects_leave_create_and_delete confirmed create->list_shows_vacation and delete->list_no_longer_shows_vacation."
+}
