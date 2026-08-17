@@ -39,6 +39,14 @@ class TenantSettings(BaseModel):
     # Leave year settings (fiscal year for leave tracking)
     leave_year_start_month: int = 1  # 1-12, default January (calendar year)
     leave_year_start_day: int = 1  # 1-31, default 1st
+    # Holiday Accrual Settings
+    holiday_pay_period: str = "biweekly"  # weekly, biweekly, semimonthly, monthly
+    holiday_accrual_mode: str = "per_period"  # per_period or yearly
+    holiday_accrual_rate_per_period: float = 4.0  # Hours accrued per pay period (default)
+    holiday_accrual_rate_yearly: float = 104.0  # Hours accrued per year (alternative)
+    holiday_reset_mode: str = "none"  # none, calendar_year, fiscal_year
+    holiday_allow_negative: bool = True  # Allow negative balance
+    holiday_pay_period_start_date: Optional[str] = None  # YYYY-MM-DD anchor date for pay periods
     # Operational settings
     shifts: List[str] = ["A", "B", "C"]
     ranks: List[str] = [

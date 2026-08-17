@@ -30,6 +30,7 @@ from routes.user_notifications_routes import router as user_notifications_router
 from routes.tenant_routes import router as tenant_router
 from routes.platform_routes import router as platform_router
 from routes.weather_routes import router as weather_router
+from routes.holiday_accrual_routes import router as holiday_accrual_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -56,6 +57,7 @@ app.include_router(user_notifications_router, prefix="/api")
 app.include_router(tenant_router, prefix="/api")
 app.include_router(platform_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
+app.include_router(holiday_accrual_router, prefix="/api")
 
 # CORS middleware
 app.add_middleware(
