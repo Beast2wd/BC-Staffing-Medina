@@ -849,3 +849,29 @@ TIFMAS, TX-TF1, Mutual Aid, Strike Team, Task Force, Training, Special Assignmen
   - `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added leave allocation state, form fields, table column, and fixed handleEditPersonnel to include allocation fields
 
 
+
+## Leave Year Configuration (December 2025)
+- ✅ **Fiscal Year Settings** - New Leave Year Configuration section on Branding Settings page
+  - Configure custom fiscal year start date for leave tracking
+  - Month and Day selectors for precise configuration
+- ✅ **Quick Presets** - One-click buttons for common fiscal year patterns:
+  - Calendar Year (January 1) - default
+  - Federal FY (October 1)
+  - Texas FY (July 1)
+  - UK FY (April 1)
+- ✅ **Dynamic Leave Year Calculation** - Backend calculates correct fiscal year period:
+  - Properly handles fiscal years spanning two calendar years
+  - Returns year label (e.g., "2025-2026" for Oct FY), year_start, year_end
+  - Leave balances count records within the correct fiscal year period
+- ✅ **Updated Leave Balances Display** - Shows fiscal year info:
+  - Header displays fiscal year label (e.g., "2025-2026 Leave Balances")
+  - Badge shows date range (e.g., "2025-10-01 to 2026-09-30")
+- ✅ **Files Added/Updated**:
+  - `/app/frontend/src/components/settings/LeaveYearSettings.js` - New component
+  - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Added LeaveYearSettings section
+  - `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Updated to show fiscal year info
+  - `/app/backend/routes/tenant_routes.py` - Added /tenants/me and PUT /tenants/settings endpoints
+  - `/app/backend/routes/overtime_routes.py` - Updated /leave-balances to use tenant fiscal year
+  - `/app/backend/tenant_models.py` - Added leave_year_start_month, leave_year_start_day fields
+
+

@@ -36,6 +36,9 @@ class TenantSettings(BaseModel):
     # Shift rotation settings
     shift_reference_date: Optional[str] = "2026-03-24"  # Reference date for shift calculation
     shift_reference_shift: Optional[str] = "C"  # Which shift was on duty on reference date
+    # Leave year settings (fiscal year for leave tracking)
+    leave_year_start_month: int = 1  # 1-12, default January (calendar year)
+    leave_year_start_day: int = 1  # 1-31, default 1st
     # Operational settings
     shifts: List[str] = ["A", "B", "C"]
     ranks: List[str] = [

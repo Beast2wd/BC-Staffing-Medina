@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { TimezoneSettings } from '../../components/settings/TimezoneSettings';
+import { LeaveYearSettings } from '../../components/settings/LeaveYearSettings';
 
 export const BrandingSettingsPage = () => {
   const { api, user } = useAuth();
@@ -602,6 +603,11 @@ export const BrandingSettingsPage = () => {
         {/* Timezone Settings Section */}
         <div className="mt-8">
           <TimezoneSettings />
+        </div>
+
+        {/* Leave Year Settings Section */}
+        <div className="mt-8">
+          <LeaveYearSettings />
         </div>
       </main>
     </div>

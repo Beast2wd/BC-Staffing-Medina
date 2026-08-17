@@ -322,13 +322,42 @@ async def get_leave_balances(
     """
     Get leave balances for personnel showing annual allocation vs used days.
     For 24-hour shifts, each leave record day counts as 1 shift day used.
+    Uses tenant's configured leave year (fiscal year) settings.
     """
     from datetime import datetime
+    from dateutil.relativedelta import relativedelta
     
-    # Determine the current leave year (calendar year by default)
     today = datetime.now()
-    year_start = f"{today.year}-01-01"
-    year_end = f"{today.year}-12-31"
+    
+    # Get tenant settings for leave year configuration
+    tenant_id = current_user.get("tenant_id")
+    leave_year_start_month = 1  # Default to January
+    leave_year_start_day = 1    # Default to 1st
+    
+    if tenant_id:
+        tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+        if tenant and tenant.get("settings"):
+            leave_year_start_month = tenant["settings"].get("leave_year_start_month", 1)
+            leave_year_start_day = tenant["settings"].get("leave_year_start_day", 1)
+    
+    # Calculate the current leave year period based on fiscal year settings
+    # If today is before the fiscal year start in current calendar year, 
+    # then we're in the previous fiscal year
+    fiscal_year_start_this_year = datetime(today.year, leave_year_start_month, leave_year_start_day)
+    
+    if today >= fiscal_year_start_this_year:
+        # Current fiscal year started this calendar year
+        year_start_date = fiscal_year_start_this_year
+        year_end_date = year_start_date + relativedelta(years=1) - relativedelta(days=1)
+        fiscal_year_label = today.year if leave_year_start_month == 1 else f"{today.year}-{today.year + 1}"
+    else:
+        # Current fiscal year started last calendar year
+        year_start_date = datetime(today.year - 1, leave_year_start_month, leave_year_start_day)
+        year_end_date = fiscal_year_start_this_year - relativedelta(days=1)
+        fiscal_year_label = today.year - 1 if leave_year_start_month == 1 else f"{today.year - 1}-{today.year}"
+    
+    year_start = year_start_date.strftime("%Y-%m-%d")
+    year_end = year_end_date.strftime("%Y-%m-%d")
     
     # Get personnel
     personnel_query = {}
@@ -338,7 +367,7 @@ async def get_leave_balances(
     
     personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
     
-    # Get all approved leave records for the current year
+    # Get all approved leave records for the current leave year
     leave_query = {
         "status": "approved",
         "$or": [
@@ -404,7 +433,9 @@ async def get_leave_balances(
                 "used": holiday_used,
                 "remaining": annual_holiday - holiday_used
             },
-            "year": today.year
+            "year": fiscal_year_label,
+            "year_start": year_start,
+            "year_end": year_end
         })
     
     return balances

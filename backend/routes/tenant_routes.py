@@ -287,6 +287,87 @@ async def reset_tenant_branding(current_user: dict = Depends(get_current_user)):
     return {"message": "Branding reset to defaults"}
 
 
+# Tenant Settings Update Model
+class TenantSettingsUpdate(BaseModel):
+    """Partial update for tenant settings"""
+    leave_year_start_month: Optional[int] = None
+    leave_year_start_day: Optional[int] = None
+    timezone: Optional[str] = None
+    use_browser_timezone: Optional[bool] = None
+    shift_reference_date: Optional[str] = None
+    shift_reference_shift: Optional[str] = None
+
+
+@router.get("/me")
+async def get_current_tenant(current_user: dict = Depends(get_current_user)):
+    """Get the current user's tenant info and settings"""
+    tenant_id = current_user.get("tenant_id")
+    
+    if not tenant_id:
+        raise HTTPException(status_code=404, detail="No tenant associated with user")
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return tenant
+
+
+@router.put("/settings")
+async def update_tenant_settings(
+    settings_update: TenantSettingsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update tenant settings (Admin only)"""
+    # Check if user is admin
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can update settings")
+    
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=404, detail="No tenant associated with user")
+    
+    tenant = await db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Build update fields
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    if settings_update.leave_year_start_month is not None:
+        # Validate month
+        if not 1 <= settings_update.leave_year_start_month <= 12:
+            raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+        update_fields["settings.leave_year_start_month"] = settings_update.leave_year_start_month
+    
+    if settings_update.leave_year_start_day is not None:
+        # Validate day (basic check, month-specific validation happens elsewhere)
+        if not 1 <= settings_update.leave_year_start_day <= 31:
+            raise HTTPException(status_code=400, detail="Day must be between 1 and 31")
+        update_fields["settings.leave_year_start_day"] = settings_update.leave_year_start_day
+    
+    if settings_update.timezone is not None:
+        update_fields["settings.timezone"] = settings_update.timezone
+    
+    if settings_update.use_browser_timezone is not None:
+        update_fields["settings.use_browser_timezone"] = settings_update.use_browser_timezone
+    
+    if settings_update.shift_reference_date is not None:
+        update_fields["settings.shift_reference_date"] = settings_update.shift_reference_date
+    
+    if settings_update.shift_reference_shift is not None:
+        update_fields["settings.shift_reference_shift"] = settings_update.shift_reference_shift
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": update_fields}
+    )
+    
+    # Get updated tenant
+    updated_tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    return updated_tenant
+
+
 @router.get("/copy-source/{tenant_id}")
 async def get_tenant_for_copy(tenant_id: str, current_user: dict = Depends(require_super_admin())):
     """Get a tenant's full configuration for copying to a new tenant"""

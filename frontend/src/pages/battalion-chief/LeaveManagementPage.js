@@ -542,7 +542,12 @@ export const LeaveManagementPage = ({ leaveType }) => {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-heading uppercase flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
-                  {new Date().getFullYear()} Leave Balances
+                  {leaveBalances[0]?.year || new Date().getFullYear()} Leave Balances
+                  {leaveBalances[0]?.year_start && (
+                    <Badge variant="outline" className="ml-2 text-xs font-normal normal-case">
+                      {leaveBalances[0].year_start} to {leaveBalances[0].year_end}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => setShowBalancesPanel(false)}>
                   <X className="h-4 w-4" />
