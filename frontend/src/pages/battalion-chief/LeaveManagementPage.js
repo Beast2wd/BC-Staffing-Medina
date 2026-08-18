@@ -212,8 +212,23 @@ export const LeaveManagementPage = ({ leaveType }) => {
 
   const fetchLeaveBalances = async () => {
     try {
-      const response = await api.get('/leave-balances');
-      setLeaveBalances(response.data);
+      // Use the new endpoint that returns real-time current balances by leave type
+      const response = await api.get(`/leave-balances-by-type/${leaveType}`);
+      // Transform the response to match the expected format
+      const balances = (response.data.balances || []).map(b => ({
+        personnel_id: b.personnel_id,
+        name: b.name,
+        rank: b.rank,
+        shift: b.shift,
+        personnel_type: b.personnel_type,
+        [leaveType]: {
+          annual: b.cap || 0,  // Use cap as annual allocation
+          used: (b.cap || 0) - b.current_balance,  // Calculate used
+          remaining: b.current_balance
+        },
+        status: b.status
+      }));
+      setLeaveBalances(balances);
     } catch (error) {
       console.error('Error fetching leave balances:', error);
     }
@@ -245,6 +260,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
       toast.success('Leave record created');
       setShowAddDialog(false);
       fetchLeaveRecords();
+      fetchLeaveBalances(); // Refresh balances in real-time
       refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
       setFormData({ personnel_id: '', start_date: '', end_date: '', hours: 24, status: 'approved', notes: '' });
       setCustomHours('');
@@ -260,8 +276,9 @@ export const LeaveManagementPage = ({ leaveType }) => {
     
     try {
       await api.delete(`/leave-records/${recordId}`);
-      toast.success('Record deleted');
+      toast.success('Record deleted - hours credited back');
       fetchLeaveRecords();
+      fetchLeaveBalances(); // Refresh balances in real-time
       refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
     } catch (error) {
       toast.error('Failed to delete record');
@@ -317,6 +334,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
       setEditingRecord(null);
       setEditCustomHours('');
       fetchLeaveRecords();
+      fetchLeaveBalances(); // Refresh balances in real-time
       refreshGlobalLeaveRecords(); // Sync with Daily Worksheet
     } catch (error) {
       toast.error('Failed to update leave record');
@@ -729,12 +747,10 @@ export const LeaveManagementPage = ({ leaveType }) => {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-heading uppercase flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
-                  {leaveBalances[0]?.year || new Date().getFullYear()} Leave Balances
-                  {leaveBalances[0]?.year_start && (
-                    <Badge variant="outline" className="ml-2 text-xs font-normal normal-case">
-                      {leaveBalances[0].year_start} to {leaveBalances[0].year_end}
-                    </Badge>
-                  )}
+                  {leaveType.charAt(0).toUpperCase() + leaveType.slice(1)} Balances
+                  <Badge variant="outline" className="ml-2 text-xs font-normal normal-case">
+                    Real-time
+                  </Badge>
                 </CardTitle>
                 <Button variant="ghost" size="icon" onClick={() => setShowBalancesPanel(false)}>
                   <X className="h-4 w-4" />
@@ -752,14 +768,21 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   .map(balance => {
                     const leaveData = balance[leaveType] || { annual: 0, used: 0, remaining: 0 };
                     const usedPercent = leaveData.annual > 0 
-                      ? Math.min(100, (leaveData.used / leaveData.annual) * 100) 
+                      ? Math.min(100, Math.max(0, (leaveData.used / leaveData.annual) * 100))
                       : 0;
-                    const isOverused = leaveData.remaining < 0;
+                    const isNegative = leaveData.remaining < 0;
+                    const isLow = leaveData.remaining >= 0 && leaveData.remaining <= 8;
+                    const isAtCap = leaveData.annual > 0 && leaveData.remaining >= leaveData.annual;
                     
                     return (
                       <div 
                         key={balance.personnel_id} 
-                        className={`p-3 rounded-lg border ${isOverused ? 'border-red-500 bg-red-500/5' : 'bg-muted/30'}`}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          isNegative ? 'border-red-500 bg-red-500/5' : 
+                          isLow ? 'border-amber-500 bg-amber-500/5' :
+                          isAtCap ? 'border-blue-500 bg-blue-500/5' :
+                          'bg-muted/30'
+                        }`}
                         data-testid={`balance-${balance.personnel_id}`}
                       >
                         <div className="flex items-center justify-between mb-2">
@@ -773,22 +796,31 @@ export const LeaveManagementPage = ({ leaveType }) => {
                               }`}>
                                 {balance.shift}
                               </span>
+                              {balance.personnel_type === 'administrative' && (
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded">Admin</span>
+                              )}
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className={`text-lg font-bold ${isOverused ? 'text-red-500' : ''}`}>
-                              {leaveData.remaining}
+                            <div className={`text-lg font-bold ${
+                              isNegative ? 'text-red-500' : 
+                              isLow ? 'text-amber-600' :
+                              isAtCap ? 'text-blue-600' : ''
+                            }`}>
+                              {typeof leaveData.remaining === 'number' ? leaveData.remaining.toFixed(1) : leaveData.remaining} hrs
                             </div>
-                            <div className="text-[10px] text-muted-foreground uppercase">Remaining</div>
+                            <div className="text-[10px] text-muted-foreground uppercase">
+                              {isNegative ? 'Negative' : isLow ? 'Low' : isAtCap ? 'At Cap' : 'Balance'}
+                            </div>
                           </div>
                         </div>
                         <Progress 
                           value={usedPercent} 
-                          className={`h-2 ${isOverused ? '[&>div]:bg-red-500' : ''}`}
+                          className={`h-2 ${isNegative ? '[&>div]:bg-red-500' : isLow ? '[&>div]:bg-amber-500' : ''}`}
                         />
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                          <span>{leaveData.used} used</span>
-                          <span>{leaveData.annual} annual</span>
+                          <span>{typeof leaveData.used === 'number' ? leaveData.used.toFixed(1) : leaveData.used} used</span>
+                          <span>{leaveData.annual > 0 ? `${leaveData.annual} cap` : 'No cap'}</span>
                         </div>
                       </div>
                     );
@@ -801,6 +833,7 @@ export const LeaveManagementPage = ({ leaveType }) => {
               )}
               <p className="text-xs text-muted-foreground text-center mt-4">
                 Showing {getShiftForDate(formatDateString(viewDate))} Shift personnel balances for {leaveType}
+                {leaveType === 'sick' && <span className="text-red-500 ml-2">(Cannot go negative)</span>}
               </p>
             </CardContent>
           </Card>

@@ -37,7 +37,8 @@ import {
   ChevronRight,
   History,
   Shield,
-  Palette
+  Palette,
+  TrendingUp
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
@@ -173,6 +174,11 @@ export const Navbar = () => {
                 <DropdownMenuItem asChild>
                   <Link to="/battalion-chief/leave-calendar" className="flex items-center gap-2" data-testid="nav-leave-calendar">
                     <Calendar className="h-4 w-4" /> Leave Calendar
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/battalion-chief/leave-balances" className="flex items-center gap-2" data-testid="nav-leave-balances">
+                    <TrendingUp className="h-4 w-4" /> Leave Balances
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>

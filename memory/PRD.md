@@ -1049,3 +1049,51 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - `/app/frontend/src/pages/tools/PersonnelManagementPage.js` - Added PersonnelAccrualRates to Edit dialog
 - `/app/frontend/src/pages/tools/BrandingSettingsPage.js` - Added AccrualProcessingPanel section
 
+
+
+
+## Leave Balance Dashboard & Real-Time Balance Sync (December 2025)
+
+### Leave Balance Dashboard
+- ✅ **New Dashboard Page** - `/battalion-chief/leave-balances` with dedicated leave balance overview
+- ✅ **Three Tabs** - Vacation, Sick, and Holiday balance views
+- ✅ **Summary Cards** - Personnel count, Total Hours, Negative count, Low Balance count, At Cap count
+- ✅ **Personnel Table** - Name, Payroll #, Shift, Type (Ops/Admin), Balance, Cap, Status columns
+- ✅ **Search Filter** - Filter by name or payroll number
+- ✅ **Status Badges** - Negative (red), Low (amber), At Cap (blue), Near Cap (green), Normal (gray)
+- ✅ **Refresh Button** - Manual refresh of balance data
+- ✅ **Navigation** - Added under Battalion Chief menu with TrendingUp icon
+
+### Real-Time Balance Sync
+- ✅ **Create Leave Record** - Deducts hours from personnel's `{leave_type}_current_balance`
+- ✅ **Update Leave Record** - Adjusts balance by the hours difference (new - old)
+- ✅ **Delete Leave Record** - Restores the used hours back to personnel's balance
+- ✅ **Sick Cannot Go Negative** - Per P-021 policy, sick balance clamped to 0 if deduction would go negative
+- ✅ **Holiday/Vacation Can Go Negative** - Per P-021 policy, allows negative balances
+- ✅ **Multi-Tenant Isolation** - All balance queries/updates scoped by tenant_id
+
+### Show Balances Panel (Leave Management Pages)
+- ✅ **Toggle Button** - "Show Balances" / "Hide Balances" on Vacation, Sick, Holiday Management pages
+- ✅ **Real-Time Badge** - Shows "Real-time" indicator next to panel title
+- ✅ **Shift-Filtered** - Only shows personnel on the currently on-duty shift
+- ✅ **Balance Cards** - Shows name, rank, shift badge, current balance, progress bar, cap
+- ✅ **Status Indicators** - Negative (red), Low (amber), At Cap (blue)
+- ✅ **Auto-Refresh** - Balances refresh after create/update/delete operations
+
+### API Endpoints Added
+- `GET /api/leave-balances-by-type/{leave_type}` - Get real-time balances for all personnel by leave type
+  - Returns: leave_type, balances array (personnel_id, name, rank, shift, personnel_type, current_balance, cap, allow_negative, status), summary stats
+
+### Files Created/Updated
+- `/app/frontend/src/pages/battalion-chief/LeaveBalanceDashboard.js` - New dashboard component
+- `/app/backend/routes/overtime_routes.py` - Added balance sync logic to leave record CRUD, added leave-balances-by-type endpoint
+- `/app/frontend/src/pages/battalion-chief/LeaveManagementPage.js` - Updated fetchLeaveBalances to use new endpoint, added balance refresh after CRUD
+- `/app/frontend/src/App.js` - Added route for LeaveBalanceDashboard
+- `/app/frontend/src/components/layout/Navbar.js` - Added navigation link under Battalion Chief menu
+- `/app/backend/tests/test_leave_balance_dashboard.py` - Pytest tests for leave balance functionality
+
+### Test Report
+- Backend: 100% (7/7 tests pass)
+- Frontend: 100%
+- Report: `/app/test_reports/iteration_35.json`
+

@@ -53,6 +53,7 @@ import { EMTFDeploymentLog } from "./pages/deployment-tracker/EMTFDeploymentLog"
 
 // Leave Calendar
 import { LeaveCalendarPage } from "./pages/battalion-chief/LeaveCalendarPage";
+import LeaveBalanceDashboard from "./pages/battalion-chief/LeaveBalanceDashboard";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -176,6 +177,9 @@ const AppContent = () => {
           } />
           <Route path="/battalion-chief/leave-calendar" element={
             <ProtectedRoute><LeaveCalendarPage /></ProtectedRoute>
+          } />
+          <Route path="/battalion-chief/leave-balances" element={
+            <ProtectedRoute><LeaveBalanceDashboard /></ProtectedRoute>
           } />
           
           {/* Deputy Chief Routes */}

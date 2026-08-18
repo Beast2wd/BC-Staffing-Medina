@@ -277,6 +277,34 @@ async def create_leave_record(
     record_doc = add_tenant_to_doc(record_doc, current_user)
     
     await db.leave_records.insert_one(record_doc)
+    
+    # Deduct hours from personnel's leave balance
+    tenant_id = get_tenant_id(current_user)
+    leave_type = data.leave_type
+    hours_used = data.hours if data.hours else 24  # Default to 24 hours if not specified
+    
+    if leave_type and data.personnel_id:
+        balance_field = f"{leave_type}_current_balance"
+        
+        # Get current balance to check if sick can go negative (with tenant isolation)
+        personnel_query = {"id": data.personnel_id}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        personnel = await db.personnel.find_one(personnel_query)
+        if personnel:
+            current_balance = personnel.get(balance_field, 0)
+            new_balance = current_balance - hours_used
+            
+            # Sick time cannot go negative per P-021
+            if leave_type == "sick" and new_balance < 0:
+                # Still create the record but don't let balance go below 0
+                new_balance = 0
+            
+            await db.personnel.update_one(
+                personnel_query,
+                {"$set": {balance_field: round(new_balance, 2)}}
+            )
+    
     return LeaveRecord(**record_doc)
 
 
@@ -289,6 +317,16 @@ async def update_leave_record(
     query = {"id": record_id}
     query = add_tenant_to_query(query, current_user)
     
+    # Get the original record to calculate balance difference
+    original_record = await db.leave_records.find_one(query)
+    if not original_record:
+        raise HTTPException(status_code=404, detail="Leave record not found")
+    
+    original_hours = original_record.get("hours", 24)
+    new_hours = data.hours if data.hours else 24
+    hours_difference = new_hours - original_hours
+    
+    # Update the leave record
     result = await db.leave_records.find_one_and_update(
         query,
         {"$set": data.model_dump()},
@@ -296,6 +334,32 @@ async def update_leave_record(
     )
     if not result:
         raise HTTPException(status_code=404, detail="Leave record not found")
+    
+    # Adjust balance if hours changed
+    tenant_id = get_tenant_id(current_user)
+    if hours_difference != 0 and data.personnel_id:
+        leave_type = data.leave_type
+        balance_field = f"{leave_type}_current_balance"
+        
+        # Query with tenant isolation
+        personnel_query = {"id": data.personnel_id}
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        personnel = await db.personnel.find_one(personnel_query)
+        if personnel:
+            current_balance = personnel.get(balance_field, 0)
+            # Negative difference means more hours used, positive means less
+            new_balance = current_balance - hours_difference
+            
+            # Sick time cannot go negative per P-021
+            if leave_type == "sick" and new_balance < 0:
+                new_balance = 0
+            
+            await db.personnel.update_one(
+                personnel_query,
+                {"$set": {balance_field: round(new_balance, 2)}}
+            )
+    
     del result["_id"]
     return LeaveRecord(**result)
 
@@ -308,10 +372,61 @@ async def delete_leave_record(
     query = {"id": record_id}
     query = add_tenant_to_query(query, current_user)
     
+    # Get the record first to credit back hours
+    record = await db.leave_records.find_one(query)
+    if not record:
+        raise HTTPException(status_code=404, detail="Leave record not found")
+    
+    # Credit hours back to personnel's leave balance
+    leave_type = record.get("leave_type")
+    hours_used = record.get("hours", 24)  # Default to 24 if not specified
+    personnel_id = record.get("personnel_id")
+    
+    if leave_type and personnel_id:
+        balance_field = f"{leave_type}_current_balance"
+        
+        # Get current balance with tenant isolation
+        personnel_query = {"id": personnel_id}
+        tenant_id = record.get("tenant_id")
+        if tenant_id:
+            personnel_query["tenant_id"] = tenant_id
+        personnel = await db.personnel.find_one(personnel_query)
+        if personnel:
+            current_balance = personnel.get(balance_field, 0)
+            new_balance = current_balance + hours_used
+            
+            # Respect rollover caps when crediting back
+            # Get tenant settings for caps
+            tenant_id = record.get("tenant_id")
+            if tenant_id:
+                tenant = await db.tenants.find_one({"id": tenant_id})
+                if tenant:
+                    pto_settings = tenant.get("settings", {}).get("pto_settings", {})
+                    personnel_type = personnel.get("personnel_type", "operations")
+                    is_operations = personnel_type in ["shift", "operations"]
+                    
+                    if leave_type == "vacation":
+                        cap = pto_settings.get(
+                            "vacation_rollover_cap_operations" if is_operations else "vacation_rollover_cap_admin",
+                            240 if is_operations else 120
+                        )
+                        new_balance = min(new_balance, cap)
+                    elif leave_type == "sick":
+                        cap = pto_settings.get("sick_rollover_cap", 1080)
+                        new_balance = min(new_balance, cap)
+                    # Holiday has no cap
+            
+            await db.personnel.update_one(
+                personnel_query,
+                {"$set": {balance_field: round(new_balance, 2)}}
+            )
+    
+    # Now delete the record
     result = await db.leave_records.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Leave record not found")
-    return {"message": "Leave record deleted"}
+    
+    return {"message": "Leave record deleted", "hours_credited": hours_used}
 
 
 @router.get("/leave-balances")
@@ -439,3 +554,94 @@ async def get_leave_balances(
         })
     
     return balances
+
+
+
+@router.get("/leave-balances-by-type/{leave_type}")
+async def get_leave_balances_by_type(
+    leave_type: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get current leave balances for all personnel filtered by leave type (vacation, sick, holiday).
+    Returns real-time balances from personnel records.
+    """
+    if leave_type not in ["vacation", "sick", "holiday"]:
+        raise HTTPException(status_code=400, detail="Invalid leave type. Must be vacation, sick, or holiday.")
+    
+    query = {"is_active": True}
+    query = add_tenant_to_query(query, current_user)
+    
+    personnel_list = await db.personnel.find(query, {"_id": 0}).to_list(None)
+    
+    # Get tenant settings for caps
+    tenant_id = current_user.get("tenant_id")
+    pto_settings = {}
+    if tenant_id:
+        tenant = await db.tenants.find_one({"id": tenant_id})
+        if tenant:
+            pto_settings = tenant.get("settings", {}).get("pto_settings", {})
+    
+    balance_field = f"{leave_type}_current_balance"
+    
+    balances = []
+    for person in personnel_list:
+        personnel_type = person.get("personnel_type", "operations")
+        is_operations = personnel_type in ["shift", "operations"]
+        
+        current_balance = person.get(balance_field, 0)
+        
+        # Get caps and rates based on leave type
+        if leave_type == "vacation":
+            cap = pto_settings.get(
+                "vacation_rollover_cap_operations" if is_operations else "vacation_rollover_cap_admin",
+                240 if is_operations else 120
+            )
+            allow_negative = pto_settings.get("vacation_allow_negative", True)
+        elif leave_type == "sick":
+            cap = pto_settings.get("sick_rollover_cap", 1080)
+            allow_negative = False  # Per P-021
+        else:  # holiday
+            cap = None  # No cap for holiday
+            allow_negative = pto_settings.get("holiday_allow_negative", True)
+        
+        # Determine status
+        if current_balance < 0:
+            status = "negative"
+        elif cap and current_balance >= cap:
+            status = "at_cap"
+        elif cap and current_balance >= cap * 0.9:
+            status = "near_cap"
+        elif current_balance <= 8:  # Less than one shift
+            status = "low"
+        else:
+            status = "normal"
+        
+        balances.append({
+            "personnel_id": person.get("id"),
+            "payroll_number": person.get("payroll_number"),
+            "name": person.get("name"),
+            "rank": person.get("rank"),
+            "shift": person.get("shift"),
+            "station_id": person.get("station_id"),
+            "personnel_type": "operations" if is_operations else "administrative",
+            "current_balance": current_balance,
+            "cap": cap,
+            "allow_negative": allow_negative,
+            "status": status
+        })
+    
+    # Sort by name
+    balances.sort(key=lambda x: x["name"])
+    
+    return {
+        "leave_type": leave_type,
+        "balances": balances,
+        "summary": {
+            "total_personnel": len(balances),
+            "negative_count": len([b for b in balances if b["status"] == "negative"]),
+            "low_count": len([b for b in balances if b["status"] == "low"]),
+            "at_cap_count": len([b for b in balances if b["status"] == "at_cap"]),
+            "total_hours": sum(b["current_balance"] for b in balances)
+        }
+    }
