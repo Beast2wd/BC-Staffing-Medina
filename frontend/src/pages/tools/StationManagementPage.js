@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Truck } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Truck, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
@@ -19,10 +19,12 @@ export const StationManagementPage = () => {
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingStation, setEditingStation] = useState(null);
+  const [showNewBattalion, setShowNewBattalion] = useState(false);
+  const [newBattalionData, setNewBattalionData] = useState({ battalion_number: '', name: '' });
   const [formData, setFormData] = useState({
     station_number: '',
     name: '',
-    battalion_id: 'bat-8110',
+    battalion_id: '',
     address: '',
     minimum_staffing: 3,
     apparatus: ''
@@ -33,16 +35,58 @@ export const StationManagementPage = () => {
     fetchStations();
   }, []);
 
+  // Set default battalion when battalions are loaded
+  useEffect(() => {
+    if (battalions.length > 0 && !formData.battalion_id) {
+      setFormData(prev => ({ ...prev, battalion_id: battalions[0].id }));
+    }
+  }, [battalions]);
+
   const resetForm = () => {
     setFormData({
       station_number: '',
       name: '',
-      battalion_id: 'bat-8110',
+      battalion_id: battalions.length > 0 ? battalions[0].id : '',
       address: '',
       minimum_staffing: 3,
       apparatus: ''
     });
     setEditingStation(null);
+    setShowNewBattalion(false);
+    setNewBattalionData({ battalion_number: '', name: '' });
+  };
+
+  const handleCreateBattalion = async () => {
+    if (!newBattalionData.battalion_number || !newBattalionData.name) {
+      toast.error('Please fill in battalion number and name');
+      return;
+    }
+
+    try {
+      const response = await api.post('/battalions', {
+        battalion_number: newBattalionData.battalion_number,
+        name: newBattalionData.name
+      });
+      
+      toast.success(`Battalion ${newBattalionData.battalion_number} created`);
+      await fetchBattalions();
+      
+      // Select the newly created battalion
+      setFormData(prev => ({ ...prev, battalion_id: response.data.id }));
+      setShowNewBattalion(false);
+      setNewBattalionData({ battalion_number: '', name: '' });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create battalion');
+    }
+  };
+
+  const handleBattalionChange = (value) => {
+    if (value === 'new') {
+      setShowNewBattalion(true);
+    } else {
+      setShowNewBattalion(false);
+      setFormData(prev => ({ ...prev, battalion_id: value }));
+    }
   };
 
   const handleAddStation = async () => {
@@ -167,21 +211,80 @@ export const StationManagementPage = () => {
                 <div className="space-y-2">
                   <Label>Battalion</Label>
                   <Select 
-                    value={formData.battalion_id} 
-                    onValueChange={(v) => setFormData({...formData, battalion_id: v})}
+                    value={showNewBattalion ? 'new' : formData.battalion_id} 
+                    onValueChange={handleBattalionChange}
                   >
                     <SelectTrigger data-testid="battalion-select">
-                      <SelectValue />
+                      <SelectValue placeholder="Select battalion" />
                     </SelectTrigger>
                     <SelectContent>
                       {battalions.map(battalion => (
                         <SelectItem key={battalion.id} value={battalion.id}>
-                          Battalion {battalion.battalion_number}
+                          Battalion {battalion.battalion_number} - {battalion.name}
                         </SelectItem>
                       ))}
+                      <SelectItem value="new" className="text-primary font-medium">
+                        <span className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" /> Create New Battalion
+                        </span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* New Battalion Form */}
+                {showNewBattalion && (
+                  <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <Shield className="h-4 w-4" />
+                      Create New Battalion
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Battalion Number *</Label>
+                        <Input
+                          value={newBattalionData.battalion_number}
+                          onChange={(e) => setNewBattalionData(prev => ({ ...prev, battalion_number: e.target.value }))}
+                          placeholder="e.g., 8111"
+                          data-testid="new-battalion-number"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Battalion Name *</Label>
+                        <Input
+                          value={newBattalionData.name}
+                          onChange={(e) => setNewBattalionData(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g., North Battalion"
+                          data-testid="new-battalion-name"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        size="sm" 
+                        onClick={handleCreateBattalion}
+                        data-testid="create-battalion-btn"
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Create Battalion
+                      </Button>
+                      <Button 
+                        type="button" 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => {
+                          setShowNewBattalion(false);
+                          setNewBattalionData({ battalion_number: '', name: '' });
+                          if (battalions.length > 0) {
+                            setFormData(prev => ({ ...prev, battalion_id: battalions[0].id }));
+                          }
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Address</Label>
@@ -333,6 +436,52 @@ export const StationManagementPage = () => {
                 )}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+
+        {/* Battalions Overview */}
+        <Card className="mt-6" data-testid="battalions-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="font-heading uppercase flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Battalions ({battalions.length})
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {battalions.map(battalion => {
+                const stationsInBattalion = stations.filter(s => s.battalion_id === battalion.id);
+                return (
+                  <div 
+                    key={battalion.id} 
+                    className="border rounded-lg p-4 bg-muted/20"
+                    data-testid={`battalion-card-${battalion.id}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-heading font-bold">Battalion {battalion.battalion_number}</h3>
+                      <Badge variant="outline">{stationsInBattalion.length} stations</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">{battalion.name}</p>
+                    {stationsInBattalion.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {stationsInBattalion.map(s => (
+                          <Badge key={s.id} variant="secondary" className="text-xs">
+                            Station {s.station_number}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {battalions.length === 0 && (
+                <p className="text-muted-foreground col-span-full text-center py-4">
+                  No battalions found. Create one when adding a station.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </main>
