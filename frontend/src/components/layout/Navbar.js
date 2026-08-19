@@ -479,6 +479,9 @@ export const Navbar = () => {
                 <Link to="/battalion-chief/leave-calendar" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Calendar className="h-4 w-4 inline mr-2" /> Leave Calendar
                 </Link>
+                <Link to="/battalion-chief/leave-balances" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <TrendingUp className="h-4 w-4 inline mr-2" /> Leave Balances
+                </Link>
               </>
             )}
             
