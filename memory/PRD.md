@@ -1097,3 +1097,13 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - Frontend: 100%
 - Report: `/app/test_reports/iteration_35.json`
 
+### Safari Mobile Date Picker Fix (December 2025)
+- ✅ **Bug**: Date picker calendar wouldn't open on Safari Mobile when tapping "Select date first"
+- ✅ **Root Cause**: Radix UI Popover doesn't properly handle touch events in Safari Mobile within dialogs
+- ✅ **Fix Applied**:
+  - Added `modal={true}` to all Popover components
+  - Added explicit `onTouchEnd` handlers to capture touch events
+  - Added `type="button"` to prevent form submission issues
+  - Added `onClick` with `preventDefault` and `stopPropagation`
+- ✅ **Affected Components**: All date pickers in LeaveManagementPage (Add dialog, Edit dialog, View date navigation)
+

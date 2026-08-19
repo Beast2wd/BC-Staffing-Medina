@@ -397,12 +397,22 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     {/* Start Date - Select First to determine which shift personnel to show */}
                     <div className="space-y-2">
                       <Label>Date <span className="text-red-500">*</span></Label>
-                      <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                      <Popover open={startDateOpen} onOpenChange={setStartDateOpen} modal={true}>
                         <PopoverTrigger asChild>
                           <Button
+                            type="button"
                             variant="outline"
                             className="w-full justify-start text-left font-normal"
                             data-testid="start-date-input"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setStartDateOpen(true);
+                            }}
+                            onTouchEnd={(e) => {
+                              e.preventDefault();
+                              setStartDateOpen(true);
+                            }}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {formData.start_date ? format(parseDate(formData.start_date), 'PPP') : 'Select date first'}
@@ -475,13 +485,23 @@ export const LeaveManagementPage = ({ leaveType }) => {
                     {formData.hours > 24 && (
                       <div className="space-y-2">
                         <Label>End Date <span className="text-red-500">*</span></Label>
-                        <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                        <Popover open={endDateOpen} onOpenChange={setEndDateOpen} modal={true}>
                           <PopoverTrigger asChild>
                             <Button
+                              type="button"
                               variant="outline"
                               className="w-full justify-start text-left font-normal"
                               data-testid="end-date-input"
                               disabled={!formData.start_date}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (formData.start_date) setEndDateOpen(true);
+                              }}
+                              onTouchEnd={(e) => {
+                                e.preventDefault();
+                                if (formData.start_date) setEndDateOpen(true);
+                              }}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {formData.end_date ? format(parseDate(formData.end_date), 'PPP') : 'Select end date'}
@@ -604,12 +624,22 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   {/* Date */}
                   <div className="space-y-2">
                     <Label>Date</Label>
-                    <Popover open={editStartDateOpen} onOpenChange={setEditStartDateOpen}>
+                    <Popover open={editStartDateOpen} onOpenChange={setEditStartDateOpen} modal={true}>
                       <PopoverTrigger asChild>
                         <Button
+                          type="button"
                           variant="outline"
                           className="w-full justify-start text-left font-normal"
                           data-testid="edit-start-date-input"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditStartDateOpen(true);
+                          }}
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            setEditStartDateOpen(true);
+                          }}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {editFormData.start_date ? format(parseDate(editFormData.start_date), 'PPP') : 'Select date'}
@@ -680,12 +710,22 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   {editFormData.hours > 24 && (
                     <div className="space-y-2">
                       <Label>End Date</Label>
-                      <Popover open={editEndDateOpen} onOpenChange={setEditEndDateOpen}>
+                      <Popover open={editEndDateOpen} onOpenChange={setEditEndDateOpen} modal={true}>
                         <PopoverTrigger asChild>
                           <Button
+                            type="button"
                             variant="outline"
                             className="w-full justify-start text-left font-normal"
                             data-testid="edit-end-date-input"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditEndDateOpen(true);
+                            }}
+                            onTouchEnd={(e) => {
+                              e.preventDefault();
+                              setEditEndDateOpen(true);
+                            }}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {editFormData.end_date ? format(parseDate(editFormData.end_date), 'PPP') : 'Select date'}
@@ -850,9 +890,23 @@ export const LeaveManagementPage = ({ leaveType }) => {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 
-                <Popover open={viewDateCalendarOpen} onOpenChange={setViewDateCalendarOpen}>
+                <Popover open={viewDateCalendarOpen} onOpenChange={setViewDateCalendarOpen} modal={true}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="min-w-[180px]" data-testid="view-date-btn">
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      className="min-w-[180px]" 
+                      data-testid="view-date-btn"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setViewDateCalendarOpen(true);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        setViewDateCalendarOpen(true);
+                      }}
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {format(viewDate, 'PPP')}
                     </Button>
