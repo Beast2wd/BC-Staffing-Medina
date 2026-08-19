@@ -77,8 +77,30 @@ const LeaveBalanceDashboard = () => {
     }
   }, [api]);
 
+  // Fetch on mount and tab change
   useEffect(() => {
     fetchBalances(activeTab);
+  }, [activeTab, fetchBalances]);
+
+  // Auto-refresh when page gains focus (user returns from editing personnel)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBalances(activeTab);
+      }
+    };
+    
+    const handleFocus = () => {
+      fetchBalances(activeTab);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [activeTab, fetchBalances]);
 
   const handleTabChange = (tab) => {
