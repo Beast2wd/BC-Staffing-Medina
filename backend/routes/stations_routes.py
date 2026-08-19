@@ -89,3 +89,37 @@ async def create_battalion(data: Battalion, current_user: dict = Depends(require
     }
     await db.battalions.insert_one(battalion_doc)
     return Battalion(**battalion_doc)
+
+
+@router.delete("/battalions/{battalion_id}")
+async def delete_battalion(battalion_id: str, current_user: dict = Depends(require_role([UserRole.ADMIN]))):
+    """Delete a battalion. Only allowed if no stations are assigned to it."""
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    query = {"id": battalion_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    # Check if battalion exists
+    battalion = await db.battalions.find_one(query)
+    if not battalion:
+        raise HTTPException(status_code=404, detail="Battalion not found")
+    
+    # Check if any stations are assigned to this battalion
+    station_query = {"battalion_id": battalion_id}
+    if tenant_id:
+        station_query["tenant_id"] = tenant_id
+    
+    station_count = await db.stations.count_documents(station_query)
+    if station_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete battalion. {station_count} station(s) are still assigned to it. Reassign stations first."
+        )
+    
+    # Delete the battalion
+    result = await db.battalions.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Battalion not found")
+    
+    return {"message": "Battalion deleted successfully"}

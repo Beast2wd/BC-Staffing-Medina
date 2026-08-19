@@ -147,6 +147,27 @@ export const StationManagementPage = () => {
     return battalion ? `Battalion ${battalion.battalion_number}` : battalionId;
   };
 
+  const handleDeleteBattalion = async (battalion) => {
+    const stationsInBattalion = stations.filter(s => s.battalion_id === battalion.id);
+    
+    if (stationsInBattalion.length > 0) {
+      toast.error(`Cannot delete Battalion ${battalion.battalion_number}. ${stationsInBattalion.length} station(s) are still assigned to it.`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete Battalion ${battalion.battalion_number} (${battalion.name})?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/battalions/${battalion.id}`);
+      toast.success(`Battalion ${battalion.battalion_number} deleted`);
+      fetchBattalions();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete battalion');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background" data-testid="station-management-page">
       <Navbar />
@@ -453,6 +474,7 @@ export const StationManagementPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {battalions.map(battalion => {
                 const stationsInBattalion = stations.filter(s => s.battalion_id === battalion.id);
+                const canDelete = stationsInBattalion.length === 0;
                 return (
                   <div 
                     key={battalion.id} 
@@ -461,10 +483,23 @@ export const StationManagementPage = () => {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-heading font-bold">Battalion {battalion.battalion_number}</h3>
-                      <Badge variant="outline">{stationsInBattalion.length} stations</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{stationsInBattalion.length} stations</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-7 w-7 p-0 ${canDelete ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-muted-foreground/30 cursor-not-allowed'}`}
+                          onClick={() => canDelete && handleDeleteBattalion(battalion)}
+                          disabled={!canDelete}
+                          title={canDelete ? 'Delete battalion' : 'Cannot delete - stations assigned'}
+                          data-testid={`delete-battalion-${battalion.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">{battalion.name}</p>
-                    {stationsInBattalion.length > 0 && (
+                    {stationsInBattalion.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {stationsInBattalion.map(s => (
                           <Badge key={s.id} variant="secondary" className="text-xs">
@@ -472,6 +507,8 @@ export const StationManagementPage = () => {
                           </Badge>
                         ))}
                       </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No stations assigned</p>
                     )}
                   </div>
                 );
