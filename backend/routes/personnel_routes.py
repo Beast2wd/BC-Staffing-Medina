@@ -695,3 +695,69 @@ async def process_personnel_import(
         "errors": results["errors"],
         "processed": results["processed"]
     }
+
+
+
+from pydantic import BaseModel
+
+class BatchUpdateRequest(BaseModel):
+    personnel_ids: List[str]
+    station_id: Optional[str] = None
+    shift: Optional[str] = None
+
+
+@router.post("/batch-update")
+async def batch_update_personnel(
+    data: BatchUpdateRequest,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Batch update station and/or shift for multiple personnel."""
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    if not data.personnel_ids:
+        raise HTTPException(status_code=400, detail="No personnel IDs provided")
+    
+    if data.station_id is None and data.shift is None:
+        raise HTTPException(status_code=400, detail="At least one field (station_id or shift) must be provided")
+    
+    # Validate shift value if provided
+    if data.shift and data.shift not in ["A", "B", "C"]:
+        raise HTTPException(status_code=400, detail="Invalid shift. Must be A, B, or C")
+    
+    # Validate station exists if provided
+    if data.station_id:
+        station_query = {"id": data.station_id}
+        if tenant_id:
+            station_query["tenant_id"] = tenant_id
+        station = await db.stations.find_one(station_query)
+        if not station:
+            raise HTTPException(status_code=400, detail="Station not found")
+    
+    # Build update document
+    update_fields = {}
+    if data.station_id is not None:
+        update_fields["station_id"] = data.station_id
+    if data.shift is not None:
+        update_fields["shift"] = data.shift
+    
+    # Update personnel
+    query = {"id": {"$in": data.personnel_ids}, "is_active": True}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    result = await db.personnel.update_many(
+        query,
+        {"$set": update_fields}
+    )
+    
+    # Also update user records if they exist
+    await db.users.update_many(
+        {"personnel_id": {"$in": data.personnel_ids}},
+        {"$set": update_fields}
+    )
+    
+    return {
+        "success": True,
+        "message": f"Updated {result.modified_count} personnel",
+        "updated_count": result.modified_count
+    }

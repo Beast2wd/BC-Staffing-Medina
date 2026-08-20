@@ -8,19 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Truck, Shield } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Truck, Shield, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 
 export const StationManagementPage = () => {
   const { api } = useAuth();
-  const { stations, battalions, fetchStations, fetchBattalions } = useStaffing();
+  const { stations, battalions, fetchStations, fetchBattalions, personnel, fetchPersonnel } = useStaffing();
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingStation, setEditingStation] = useState(null);
   const [showNewBattalion, setShowNewBattalion] = useState(false);
   const [newBattalionData, setNewBattalionData] = useState({ battalion_number: '', name: '' });
+  const [editingBattalion, setEditingBattalion] = useState(null);
+  const [showEditBattalionDialog, setShowEditBattalionDialog] = useState(false);
+  const [editBattalionData, setEditBattalionData] = useState({ battalion_number: '', name: '' });
   const [formData, setFormData] = useState({
     station_number: '',
     name: '',
@@ -33,6 +36,7 @@ export const StationManagementPage = () => {
   useEffect(() => {
     fetchBattalions();
     fetchStations();
+    fetchPersonnel();
   }, []);
 
   // Set default battalion when battalions are loaded
@@ -166,6 +170,62 @@ export const StationManagementPage = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to delete battalion');
     }
+  };
+
+  const handleEditBattalion = (battalion) => {
+    setEditingBattalion(battalion);
+    setEditBattalionData({
+      battalion_number: battalion.battalion_number,
+      name: battalion.name
+    });
+    setShowEditBattalionDialog(true);
+  };
+
+  const handleSaveBattalion = async () => {
+    if (!editBattalionData.battalion_number || !editBattalionData.name) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    try {
+      await api.put(`/battalions/${editingBattalion.id}`, {
+        id: editingBattalion.id,
+        battalion_number: editBattalionData.battalion_number,
+        name: editBattalionData.name
+      });
+      toast.success('Battalion updated');
+      setShowEditBattalionDialog(false);
+      setEditingBattalion(null);
+      fetchBattalions();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update battalion');
+    }
+  };
+
+  const handleDeleteStation = async (station) => {
+    const personnelInStation = personnel.filter(p => p.station_id === station.id);
+    
+    if (personnelInStation.length > 0) {
+      toast.error(`Cannot delete Station ${station.station_number}. ${personnelInStation.length} personnel are still assigned to it.`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete Station ${station.station_number} (${station.name})?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/stations/${station.id}`);
+      toast.success(`Station ${station.station_number} deleted`);
+      fetchStations();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete station');
+    }
+  };
+
+  // Get personnel count for a station
+  const getPersonnelCount = (stationId) => {
+    return personnel.filter(p => p.station_id === stationId).length;
   };
 
   return (
@@ -340,21 +400,37 @@ export const StationManagementPage = () => {
 
         {/* Stations Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-          {stations.map(station => (
+          {stations.map(station => {
+            const personnelCount = getPersonnelCount(station.id);
+            const canDelete = personnelCount === 0;
+            return (
             <Card key={station.id} className="hover:border-primary/50 transition-colors" data-testid={`station-card-${station.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="font-heading text-xl uppercase">
                     Station {station.station_number}
                   </CardTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleEditStation(station)}
-                    data-testid={`edit-station-${station.id}`}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleEditStation(station)}
+                      data-testid={`edit-station-${station.id}`}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={canDelete ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-muted-foreground/30 cursor-not-allowed'}
+                      onClick={() => canDelete && handleDeleteStation(station)}
+                      disabled={!canDelete}
+                      title={canDelete ? 'Delete station' : `Cannot delete - ${personnelCount} personnel assigned`}
+                      data-testid={`delete-station-${station.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -366,6 +442,13 @@ export const StationManagementPage = () => {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Min. Staffing:</span>
                   <span className="font-semibold">{station.minimum_staffing || 3}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Personnel:</span>
+                  <Badge variant={personnelCount > 0 ? "default" : "secondary"} className="text-xs">
+                    {personnelCount} assigned
+                  </Badge>
                 </div>
 
                 {station.address && (
@@ -394,7 +477,7 @@ export const StationManagementPage = () => {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          )})}
         </div>
 
         {/* Stations Table */}
@@ -488,6 +571,16 @@ export const StationManagementPage = () => {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => handleEditBattalion(battalion)}
+                          title="Edit battalion"
+                          data-testid={`edit-battalion-${battalion.id}`}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className={`h-7 w-7 p-0 ${canDelete ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-muted-foreground/30 cursor-not-allowed'}`}
                           onClick={() => canDelete && handleDeleteBattalion(battalion)}
                           disabled={!canDelete}
@@ -521,6 +614,43 @@ export const StationManagementPage = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Edit Battalion Dialog */}
+        <Dialog open={showEditBattalionDialog} onOpenChange={setShowEditBattalionDialog}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Edit Battalion</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Battalion Number</Label>
+                <Input
+                  value={editBattalionData.battalion_number}
+                  onChange={(e) => setEditBattalionData(prev => ({ ...prev, battalion_number: e.target.value }))}
+                  placeholder="e.g., 8110"
+                  data-testid="edit-battalion-number-input"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Battalion Name</Label>
+                <Input
+                  value={editBattalionData.name}
+                  onChange={(e) => setEditBattalionData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., North Battalion"
+                  data-testid="edit-battalion-name-input"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveBattalion} className="flex-1" data-testid="save-battalion-btn">
+                  <Save className="h-4 w-4 mr-2" /> Save
+                </Button>
+                <Button variant="outline" onClick={() => setShowEditBattalionDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

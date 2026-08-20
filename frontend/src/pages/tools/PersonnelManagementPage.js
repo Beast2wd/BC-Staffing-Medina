@@ -655,6 +655,9 @@ export const PersonnelManagementPage = () => {
   const [importResults, setImportResults] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showBatchEditDialog, setShowBatchEditDialog] = useState(false);
+  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState([]);
+  const [batchEditData, setBatchEditData] = useState({ station_id: '', shift: '' });
 
   // Define rank order for sorting (lower number = higher rank)
   // Includes common aliases to ensure consistent sorting
@@ -822,6 +825,78 @@ export const PersonnelManagementPage = () => {
       setLoading(false);
     }
   }, [api, passwordPerson, tempPassword]);
+
+  // Handle batch edit of personnel
+  const handleBatchEdit = useCallback(async () => {
+    if (selectedPersonnelIds.length === 0) {
+      toast.error('Please select at least one personnel');
+      return;
+    }
+
+    if (!batchEditData.station_id && !batchEditData.shift) {
+      toast.error('Please select at least one field to update');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updateData = {
+        personnel_ids: selectedPersonnelIds
+      };
+      
+      if (batchEditData.station_id) {
+        updateData.station_id = batchEditData.station_id;
+      }
+      if (batchEditData.shift) {
+        updateData.shift = batchEditData.shift;
+      }
+
+      const response = await api.post('/personnel/batch-update', updateData);
+      toast.success(response.data.message);
+      setShowBatchEditDialog(false);
+      setSelectedPersonnelIds([]);
+      setBatchEditData({ station_id: '', shift: '' });
+      fetchPersonnel();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to batch update personnel');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, selectedPersonnelIds, batchEditData, fetchPersonnel]);
+
+  // Toggle personnel selection for batch edit
+  const togglePersonnelSelection = useCallback((personnelId) => {
+    setSelectedPersonnelIds(prev => 
+      prev.includes(personnelId)
+        ? prev.filter(id => id !== personnelId)
+        : [...prev, personnelId]
+    );
+  }, []);
+
+  // Select all visible personnel
+  const selectAllPersonnel = useCallback(() => {
+    // Get filtered personnel inline to avoid dependency issues
+    const filtered = personnel
+      .filter(person => {
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          if (!person.name?.toLowerCase().includes(search) && 
+              !person.payroll_number?.toLowerCase().includes(search)) {
+            return false;
+          }
+        }
+        if (filterShift !== 'all' && person.shift !== filterShift) return false;
+        if (filterStation !== 'all' && person.station_id !== filterStation) return false;
+        return true;
+      });
+    const visibleIds = filtered.map(p => p.id);
+    setSelectedPersonnelIds(visibleIds);
+  }, [personnel, searchTerm, filterShift, filterStation]);
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelectedPersonnelIds([]);
+  }, []);
 
   // Download CSV template
   const handleDownloadTemplate = useCallback(async () => {
@@ -1067,8 +1142,47 @@ export const PersonnelManagementPage = () => {
             <Button onClick={() => setShowAddDialog(true)} data-testid="add-personnel-btn">
               <Plus className="h-4 w-4 mr-2" /> Add Personnel
             </Button>
+            {selectedPersonnelIds.length > 0 && (
+              <Button 
+                variant="secondary"
+                onClick={() => setShowBatchEditDialog(true)} 
+                data-testid="batch-edit-btn"
+              >
+                <Edit2 className="h-4 w-4 mr-2" /> Edit Selected ({selectedPersonnelIds.length})
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Selection Controls */}
+        {personnel.length > 0 && (
+          <div className="flex items-center gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+            <span className="text-sm text-muted-foreground">Batch Edit:</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={selectAllPersonnel}
+              data-testid="select-all-btn"
+            >
+              Select All ({filteredPersonnel.length})
+            </Button>
+            {selectedPersonnelIds.length > 0 && (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={clearSelection}
+                  data-testid="clear-selection-btn"
+                >
+                  <X className="h-4 w-4 mr-1" /> Clear
+                </Button>
+                <Badge variant="secondary">
+                  {selectedPersonnelIds.length} selected
+                </Badge>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Add Dialog */}
         <PersonnelFormDialog
@@ -1492,6 +1606,21 @@ export const PersonnelManagementPage = () => {
                           <Table>
                             <TableHeader>
                               <TableRow>
+                                <TableHead className="w-10">
+                                  <input 
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-gray-300"
+                                    checked={shiftPersonnel.every(p => selectedPersonnelIds.includes(p.id))}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedPersonnelIds(prev => [...new Set([...prev, ...shiftPersonnel.map(p => p.id)])]);
+                                      } else {
+                                        setSelectedPersonnelIds(prev => prev.filter(id => !shiftPersonnel.map(p => p.id).includes(id)));
+                                      }
+                                    }}
+                                    data-testid={`select-all-shift-${shift}`}
+                                  />
+                                </TableHead>
                                 <TableHead className="w-24">Emp #</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Rank</TableHead>
@@ -1503,7 +1632,20 @@ export const PersonnelManagementPage = () => {
                             </TableHeader>
                             <TableBody>
                               {shiftPersonnel.map(person => (
-                                <TableRow key={person.id} data-testid={`personnel-row-${person.id}`}>
+                                <TableRow 
+                                  key={person.id} 
+                                  data-testid={`personnel-row-${person.id}`}
+                                  className={selectedPersonnelIds.includes(person.id) ? 'bg-primary/5' : ''}
+                                >
+                                  <TableCell>
+                                    <input 
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded border-gray-300"
+                                      checked={selectedPersonnelIds.includes(person.id)}
+                                      onChange={() => togglePersonnelSelection(person.id)}
+                                      data-testid={`select-${person.id}`}
+                                    />
+                                  </TableCell>
                                   <TableCell className="font-mono text-sm">{person.payroll_number}</TableCell>
                                   <TableCell className="font-medium">{person.name}</TableCell>
                                   <TableCell className="text-sm">{person.rank}</TableCell>
@@ -1587,6 +1729,105 @@ export const PersonnelManagementPage = () => {
             ))
           )}
         </div>
+
+        {/* Batch Edit Dialog */}
+        <Dialog open={showBatchEditDialog} onOpenChange={setShowBatchEditDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase flex items-center gap-2">
+                <Edit2 className="h-5 w-5" />
+                Batch Edit Personnel
+              </DialogTitle>
+              <DialogDescription>
+                Update station and/or shift for {selectedPersonnelIds.length} selected personnel
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-2">Selected Personnel:</p>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                  {selectedPersonnelIds.slice(0, 10).map(id => {
+                    const person = personnel.find(p => p.id === id);
+                    return person ? (
+                      <Badge key={id} variant="secondary" className="text-xs">
+                        {person.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                  {selectedPersonnelIds.length > 10 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{selectedPersonnelIds.length - 10} more
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>New Station (optional)</Label>
+                <Select 
+                  value={batchEditData.station_id || "keep"} 
+                  onValueChange={(v) => setBatchEditData(prev => ({ ...prev, station_id: v === "keep" ? "" : v }))}
+                >
+                  <SelectTrigger data-testid="batch-station-select">
+                    <SelectValue placeholder="Keep current station" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keep">Keep current station</SelectItem>
+                    {stations.map(station => (
+                      <SelectItem key={station.id} value={station.id}>
+                        Station {station.station_number} - {station.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>New Shift (optional)</Label>
+                <Select 
+                  value={batchEditData.shift || "keep"} 
+                  onValueChange={(v) => setBatchEditData(prev => ({ ...prev, shift: v === "keep" ? "" : v }))}
+                >
+                  <SelectTrigger data-testid="batch-shift-select">
+                    <SelectValue placeholder="Keep current shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keep">Keep current shift</SelectItem>
+                    <SelectItem value="A">A Shift</SelectItem>
+                    <SelectItem value="B">B Shift</SelectItem>
+                    <SelectItem value="C">C Shift</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={handleBatchEdit} 
+                  disabled={loading || (!batchEditData.station_id && !batchEditData.shift)}
+                  className="flex-1"
+                  data-testid="batch-edit-confirm-btn"
+                >
+                  {loading ? (
+                    <>Updating...</>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" /> Update {selectedPersonnelIds.length} Personnel
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowBatchEditDialog(false);
+                    setBatchEditData({ station_id: '', shift: '' });
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
