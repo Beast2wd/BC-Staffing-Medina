@@ -359,7 +359,7 @@ async def get_part_time_employee_stats(
         try:
             record_year = int(record_date[:4])
             record_month = int(record_date[5:7])
-        except:
+        except (ValueError, IndexError):
             continue
         
         if record_status == "assigned":
@@ -484,3 +484,78 @@ async def get_assigned_part_time(
             record["pt_employee_phone"] = pt_emp.get("contact_phone", "")
     
     return records
+
+
+
+@router.put("/part-time-availability/{record_id}/unassign")
+async def unassign_part_time_availability(
+    record_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Unassign a part-time employee (revert to 'available' status)"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": record_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    record = await db.part_time_availability.find_one(query, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    if record.get("status") != "assigned":
+        raise HTTPException(status_code=400, detail="Can only unassign records that are currently assigned")
+    
+    # Revert to 'available' status and clear assignment info
+    await db.part_time_availability.update_one(
+        query,
+        {"$set": {
+            "status": "available",
+            "approved_by": None,
+            "assigned_station_id": None
+        }}
+    )
+    
+    updated = await db.part_time_availability.find_one(query, {"_id": 0})
+    return updated
+
+
+@router.put("/part-time-availability/{record_id}/reassign")
+async def reassign_part_time_availability(
+    record_id: str,
+    station_id: str,
+    shift: Optional[str] = None,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Reassign a part-time employee to a different station and/or shift"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"id": record_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    record = await db.part_time_availability.find_one(query, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    if record.get("status") != "assigned":
+        raise HTTPException(status_code=400, detail="Can only reassign records that are currently assigned")
+    
+    if not station_id:
+        raise HTTPException(status_code=400, detail="Station must be selected for reassignment")
+    
+    # Build update document
+    update_data = {
+        "assigned_station_id": station_id,
+        "approved_by": current_user["payroll_number"]
+    }
+    
+    # Optionally update shift if provided
+    if shift and shift in ["A", "B", "C"]:
+        update_data["shift"] = shift
+    
+    await db.part_time_availability.update_one(
+        query,
+        {"$set": update_data}
+    )
+    
+    updated = await db.part_time_availability.find_one(query, {"_id": 0})
+    return updated

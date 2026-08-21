@@ -9,9 +9,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Clock, Check, X, Calendar, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Check, X, Calendar, TrendingUp, UserMinus, RefreshCw } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { formatDisplayDate } from '../../utils/dateUtils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Label } from '../../components/ui/label';
 import {
   Accordion,
   AccordionContent,
@@ -27,6 +29,8 @@ export const PartTimeBCPage = () => {
   const [employeeStats, setEmployeeStats] = useState({});
   const [loading, setLoading] = useState(false);
   const [selectedStations, setSelectedStations] = useState({}); // Track station selection per record
+  const [reassignDialog, setReassignDialog] = useState({ open: false, record: null });
+  const [reassignData, setReassignData] = useState({ station_id: '', shift: '' });
 
   useEffect(() => {
     fetchPartTimeEmployees();
@@ -124,6 +128,48 @@ export const PartTimeBCPage = () => {
       fetchAvailabilityRecords();
     } catch (error) {
       toast.error('Failed to decline availability');
+    }
+  };
+
+  const handleUnassign = async (recordId) => {
+    if (!window.confirm('Are you sure you want to unassign this part-time employee? They will be moved back to pending approval.')) {
+      return;
+    }
+    try {
+      await api.put(`/part-time-availability/${recordId}/unassign`);
+      toast.success('Part-time employee unassigned successfully');
+      fetchAvailabilityRecords();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to unassign');
+    }
+  };
+
+  const openReassignDialog = (record) => {
+    setReassignDialog({ open: true, record });
+    setReassignData({
+      station_id: record.assigned_station_id || '',
+      shift: record.shift || ''
+    });
+  };
+
+  const handleReassign = async () => {
+    const { record } = reassignDialog;
+    if (!reassignData.station_id) {
+      toast.error('Please select a station');
+      return;
+    }
+    try {
+      await api.put(`/part-time-availability/${record.id}/reassign`, null, {
+        params: {
+          station_id: reassignData.station_id,
+          shift: reassignData.shift || undefined
+        }
+      });
+      toast.success('Part-time employee reassigned successfully');
+      setReassignDialog({ open: false, record: null });
+      fetchAvailabilityRecords();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reassign');
     }
   };
 
@@ -326,6 +372,84 @@ export const PartTimeBCPage = () => {
           </CardContent>
         </Card>
 
+        {/* Assigned Part-Time Employees */}
+        <Card data-testid="assigned-part-time-card">
+          <CardHeader>
+            <CardTitle className="font-heading uppercase flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-500" />
+              Assigned Part-Time ({availabilityRecords.filter(r => r.status === 'assigned').length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Emp #</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Station</TableHead>
+                  <TableHead>Hours</TableHead>
+                  <TableHead>Approved By</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {availabilityRecords.filter(r => r.status === 'assigned').length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      No assigned part-time employees for {formatDisplayDate(selectedDate)}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  availabilityRecords
+                    .filter(r => r.status === 'assigned')
+                    .map(record => {
+                      const stationInfo = stations.find(s => s.id === record.assigned_station_id);
+                      return (
+                        <TableRow key={record.id} data-testid={`assigned-row-${record.id}`}>
+                          <TableCell className="font-medium">{record.employee_name}</TableCell>
+                          <TableCell className="font-mono text-sm text-primary">{record.employee_number}</TableCell>
+                          <TableCell>{formatDisplayDate(record.date)}</TableCell>
+                          <TableCell>{getShiftBadge(record.shift)}</TableCell>
+                          <TableCell>
+                            {stationInfo ? (
+                              <Badge variant="outline">Station {stationInfo.station_number}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{record.hours} hrs</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{record.approved_by || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openReassignDialog(record)}
+                                data-testid={`reassign-btn-${record.id}`}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-1" /> Reassign
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleUnassign(record.id)}
+                                data-testid={`unassign-btn-${record.id}`}
+                              >
+                                <UserMinus className="h-4 w-4 mr-1" /> Unassign
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
         {/* Part-Time Employee Details */}
         <Card data-testid="employee-details-card">
           <CardHeader>
@@ -477,6 +601,82 @@ export const PartTimeBCPage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Reassign Dialog */}
+        <Dialog open={reassignDialog.open} onOpenChange={(open) => setReassignDialog({ open, record: open ? reassignDialog.record : null })}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Reassign Part-Time Employee
+              </DialogTitle>
+            </DialogHeader>
+            {reassignDialog.record && (
+              <div className="space-y-4 py-4">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{reassignDialog.record.employee_name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDisplayDate(reassignDialog.record.date)} • {reassignDialog.record.hours} hrs
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Station *</Label>
+                  <Select 
+                    value={reassignData.station_id} 
+                    onValueChange={(v) => setReassignData(prev => ({ ...prev, station_id: v }))}
+                  >
+                    <SelectTrigger data-testid="reassign-station-select">
+                      <SelectValue placeholder="Select station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stations.map(station => (
+                        <SelectItem key={station.id} value={station.id}>
+                          Station {station.station_number} - {station.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Shift (optional - leave blank to keep current)</Label>
+                  <Select 
+                    value={reassignData.shift || "keep"} 
+                    onValueChange={(v) => setReassignData(prev => ({ ...prev, shift: v === "keep" ? '' : v }))}
+                  >
+                    <SelectTrigger data-testid="reassign-shift-select">
+                      <SelectValue placeholder="Keep current shift" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="keep">Keep current shift ({reassignDialog.record.shift})</SelectItem>
+                      <SelectItem value="A">A Shift</SelectItem>
+                      <SelectItem value="B">B Shift</SelectItem>
+                      <SelectItem value="C">C Shift</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    onClick={handleReassign} 
+                    disabled={!reassignData.station_id}
+                    className="flex-1"
+                    data-testid="reassign-confirm-btn"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" /> Reassign
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setReassignDialog({ open: false, record: null })}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
