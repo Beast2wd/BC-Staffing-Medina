@@ -123,7 +123,7 @@ async def get_weather_forecast(
                 params={
                     "key": WEATHER_API_KEY,
                     "q": location_query,
-                    "days": 4,  # Today + 3 days
+                    "days": 3,  # Free tier limit is 3 days
                     "aqi": "no",
                     "alerts": "yes"  # Include weather alerts
                 }

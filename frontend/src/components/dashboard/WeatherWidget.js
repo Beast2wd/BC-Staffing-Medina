@@ -580,7 +580,7 @@ export const WeatherWidget = () => {
             })()}
 
             {/* 3-Day Forecast */}
-            <div className="flex-1 grid grid-cols-4 gap-2 sm:gap-3">
+            <div className="flex-1 grid grid-cols-3 gap-2 sm:gap-3">
               {forecast.map((day, index) => {
                 const isToday = index === 0;
                 const radarUrl = isToday && weather.location 
