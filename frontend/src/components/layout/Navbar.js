@@ -66,7 +66,7 @@ const NavLink = ({ to, children, active, disabled, primaryColor }) => (
 );
 
 export const Navbar = () => {
-  const { user, logout, isAdmin, isFirefighter, isVolunteer, isSuperAdmin, tenant } = useAuth();
+  const { user, logout, isAdmin, isFirefighter, isVolunteer, isPartTime, isEngineer, isViewOnly, isSuperAdmin, tenant } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { logoUrl: brandingLogo, tenantName, primaryColor } = useBranding();
   const location = useLocation();
@@ -85,8 +85,8 @@ export const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // Check if user can view/access a menu item (all roles except firefighters and volunteers for most items)
-  const canAccessFullMenu = !isFirefighter && !isVolunteer;
+  // Check if user can view/access full menu (not view-only users like firefighters, volunteers, part-time, engineers)
+  const canAccessFullMenu = !isViewOnly;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -104,12 +104,10 @@ export const Navbar = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center gap-2">
-          {/* Daily Worksheet - Hidden for volunteers */}
-          {!isVolunteer && (
-            <NavLink to="/dashboard" active={isActive('/dashboard')} disabled={!canAccessFullMenu} primaryColor={primaryColor}>
-              Daily Worksheet
-            </NavLink>
-          )}
+          {/* Daily Worksheet - Available to all users (view-only for firefighters, volunteers, part-time, engineers) */}
+          <NavLink to="/dashboard" active={isActive('/dashboard')} primaryColor={primaryColor}>
+            Daily Worksheet {isViewOnly && <span className="text-xs ml-1">(View)</span>}
+          </NavLink>
 
           {/* On Duty - Available to ALL users */}
           <NavLink to="/on-duty" active={isActive('/on-duty')} primaryColor={primaryColor}>
@@ -439,11 +437,10 @@ export const Navbar = () => {
         <div className="lg:hidden border-t border-border bg-card p-4 animate-slide-in max-h-[80vh] overflow-y-auto">
           <nav className="flex flex-col gap-1">
             {/* Main Navigation */}
-            {canAccessFullMenu && (
-              <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard" onClick={() => setMobileMenuOpen(false)}>
-                <ClipboardList className="h-4 w-4 inline mr-2" /> Daily Worksheet
-              </Link>
-            )}
+            {/* Daily Worksheet - Available to all users (view-only for view-only roles) */}
+            <Link to="/dashboard" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-dashboard" onClick={() => setMobileMenuOpen(false)}>
+              <ClipboardList className="h-4 w-4 inline mr-2" /> Daily Worksheet {isViewOnly && <span className="text-xs text-muted-foreground">(View Only)</span>}
+            </Link>
             <Link to="/on-duty" className="px-4 py-2 hover:bg-muted rounded-md" data-testid="mobile-nav-onduty" onClick={() => setMobileMenuOpen(false)}>
               <Users className="h-4 w-4 inline mr-2" /> On Duty
             </Link>

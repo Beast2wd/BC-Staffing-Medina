@@ -17,10 +17,17 @@
 - **Role**: Battalion Chief
 
 ## Firefighter Account (for testing notifications)
-- **Payroll Number**: 200003
-- **Password**: firefighter123
+- **Payroll Number**: 200003 or 200001
+- **Password**: firefighter123 or changeme123 (default)
 - **Role**: Firefighter
-- **Note**: Created during notification bell testing
+- **Note**: View-only access to Daily Worksheet (no edit, no remarks). Must change password on first login.
+
+## View-Only Roles
+The following roles have view-only access to Daily Worksheet (can see staffing grid but cannot edit and cannot see remarks/notes):
+- Firefighter
+- Part-Time Firefighter
+- Volunteer Firefighter
+- Engineer / Driver Operator
 
 ## Default Password for New Personnel/Users
 - **Default Password**: changeme123

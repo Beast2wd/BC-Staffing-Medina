@@ -117,11 +117,15 @@ export const AuthProvider = ({ children }) => {
   const isBattalionChief = user?.role === 'battalion_chief';
   const isCaptain = user?.role === 'captain';
   const isLieutenant = user?.role === 'lieutenant';
-  const isFirefighter = user?.role === 'firefighter';
-  const isVolunteer = user?.role === 'volunteer';
+  const isEngineer = user?.role === 'engineer' || user?.rank?.toLowerCase().includes('engineer') || user?.rank?.toLowerCase().includes('driver');
+  const isFirefighter = user?.role === 'firefighter' || (user?.rank?.toLowerCase() === 'firefighter' && !user?.role);
+  const isPartTime = user?.role === 'part_time' || user?.rank?.toLowerCase().includes('part-time') || user?.rank?.toLowerCase().includes('part time');
+  const isVolunteer = user?.role === 'volunteer' || user?.rank?.toLowerCase().includes('volunteer');
   const isSuperAdmin = user?.is_super_admin === true;
   
   const canEdit = isAdmin || isBattalionChief || isCaptain || isLieutenant;
+  // View-only users can see worksheet but not remarks and cannot edit
+  const isViewOnly = (isFirefighter || isVolunteer || isPartTime || isEngineer) && !canEdit;
 
   return (
     <AuthContext.Provider value={{
@@ -136,10 +140,13 @@ export const AuthProvider = ({ children }) => {
       isBattalionChief,
       isCaptain,
       isLieutenant,
+      isEngineer,
       isFirefighter,
+      isPartTime,
       isVolunteer,
       isSuperAdmin,
       canEdit,
+      isViewOnly,
       mustChangePassword,
       tenant,
       tenantLoading

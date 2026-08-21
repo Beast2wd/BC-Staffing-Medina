@@ -15,10 +15,10 @@ import { formatDisplayDateWithDay } from '../utils/dateUtils';
 
 export const DashboardPage = () => {
   const { fetchAllData, loading, currentShift, currentShiftDay, selectedDate } = useStaffing();
-  const { user, isFirefighter, isVolunteer } = useAuth();
+  const { user, isViewOnly, canEdit } = useAuth();
 
-  // Hide remarks for firefighters and volunteers
-  const canViewRemarks = !isFirefighter && !isVolunteer;
+  // Hide remarks for view-only users (firefighters, volunteers, part-time, engineers)
+  const canViewRemarks = !isViewOnly;
 
   // Handle real-time updates
   const handleRealtimeUpdate = useCallback((data) => {

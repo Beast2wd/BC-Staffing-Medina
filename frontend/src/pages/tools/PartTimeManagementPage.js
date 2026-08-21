@@ -39,6 +39,8 @@ export const PartTimeManagementPage = () => {
   // Form states
   const [formData, setFormData] = useState({
     employee_number: '',
+    first_name: '',
+    last_name: '',
     name: '',
     rank: '',
     certifications: [],
@@ -68,6 +70,8 @@ export const PartTimeManagementPage = () => {
   const resetForm = () => {
     setFormData({
       employee_number: '',
+      first_name: '',
+      last_name: '',
       name: '',
       rank: '',
       certifications: [],
@@ -79,8 +83,8 @@ export const PartTimeManagementPage = () => {
   };
 
   const handleAddEmployee = async () => {
-    if (!formData.name.trim()) {
-      toast.error('Name is required');
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error('First name and last name are required');
       return;
     }
     if (!formData.employee_number.trim()) {
@@ -88,8 +92,15 @@ export const PartTimeManagementPage = () => {
       return;
     }
 
+    // Combine first and last name for the name field
+    const fullName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
+    const submitData = {
+      ...formData,
+      name: fullName
+    };
+
     try {
-      await api.post('/part-time-employees', formData);
+      await api.post('/part-time-employees', submitData);
       toast.success('Part-time employee added successfully');
       setShowAddDialog(false);
       resetForm();
@@ -105,8 +116,8 @@ export const PartTimeManagementPage = () => {
   };
 
   const handleEditEmployee = async () => {
-    if (!formData.name.trim()) {
-      toast.error('Name is required');
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error('First name and last name are required');
       return;
     }
     if (!formData.employee_number.trim()) {
@@ -114,8 +125,15 @@ export const PartTimeManagementPage = () => {
       return;
     }
 
+    // Combine first and last name for the name field
+    const fullName = `${formData.first_name.trim()} ${formData.last_name.trim()}`;
+    const submitData = {
+      ...formData,
+      name: fullName
+    };
+
     try {
-      await api.put(`/part-time-employees/${editingEmployee.id}`, formData);
+      await api.put(`/part-time-employees/${editingEmployee.id}`, submitData);
       toast.success('Part-time employee updated successfully');
       setShowEditDialog(false);
       setEditingEmployee(null);
@@ -146,8 +164,15 @@ export const PartTimeManagementPage = () => {
 
   const openEditDialog = (employee) => {
     setEditingEmployee(employee);
+    // Split the name into first and last name
+    const nameParts = (employee.name || '').split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
     setFormData({
       employee_number: employee.employee_number || '',
+      first_name: employee.first_name || firstName,
+      last_name: employee.last_name || lastName,
       name: employee.name || '',
       rank: employee.rank || '',
       certifications: employee.certifications || [],
@@ -201,33 +226,45 @@ export const PartTimeManagementPage = () => {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name *</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="Enter full name"
-            data-testid="pt-name-input"
-          />
+          <Label>Rank</Label>
+          <Select
+            value={formData.rank || 'none'}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, rank: value === 'none' ? '' : value }))}
+          >
+            <SelectTrigger data-testid="pt-rank-select">
+              <SelectValue placeholder="Select rank" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Rank</SelectItem>
+              {PART_TIME_RANKS.map(rank => (
+                <SelectItem key={rank} value={rank}>{rank}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Rank</Label>
-        <Select
-          value={formData.rank || 'none'}
-          onValueChange={(value) => setFormData(prev => ({ ...prev, rank: value === 'none' ? '' : value }))}
-        >
-          <SelectTrigger data-testid="pt-rank-select">
-            <SelectValue placeholder="Select rank" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No Rank</SelectItem>
-            {PART_TIME_RANKS.map(rank => (
-              <SelectItem key={rank} value={rank}>{rank}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="first_name">First Name *</Label>
+          <Input
+            id="first_name"
+            value={formData.first_name}
+            onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
+            placeholder="Enter first name"
+            data-testid="pt-first-name-input"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="last_name">Last Name *</Label>
+          <Input
+            id="last_name"
+            value={formData.last_name}
+            onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
+            placeholder="Enter last name"
+            data-testid="pt-last-name-input"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
