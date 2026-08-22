@@ -23,7 +23,7 @@ import {
 
 export const PartTimeBCPage = () => {
   const { api } = useAuth();
-  const { selectedDate, setSelectedDate, selectedBattalion, stations } = useStaffing();
+  const { selectedDate, setSelectedDate, selectedBattalion, stations, fetchStations } = useStaffing();
   const [availabilityRecords, setAvailabilityRecords] = useState([]);
   const [partTimeEmployees, setPartTimeEmployees] = useState([]);
   const [employeeStats, setEmployeeStats] = useState({});
@@ -35,6 +35,7 @@ export const PartTimeBCPage = () => {
   useEffect(() => {
     fetchPartTimeEmployees();
     fetchAvailabilityRecords();
+    fetchStations(); // Ensure stations are loaded
   }, [selectedBattalion]);
 
   useEffect(() => {
