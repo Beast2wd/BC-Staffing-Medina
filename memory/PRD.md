@@ -1107,3 +1107,32 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
   - Added `onClick` with `preventDefault` and `stopPropagation`
 - ✅ **Affected Components**: All date pickers in LeaveManagementPage (Add dialog, Edit dialog, View date navigation)
 
+
+### Reports - Part-Time Hours Report (December 2025)
+- ✅ **Part-Time Hours Report** - New report type showing monthly hours tracking for part-time employees
+- ✅ **Date Selection Modes**: Toggle between Month/Year dropdown selection OR Custom Date Range picker
+- ✅ **Summary Statistics**: Employee count, total shifts, total hours
+- ✅ **Employee Breakdown Table**: Per-employee hours (this month, YTD), shifts count
+- ✅ **Monthly Breakdown**: Detailed month-by-month hours breakdown for each employee
+- ✅ **Recent Shifts Detail**: Shows date, shift, station, hours for recent assigned shifts
+- ✅ **CSV Export**: Download report as CSV file
+
+### Reports - Individual Personnel Report (December 2025)
+- ✅ **Individual Personnel Report** - Comprehensive report for each platform member
+- ✅ **Personnel Selection Dropdown**: Choose from active personnel list sorted by rank/name
+- ✅ **Profile Information Section**: Payroll #, rank, station, shift, battalion, phone, email, hire date, type
+- ✅ **Leave Balances Section**: Vacation, sick, holiday balances with annual allocation and period usage
+- ✅ **Tabbed Content**:
+  - Overview: Summary stats (riding assignments, OT hours, deployment days, certifications)
+  - Riding: Apparatus/riding assignments with date, apparatus, station, shift, position
+  - Leave: Leave records with type, dates, hours, notes
+  - Overtime: OT records with date, station, hours, status
+  - Deployments: Deployment history with type, dates, days, location
+- ✅ **CSV Export**: Download full personnel report as CSV file
+- ✅ **Print Friendly**: Print button for all report types
+
+### API Endpoints Added (December 2025)
+- `GET /api/reports/part-time-hours` - Part-time hours summary with employee breakdown
+- `GET /api/reports/personnel/{personnel_id}` - Individual personnel comprehensive report
+- `GET /api/reports/personnel-list` - List of personnel for report selection dropdown
+

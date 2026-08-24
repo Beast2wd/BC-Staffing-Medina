@@ -463,7 +463,7 @@ async def get_deployment_summary(
                 start = datetime.strptime(dep["start_date"], "%Y-%m-%d")
                 end = datetime.strptime(dep["end_date"], "%Y-%m-%d")
                 total_days += (end - start).days + 1
-            except:
+            except (ValueError, TypeError):
                 pass
     
     return {
@@ -827,7 +827,7 @@ async def export_staffing_report_excel(
                 try:
                     if cell.value and len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
+                except (ValueError, TypeError, AttributeError):
                     pass
             if column_letter:
                 ws2.column_dimensions[column_letter].width = min(max_length + 2, 50)
@@ -887,7 +887,7 @@ async def export_staffing_report_excel(
             try:
                 if cell.value and len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except (ValueError, TypeError, AttributeError):
                 pass
         if column_letter:
             ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
@@ -1138,3 +1138,387 @@ async def export_staffing_report_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# ===================== PART-TIME HOURS REPORT =====================
+
+@router.get("/part-time-hours")
+async def get_part_time_hours_summary(
+    start_date: str,
+    end_date: str,
+    battalion_id: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get part-time employee hours summary report with monthly breakdown"""
+    tenant_id = get_tenant_id(current_user)
+    
+    # Build query for assigned part-time availability records
+    query = {
+        "date": {"$gte": start_date, "$lte": end_date},
+        "status": "assigned"  # Only count assigned shifts (scheduled = worked)
+    }
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    # Get all part-time availability records in date range
+    pt_records = await db.part_time_availability.find(query, {"_id": 0}).to_list(2000)
+    
+    # Get part-time employees for name lookups
+    pt_query = {}
+    if tenant_id:
+        pt_query["tenant_id"] = tenant_id
+    pt_employees_list = await db.part_time_employees.find(pt_query, {"_id": 0}).to_list(500)
+    pt_employees_dict = {e["id"]: e for e in pt_employees_list}
+    
+    # Get stations for name lookups
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # Get YTD records for year-to-date calculation
+    current_year = datetime.now().year
+    ytd_query = {
+        "date": {"$gte": f"{current_year}-01-01", "$lte": end_date},
+        "status": "assigned"
+    }
+    if tenant_id:
+        ytd_query["tenant_id"] = tenant_id
+    if battalion_id:
+        ytd_query["battalion_id"] = battalion_id
+    ytd_records = await db.part_time_availability.find(ytd_query, {"_id": 0}).to_list(3000)
+    
+    # Build YTD totals by employee
+    ytd_by_employee = {}
+    for record in ytd_records:
+        eid = record.get("employee_id")
+        if eid not in ytd_by_employee:
+            ytd_by_employee[eid] = 0
+        ytd_by_employee[eid] += record.get("hours", 24)  # Default 24 hours per shift
+    
+    # Aggregate by employee with monthly breakdown
+    employee_hours = {}
+    for record in pt_records:
+        eid = record.get("employee_id")
+        if eid not in employee_hours:
+            employee = pt_employees_dict.get(eid, {})
+            
+            employee_hours[eid] = {
+                "employee_id": eid,
+                "employee_name": employee.get("name") or record.get("employee_name", "Unknown"),
+                "employee_number": employee.get("employee_number") or record.get("employee_number", ""),
+                "rank": employee.get("rank", "Part-Time"),
+                "contact_phone": employee.get("contact_phone", ""),
+                "contact_email": employee.get("contact_email", ""),
+                "total_hours": 0,
+                "ytd_hours": ytd_by_employee.get(eid, 0),
+                "shifts_count": 0,
+                "monthly_breakdown": {},
+                "shifts": []
+            }
+        
+        # Add hours (scheduled = worked per user requirement)
+        hours = record.get("hours", 24)
+        employee_hours[eid]["total_hours"] += hours
+        employee_hours[eid]["shifts_count"] += 1
+        
+        # Track monthly breakdown
+        record_date = record.get("date", "")
+        if record_date:
+            month_key = record_date[:7]  # YYYY-MM format
+            if month_key not in employee_hours[eid]["monthly_breakdown"]:
+                employee_hours[eid]["monthly_breakdown"][month_key] = {
+                    "hours": 0,
+                    "shifts_count": 0
+                }
+            employee_hours[eid]["monthly_breakdown"][month_key]["hours"] += hours
+            employee_hours[eid]["monthly_breakdown"][month_key]["shifts_count"] += 1
+        
+        # Track individual shifts
+        station = stations_dict.get(record.get("assigned_station_id"), {})
+        employee_hours[eid]["shifts"].append({
+            "date": record.get("date"),
+            "shift": record.get("shift", ""),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "station_id": record.get("assigned_station_id", ""),
+            "hours": hours,
+            "approved_by": record.get("approved_by", "")
+        })
+    
+    # Convert monthly_breakdown dict to sorted list for each employee
+    for eid in employee_hours:
+        monthly = employee_hours[eid]["monthly_breakdown"]
+        employee_hours[eid]["monthly_breakdown"] = [
+            {"month": k, **v} for k, v in sorted(monthly.items())
+        ]
+        # Sort shifts by date
+        employee_hours[eid]["shifts"].sort(key=lambda x: x["date"], reverse=True)
+    
+    # Sort employees by total hours (descending)
+    sorted_employees = sorted(
+        employee_hours.values(),
+        key=lambda x: x["total_hours"],
+        reverse=True
+    )
+    
+    # Calculate totals
+    total_hours = sum(e["total_hours"] for e in sorted_employees)
+    total_shifts = sum(e["shifts_count"] for e in sorted_employees)
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "battalion_id": battalion_id,
+        "employee_count": len(sorted_employees),
+        "total_shifts": total_shifts,
+        "total_hours": total_hours,
+        "employee_hours": sorted_employees,
+        "generated_by": current_user["payroll_number"],
+        "generated_by_name": current_user.get("name", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
+# ===================== INDIVIDUAL PERSONNEL REPORT =====================
+
+@router.get("/personnel/{personnel_id}")
+async def get_individual_personnel_report(
+    personnel_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get comprehensive individual personnel report with all data"""
+    tenant_id = get_tenant_id(current_user)
+    
+    # Default date range to current year if not specified
+    if not start_date:
+        start_date = f"{datetime.now().year}-01-01"
+    if not end_date:
+        end_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Get personnel record
+    personnel_query = {"id": personnel_id}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    
+    person = await db.personnel.find_one(personnel_query, {"_id": 0})
+    if not person:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Get station info
+    station_query = {"id": person.get("station_id")}
+    if tenant_id:
+        station_query["tenant_id"] = tenant_id
+    station = await db.stations.find_one(station_query, {"_id": 0}) or {}
+    
+    # Get battalion info
+    battalion_query = {"id": person.get("battalion_id")}
+    if tenant_id:
+        battalion_query["tenant_id"] = tenant_id
+    battalion = await db.battalions.find_one(battalion_query, {"_id": 0}) or {}
+    
+    # Get all stations for apparatus lookup
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # ===== APPARATUS/RIDING ASSIGNMENTS =====
+    apparatus_query = {
+        "date": {"$gte": start_date, "$lte": end_date},
+        "personnel_ids": personnel_id
+    }
+    if tenant_id:
+        apparatus_query["tenant_id"] = tenant_id
+    
+    apparatus_records = await db.apparatus_assignments.find(apparatus_query, {"_id": 0}).to_list(500)
+    
+    riding_assignments = []
+    for aa in apparatus_records:
+        position = aa.get("position_assignments", {}).get(personnel_id, "-")
+        station = stations_dict.get(aa.get("station_id"), {})
+        riding_assignments.append({
+            "date": aa.get("date"),
+            "apparatus_name": aa.get("apparatus_name"),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "shift": aa.get("shift", ""),
+            "riding_position": position
+        })
+    riding_assignments.sort(key=lambda x: x["date"], reverse=True)
+    
+    # ===== LEAVE RECORDS =====
+    leave_query = {
+        "personnel_id": personnel_id,
+        "start_date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        leave_query["tenant_id"] = tenant_id
+    
+    leave_records = await db.leave_records.find(leave_query, {"_id": 0}).to_list(500)
+    leave_records.sort(key=lambda x: x.get("start_date", ""), reverse=True)
+    
+    # Calculate leave usage
+    vacation_hours = sum(r.get("hours", 24) for r in leave_records if r.get("leave_type") == "vacation")
+    sick_hours = sum(r.get("hours", 24) for r in leave_records if r.get("leave_type") == "sick")
+    holiday_hours = sum(r.get("hours", 24) for r in leave_records if r.get("leave_type") == "holiday")
+    
+    # ===== OVERTIME RECORDS =====
+    overtime_query = {
+        "personnel_id": personnel_id,
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        overtime_query["tenant_id"] = tenant_id
+    
+    overtime_records = await db.overtime_records.find(overtime_query, {"_id": 0}).to_list(500)
+    overtime_records.sort(key=lambda x: x.get("date", ""), reverse=True)
+    
+    # Calculate overtime totals
+    ot_assigned = [r for r in overtime_records if r.get("status") == "assigned"]
+    total_ot_hours = sum(r.get("hours", 0) for r in ot_assigned)
+    
+    # Enrich overtime records with station names
+    for record in overtime_records:
+        station_id = record.get("station_id") or record.get("overtime_station_id")
+        station = stations_dict.get(station_id, {})
+        record["station_name"] = f"Station {station.get('station_number', '')}" if station.get('station_number') else "N/A"
+    
+    # ===== DEPLOYMENT RECORDS =====
+    deployment_query = {
+        "personnel_id": personnel_id,
+        "start_date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        deployment_query["tenant_id"] = tenant_id
+    
+    deployments = await db.deployments.find(deployment_query, {"_id": 0}).to_list(100)
+    deployments.sort(key=lambda x: x.get("start_date", ""), reverse=True)
+    
+    # Calculate deployment days
+    total_deployment_days = 0
+    for dep in deployments:
+        try:
+            start = datetime.strptime(dep.get("start_date", ""), "%Y-%m-%d")
+            end = datetime.strptime(dep.get("end_date", ""), "%Y-%m-%d")
+            days = (end - start).days + 1
+            total_deployment_days += days
+            dep["days"] = days
+        except (ValueError, TypeError):
+            dep["days"] = 0
+    
+    # ===== CERTIFICATIONS FROM DEPLOYMENT ROSTER =====
+    roster_query = {"name": person.get("name")}
+    if tenant_id:
+        roster_query["tenant_id"] = tenant_id
+    
+    roster_entry = await db.deployment_roster.find_one(roster_query, {"_id": 0})
+    certifications = {}
+    if roster_entry:
+        certifications = roster_entry.get("certifications", {})
+    
+    # Also include basic certifications from personnel record
+    personnel_certs = person.get("certifications", [])
+    
+    # ===== BUILD REPORT =====
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_by": current_user.get("name", ""),
+        "generated_by_payroll": current_user["payroll_number"],
+        "report_period": {
+            "start_date": start_date,
+            "end_date": end_date
+        },
+        "personnel": {
+            "id": person.get("id"),
+            "payroll_number": person.get("payroll_number"),
+            "name": person.get("name"),
+            "rank": person.get("rank"),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "station_id": person.get("station_id"),
+            "battalion": f"Battalion {battalion.get('battalion_number', 'N/A')}",
+            "battalion_id": person.get("battalion_id"),
+            "shift": person.get("shift"),
+            "contact_phone": person.get("contact_phone", ""),
+            "contact_email": person.get("contact_email", ""),
+            "hire_date": person.get("hire_date", ""),
+            "personnel_type": person.get("personnel_type", "operations"),
+            "is_active": person.get("is_active", True)
+        },
+        "leave_balances": {
+            "vacation": {
+                "annual_allocation_hours": person.get("annual_vacation_hours", 360),
+                "annual_allocation_days": person.get("annual_vacation_days", 15),
+                "current_balance": person.get("vacation_current_balance", 0),
+                "hours_used_period": vacation_hours
+            },
+            "sick": {
+                "annual_allocation_hours": person.get("annual_sick_hours", 288),
+                "annual_allocation_days": person.get("annual_sick_days", 12),
+                "current_balance": person.get("sick_current_balance", 0),
+                "hours_used_period": sick_hours
+            },
+            "holiday": {
+                "annual_allocation_hours": person.get("annual_holiday_hours", 264),
+                "annual_allocation_days": person.get("annual_holiday_days", 11),
+                "current_balance": person.get("holiday_current_balance", 0),
+                "hours_used_period": holiday_hours
+            }
+        },
+        "leave_records": leave_records,
+        "overtime": {
+            "total_hours": total_ot_hours,
+            "total_entries": len(ot_assigned),
+            "records": overtime_records
+        },
+        "riding_assignments": riding_assignments,
+        "riding_assignment_count": len(riding_assignments),
+        "deployments": {
+            "total_days": total_deployment_days,
+            "records": deployments
+        },
+        "certifications": {
+            "deployment_roster": certifications,
+            "personnel_certs": personnel_certs
+        }
+    }
+    
+    return report
+
+
+@router.get("/personnel-list")
+async def get_personnel_list_for_reports(
+    battalion_id: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get list of personnel for report selection dropdown"""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {"is_active": True}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    
+    personnel = await db.personnel.find(
+        query, 
+        {"_id": 0, "id": 1, "name": 1, "rank": 1, "payroll_number": 1, "station_id": 1, "shift": 1}
+    ).to_list(1000)
+    
+    # Sort by rank hierarchy then name
+    rank_order = {
+        "Fire Chief": 1, "Asst. Chief": 2, "Deputy Chief": 3,
+        "Battalion Chief": 4, "Captain": 5, "Lieutenant": 6,
+        "Driver Operator": 7, "Paramedic": 8, "Firefighter": 9,
+        "Part-Time Firefighter": 10, "Volunteer Firefighter": 11
+    }
+    
+    personnel.sort(key=lambda x: (rank_order.get(x.get("rank", ""), 99), x.get("name", "").lower()))
+    
+    return personnel
+

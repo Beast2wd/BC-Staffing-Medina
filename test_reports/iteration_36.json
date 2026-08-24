@@ -1,0 +1,22 @@
+{
+  "summary": "Tested new Reports features: Part-Time Hours Report (Month/Year + Custom Range modes) and Individual Personnel Report. Backend: 9/9 pytest tests pass for GET /api/reports/part-time-hours, /api/reports/personnel-list, /api/reports/personnel/{id} including missing-param 422, 404 for unknown id, and 401/403 for unauthenticated. Frontend: end-to-end Playwright flow validated — report type dropdown, PT month/year vs custom range toggle, month & year selects, date inputs, generate button, summary stats cards (Employees / Total Shifts / Total Hours), Employee Hours Breakdown table showing Test John Doe (1234) with 24h/24h YTD/1 shift, Monthly Breakdown, Recent Shifts. Personnel report loaded for Firefighter Test User (200001) showing Profile (payroll/rank/station/shift/battalion/phone/email/hire date/type), Leave Balances (Vacation 16h / Sick 108h / Holiday 26h with annual + used), all 5 tabs (Overview, Riding(2), Leave(0), OT(0), Deploy(0)) navigable. Print button visible, CSV export downloads correctly for both reports: 'part-time-hours-report-2025-01-01-to-2026-12-31.csv' and 'personnel-report-Test-User-2025-01-01.csv'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_reports_new.py", "/app/test_reports/pytest/reports_new.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "reports_routes.py part-time-hours: 'hours' defaults to 24 when missing (record.get('hours', 24)); this can silently mask data-quality problems if a record legitimately has 0 hours or a different shift length. Consider requiring hours explicitly or logging when defaulted.",
+    "reports_routes.py individual personnel: leave_query uses start_date range filter — leave records whose start_date is before start_date but end_date within the period will be excluded. Consider $or on start_date/end_date overlap.",
+    "reports_routes.py individual personnel: certifications lookup uses roster_query by name ({'name': person.get('name')}); this is fragile — match by payroll_number or personnel_id instead of exact name string.",
+    "reports_routes.py individual personnel: deployment days = (end - start).days + 1 does not handle deployments extending beyond the report window; days can exceed the requested period.",
+    "ReportsPage.js is likely >1000 lines (line refs go into 1800s in review request) — consider splitting per-report subcomponents to reduce file size."
+  ],
+  "updated_files": ["/app/backend/tests/test_reports_new.py", "/app/test_reports/iteration_36.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin 100001 / admin123",
+  "seed_data_creation": "None - used existing seed (Test John Doe part-time; Firefighter Test User 200001).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New pytest file /app/backend/tests/test_reports_new.py covers the 3 new endpoints for regression. All UI selectors validated: report-type-select, pt-mode-month, pt-mode-custom, month-select, year-select, pt-start-date-input, pt-end-date-input, personnel-select, start-date-input, end-date-input, generate-report-btn, print-report-btn, export-dropdown-btn, export-csv-btn.",
+  "rca of the issue": "N/A - no bugs found"
+}
