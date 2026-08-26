@@ -1522,3 +1522,393 @@ async def get_personnel_list_for_reports(
     
     return personnel
 
+
+
+# ===================== LEAVE ACCRUAL AUDIT REPORT =====================
+
+@router.get("/leave-accrual-audit")
+async def get_leave_accrual_audit(
+    start_date: str,
+    end_date: str,
+    personnel_id: Optional[str] = None,
+    leave_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get leave accrual audit report showing balance changes, accrual history, and adjustments.
+    - If personnel_id is provided: detailed report for single personnel
+    - If personnel_id is None: summary report for all personnel
+    """
+    tenant_id = get_tenant_id(current_user)
+    
+    # Get personnel list
+    personnel_query = {"is_active": True}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    if personnel_id:
+        personnel_query["id"] = personnel_id
+    
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(1000)
+    
+    if personnel_id and not personnel_list:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Personnel not found")
+    
+    # Get stations for lookups
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    stations_list = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
+    stations_dict = {s["id"]: s for s in stations_list}
+    
+    # Get leave records in date range
+    leave_query = {
+        "start_date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        leave_query["tenant_id"] = tenant_id
+    if personnel_id:
+        leave_query["personnel_id"] = personnel_id
+    if leave_type:
+        leave_query["leave_type"] = leave_type
+    
+    leave_records = await db.leave_records.find(leave_query, {"_id": 0}).to_list(5000)
+    
+    # Get accrual history if it exists
+    accrual_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        accrual_query["tenant_id"] = tenant_id
+    if personnel_id:
+        accrual_query["personnel_id"] = personnel_id
+    
+    accrual_history = await db.leave_accrual_history.find(accrual_query, {"_id": 0}).to_list(5000)
+    
+    # Get manual adjustments if they exist
+    adjustment_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        adjustment_query["tenant_id"] = tenant_id
+    if personnel_id:
+        adjustment_query["personnel_id"] = personnel_id
+    
+    manual_adjustments = await db.leave_balance_adjustments.find(adjustment_query, {"_id": 0}).to_list(5000)
+    
+    # Build audit report per personnel
+    audit_data = {}
+    
+    for person in personnel_list:
+        pid = person["id"]
+        station = stations_dict.get(person.get("station_id"), {})
+        
+        audit_data[pid] = {
+            "personnel_id": pid,
+            "name": person.get("name", "Unknown"),
+            "payroll_number": person.get("payroll_number", ""),
+            "rank": person.get("rank", ""),
+            "station": f"Station {station.get('station_number', 'N/A')}",
+            "shift": person.get("shift", ""),
+            "current_balances": {
+                "vacation": person.get("vacation_current_balance", 0),
+                "sick": person.get("sick_current_balance", 0),
+                "holiday": person.get("holiday_current_balance", 0)
+            },
+            "annual_allocations": {
+                "vacation": person.get("annual_vacation_hours", 360),
+                "sick": person.get("annual_sick_hours", 288),
+                "holiday": person.get("annual_holiday_hours", 264)
+            },
+            "leave_usage": {"vacation": 0, "sick": 0, "holiday": 0},
+            "accruals": {"vacation": 0, "sick": 0, "holiday": 0},
+            "adjustments": {"vacation": 0, "sick": 0, "holiday": 0},
+            "transactions": []
+        }
+    
+    # Process leave records (debits)
+    for record in leave_records:
+        pid = record.get("personnel_id")
+        if pid not in audit_data:
+            continue
+        
+        lt = record.get("leave_type", "")
+        hours = record.get("hours", 24)
+        
+        if lt in ["vacation", "sick", "holiday"]:
+            audit_data[pid]["leave_usage"][lt] += hours
+            audit_data[pid]["transactions"].append({
+                "date": record.get("start_date"),
+                "type": "usage",
+                "leave_type": lt,
+                "hours": -hours,
+                "description": f"{lt.capitalize()} leave used",
+                "notes": record.get("notes", "")
+            })
+    
+    # Process accrual history (credits)
+    for record in accrual_history:
+        pid = record.get("personnel_id")
+        if pid not in audit_data:
+            continue
+        
+        lt = record.get("leave_type", "")
+        hours = record.get("hours", 0)
+        
+        if lt in ["vacation", "sick", "holiday"]:
+            audit_data[pid]["accruals"][lt] += hours
+            audit_data[pid]["transactions"].append({
+                "date": record.get("date"),
+                "type": "accrual",
+                "leave_type": lt,
+                "hours": hours,
+                "description": f"{lt.capitalize()} accrual",
+                "notes": record.get("notes", "")
+            })
+    
+    # Process manual adjustments
+    for record in manual_adjustments:
+        pid = record.get("personnel_id")
+        if pid not in audit_data:
+            continue
+        
+        lt = record.get("leave_type", "")
+        hours = record.get("hours", 0)
+        
+        if lt in ["vacation", "sick", "holiday"]:
+            audit_data[pid]["adjustments"][lt] += hours
+            audit_data[pid]["transactions"].append({
+                "date": record.get("date"),
+                "type": "adjustment",
+                "leave_type": lt,
+                "hours": hours,
+                "description": f"Manual adjustment by {record.get('adjusted_by', 'Admin')}",
+                "notes": record.get("reason", "")
+            })
+    
+    # Sort transactions by date for each personnel
+    for pid in audit_data:
+        audit_data[pid]["transactions"].sort(key=lambda x: x["date"], reverse=True)
+    
+    # Calculate summary totals
+    total_vacation_usage = sum(a["leave_usage"]["vacation"] for a in audit_data.values())
+    total_sick_usage = sum(a["leave_usage"]["sick"] for a in audit_data.values())
+    total_holiday_usage = sum(a["leave_usage"]["holiday"] for a in audit_data.values())
+    
+    total_vacation_accruals = sum(a["accruals"]["vacation"] for a in audit_data.values())
+    total_sick_accruals = sum(a["accruals"]["sick"] for a in audit_data.values())
+    total_holiday_accruals = sum(a["accruals"]["holiday"] for a in audit_data.values())
+    
+    total_vacation_adjustments = sum(a["adjustments"]["vacation"] for a in audit_data.values())
+    total_sick_adjustments = sum(a["adjustments"]["sick"] for a in audit_data.values())
+    total_holiday_adjustments = sum(a["adjustments"]["holiday"] for a in audit_data.values())
+    
+    # Sort personnel by name
+    sorted_audit = sorted(audit_data.values(), key=lambda x: x["name"].lower())
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "personnel_id": personnel_id,
+        "leave_type_filter": leave_type,
+        "personnel_count": len(sorted_audit),
+        "summary": {
+            "total_usage": {
+                "vacation": total_vacation_usage,
+                "sick": total_sick_usage,
+                "holiday": total_holiday_usage
+            },
+            "total_accruals": {
+                "vacation": total_vacation_accruals,
+                "sick": total_sick_accruals,
+                "holiday": total_holiday_accruals
+            },
+            "total_adjustments": {
+                "vacation": total_vacation_adjustments,
+                "sick": total_sick_adjustments,
+                "holiday": total_holiday_adjustments
+            }
+        },
+        "audit_data": sorted_audit,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_by": current_user.get("name", "")
+    }
+
+
+# ===================== SHIFT COVERAGE HEATMAP =====================
+
+@router.get("/shift-coverage-heatmap")
+async def get_shift_coverage_heatmap(
+    start_date: str,
+    end_date: str,
+    view_mode: str = "monthly",
+    battalion_id: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get overtime coverage heatmap data showing patterns by station and date.
+    view_mode: 'monthly' or 'weekly'
+    """
+    tenant_id = get_tenant_id(current_user)
+    
+    # Get stations
+    stations_query = {}
+    if tenant_id:
+        stations_query["tenant_id"] = tenant_id
+    if battalion_id:
+        stations_query["battalion_id"] = battalion_id
+    
+    stations = await db.stations.find(stations_query, {"_id": 0}).to_list(100)
+    stations.sort(key=lambda x: x.get("station_number", 0))
+    stations_dict = {s["id"]: s for s in stations}
+    
+    # Get overtime records in date range
+    ot_query = {
+        "date": {"$gte": start_date, "$lte": end_date}
+    }
+    if tenant_id:
+        ot_query["tenant_id"] = tenant_id
+    if battalion_id:
+        ot_query["battalion_id"] = battalion_id
+    
+    overtime_records = await db.overtime_records.find(ot_query, {"_id": 0}).to_list(5000)
+    
+    # Build date list based on view mode
+    from datetime import timedelta
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    dates = []
+    current = start
+    while current <= end:
+        dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    
+    # Initialize heatmap data structure
+    # station_id -> date -> {available, assigned, declined, total_hours}
+    heatmap_data = {}
+    
+    for station in stations:
+        sid = station["id"]
+        heatmap_data[sid] = {
+            "station_id": sid,
+            "station_number": station.get("station_number", "N/A"),
+            "station_name": f"Station {station.get('station_number', 'N/A')}",
+            "dates": {}
+        }
+        for date in dates:
+            heatmap_data[sid]["dates"][date] = {
+                "available": 0,
+                "assigned": 0,
+                "declined": 0,
+                "total_hours": 0,
+                "records": []
+            }
+    
+    # Aggregate overtime data
+    for record in overtime_records:
+        sid = record.get("station_id") or record.get("overtime_station_id")
+        date = record.get("date")
+        status = record.get("status", "available")
+        hours = record.get("hours", 24)
+        
+        if sid and sid in heatmap_data and date in heatmap_data[sid]["dates"]:
+            day_data = heatmap_data[sid]["dates"][date]
+            
+            if status == "available":
+                day_data["available"] += 1
+            elif status == "assigned":
+                day_data["assigned"] += 1
+                day_data["total_hours"] += hours
+            elif status == "declined":
+                day_data["declined"] += 1
+            
+            day_data["records"].append({
+                "personnel_name": record.get("personnel_name", "Unknown"),
+                "status": status,
+                "hours": hours
+            })
+    
+    # Calculate station summaries
+    station_summaries = []
+    for sid, station_data in heatmap_data.items():
+        total_available = sum(d["available"] for d in station_data["dates"].values())
+        total_assigned = sum(d["assigned"] for d in station_data["dates"].values())
+        total_declined = sum(d["declined"] for d in station_data["dates"].values())
+        total_hours = sum(d["total_hours"] for d in station_data["dates"].values())
+        
+        # Calculate coverage rate (assigned / (available + assigned + declined))
+        total_records = total_available + total_assigned + total_declined
+        coverage_rate = (total_assigned / total_records * 100) if total_records > 0 else 0
+        
+        station_summaries.append({
+            "station_id": sid,
+            "station_name": station_data["station_name"],
+            "station_number": station_data["station_number"],
+            "total_available": total_available,
+            "total_assigned": total_assigned,
+            "total_declined": total_declined,
+            "total_hours": total_hours,
+            "coverage_rate": round(coverage_rate, 1)
+        })
+    
+    # Sort summaries by station number
+    station_summaries.sort(key=lambda x: x.get("station_number", 0))
+    
+    # Calculate overall summary
+    overall_available = sum(s["total_available"] for s in station_summaries)
+    overall_assigned = sum(s["total_assigned"] for s in station_summaries)
+    overall_declined = sum(s["total_declined"] for s in station_summaries)
+    overall_hours = sum(s["total_hours"] for s in station_summaries)
+    overall_total = overall_available + overall_assigned + overall_declined
+    overall_coverage = (overall_assigned / overall_total * 100) if overall_total > 0 else 0
+    
+    # Build grid data for heatmap visualization
+    grid_data = []
+    for sid, station_data in heatmap_data.items():
+        row = {
+            "station_id": sid,
+            "station_name": station_data["station_name"],
+            "station_number": station_data["station_number"],
+            "cells": []
+        }
+        for date in dates:
+            day_data = station_data["dates"][date]
+            # Calculate intensity (0-4 scale based on activity)
+            activity = day_data["available"] + day_data["assigned"] + day_data["declined"]
+            intensity = min(4, activity)  # Cap at 4 for visualization
+            
+            row["cells"].append({
+                "date": date,
+                "available": day_data["available"],
+                "assigned": day_data["assigned"],
+                "declined": day_data["declined"],
+                "total_hours": day_data["total_hours"],
+                "intensity": intensity,
+                "records": day_data["records"]
+            })
+        grid_data.append(row)
+    
+    # Sort grid by station number
+    grid_data.sort(key=lambda x: x.get("station_number", 0))
+    
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "view_mode": view_mode,
+        "battalion_id": battalion_id,
+        "dates": dates,
+        "station_count": len(stations),
+        "overall_summary": {
+            "total_available": overall_available,
+            "total_assigned": overall_assigned,
+            "total_declined": overall_declined,
+            "total_hours": overall_hours,
+            "coverage_rate": round(overall_coverage, 1)
+        },
+        "station_summaries": station_summaries,
+        "grid_data": grid_data,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_by": current_user.get("name", "")
+    }
+

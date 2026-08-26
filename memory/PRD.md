@@ -1136,3 +1136,26 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - `GET /api/reports/personnel/{personnel_id}` - Individual personnel comprehensive report
 - `GET /api/reports/personnel-list` - List of personnel for report selection dropdown
 
+### Reports - Leave Accrual Audit (December 2025)
+- ✅ **Leave Accrual Audit Report** - Compliance tracking for leave balance changes, accruals, and adjustments
+- ✅ **Personnel Scope Toggle**: All Personnel or Single Personnel mode
+- ✅ **Leave Type Filter**: Filter by Vacation, Sick, Holiday or All types
+- ✅ **Date Range Selection**: Custom start/end date range
+- ✅ **Summary Cards**: Vacation/Sick/Holiday totals for usage, accruals, adjustments
+- ✅ **Personnel Audit Section**: Per-person current balances and transaction history
+- ✅ **Transaction Types**: Usage (debit), Accrual (credit), Manual Adjustment
+
+### Reports - Shift Coverage Heatmap (December 2025)
+- ✅ **Shift Coverage Heatmap** - Visual overtime coverage patterns by station
+- ✅ **View Mode Toggle**: Monthly or Weekly view
+- ✅ **Overall Summary**: Available, Assigned, Declined, Total Hours, Coverage Rate
+- ✅ **Station Summary Cards**: Per-station coverage with progress bars
+- ✅ **Activity Heatmap Grid**: Stations vs. dates with color intensity (None/Low/Medium/High/Very High)
+- ✅ **Hover Tooltips**: Cell details showing Available, Assigned, Declined, Hours
+- ✅ **Legend**: Visual guide for activity intensity levels
+
+### API Endpoints Added (December 2025 - Audit & Heatmap)
+- `GET /api/reports/leave-accrual-audit` - Leave accrual audit with personnel/leave_type filters
+- `GET /api/reports/shift-coverage-heatmap` - Overtime heatmap with monthly/weekly view modes
+
+

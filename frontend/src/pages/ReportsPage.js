@@ -34,6 +34,14 @@ export const ReportsPage = () => {
   const [personnelReportView, setPersonnelReportView] = useState('overview');
   const [ptDateMode, setPtDateMode] = useState('month'); // 'month' or 'custom'
   
+  // Leave Accrual Audit state
+  const [auditPersonnelMode, setAuditPersonnelMode] = useState('all'); // 'all' or 'single'
+  const [auditLeaveType, setAuditLeaveType] = useState(''); // '' = all types
+  
+  // Shift Coverage Heatmap state
+  const [heatmapViewMode, setHeatmapViewMode] = useState('monthly'); // 'monthly' or 'weekly'
+  const [hoveredCell, setHoveredCell] = useState(null);
+  
   // Fetch personnel list for individual report dropdown
   const fetchPersonnelList = useCallback(async () => {
     try {
@@ -51,7 +59,7 @@ export const ReportsPage = () => {
   }, [fetchBattalions]);
   
   useEffect(() => {
-    if (reportType === 'personnel') {
+    if (reportType === 'personnel' || reportType === 'leave-accrual-audit') {
       fetchPersonnelList();
     }
   }, [reportType, fetchPersonnelList]);
@@ -131,6 +139,24 @@ export const ReportsPage = () => {
             end_date: endDate
           }
         });
+      } else if (reportType === 'leave-accrual-audit') {
+        response = await api.get('/reports/leave-accrual-audit', {
+          params: {
+            start_date: startDate,
+            end_date: endDate,
+            personnel_id: auditPersonnelMode === 'single' ? selectedPersonnelId : '',
+            leave_type: auditLeaveType || ''
+          }
+        });
+      } else if (reportType === 'shift-coverage-heatmap') {
+        response = await api.get('/reports/shift-coverage-heatmap', {
+          params: {
+            start_date: startDate,
+            end_date: endDate,
+            view_mode: heatmapViewMode,
+            battalion_id: selectedBattalion
+          }
+        });
       }
       
       setReportData(response.data);
@@ -162,6 +188,8 @@ export const ReportsPage = () => {
         case 'time-off': return 'Time Off Summary';
         case 'part-time-hours': return 'Part-Time Hours Report';
         case 'personnel': return `Personnel Report - ${reportData?.personnel?.name || ''}`;
+        case 'leave-accrual-audit': return 'Leave Accrual Audit Report';
+        case 'shift-coverage-heatmap': return 'Shift Coverage Heatmap';
         default: return 'Report';
       }
     };
@@ -183,6 +211,9 @@ export const ReportsPage = () => {
       }
       if (reportType === 'personnel') {
         return `${reportData.report_period?.start_date} to ${reportData.report_period?.end_date}`;
+      }
+      if (reportType === 'leave-accrual-audit' || reportType === 'shift-coverage-heatmap') {
+        return `${reportData.start_date} to ${reportData.end_date}`;
       }
       return `${reportData.start_date} to ${reportData.end_date}`;
     };
@@ -880,6 +911,8 @@ export const ReportsPage = () => {
                     <SelectItem value="part-time-hours">Part-Time Hours Report</SelectItem>
                     <SelectItem value="time-off">Time Off Summary</SelectItem>
                     <SelectItem value="personnel">Individual Personnel Report</SelectItem>
+                    <SelectItem value="leave-accrual-audit">Leave Accrual Audit</SelectItem>
+                    <SelectItem value="shift-coverage-heatmap">Shift Coverage Heatmap</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -994,6 +1027,95 @@ export const ReportsPage = () => {
                 </div>
               )}
 
+              {/* Leave Accrual Audit Options */}
+              {reportType === 'leave-accrual-audit' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Personnel Scope</Label>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant={auditPersonnelMode === 'all' ? 'default' : 'outline'} 
+                        size="sm" 
+                        onClick={() => setAuditPersonnelMode('all')}
+                        className="flex-1"
+                        data-testid="audit-mode-all"
+                      >
+                        All Personnel
+                      </Button>
+                      <Button 
+                        variant={auditPersonnelMode === 'single' ? 'default' : 'outline'} 
+                        size="sm" 
+                        onClick={() => setAuditPersonnelMode('single')}
+                        className="flex-1"
+                        data-testid="audit-mode-single"
+                      >
+                        Single Personnel
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {auditPersonnelMode === 'single' && (
+                    <div className="space-y-2">
+                      <Label>Select Personnel</Label>
+                      <Select value={selectedPersonnelId} onValueChange={setSelectedPersonnelId}>
+                        <SelectTrigger data-testid="audit-personnel-select">
+                          <SelectValue placeholder="Choose personnel member..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {personnelList.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.rank} {p.name} ({p.payroll_number})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label>Leave Type Filter</Label>
+                    <Select value={auditLeaveType} onValueChange={setAuditLeaveType}>
+                      <SelectTrigger data-testid="audit-leave-type-select">
+                        <SelectValue placeholder="All Leave Types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all-types">All Leave Types</SelectItem>
+                        <SelectItem value="vacation">Vacation</SelectItem>
+                        <SelectItem value="sick">Sick</SelectItem>
+                        <SelectItem value="holiday">Holiday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              {/* Shift Coverage Heatmap Options */}
+              {reportType === 'shift-coverage-heatmap' && (
+                <div className="space-y-2">
+                  <Label>View Mode</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={heatmapViewMode === 'monthly' ? 'default' : 'outline'} 
+                      size="sm" 
+                      onClick={() => setHeatmapViewMode('monthly')}
+                      className="flex-1"
+                      data-testid="heatmap-mode-monthly"
+                    >
+                      Monthly
+                    </Button>
+                    <Button 
+                      variant={heatmapViewMode === 'weekly' ? 'default' : 'outline'} 
+                      size="sm" 
+                      onClick={() => setHeatmapViewMode('weekly')}
+                      className="flex-1"
+                      data-testid="heatmap-mode-weekly"
+                    >
+                      Weekly
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Date inputs for non-part-time reports */}
               {reportType !== 'part-time-hours' && (
                 <div className="space-y-2">
@@ -1007,7 +1129,7 @@ export const ReportsPage = () => {
                 </div>
               )}
 
-              {(reportType === 'overtime' || reportType === 'volunteer-hours' || reportType === 'deployment' || reportType === 'personnel') && (
+              {(reportType === 'overtime' || reportType === 'volunteer-hours' || reportType === 'deployment' || reportType === 'personnel' || reportType === 'leave-accrual-audit' || reportType === 'shift-coverage-heatmap') && (
                 <div className="space-y-2">
                   <Label>End Date</Label>
                   <Input
@@ -1021,7 +1143,7 @@ export const ReportsPage = () => {
 
               <Button 
                 onClick={generateReport} 
-                disabled={loading || (reportType === 'personnel' && !selectedPersonnelId)}
+                disabled={loading || (reportType === 'personnel' && !selectedPersonnelId) || (reportType === 'leave-accrual-audit' && auditPersonnelMode === 'single' && !selectedPersonnelId)}
                 className="w-full"
                 data-testid="generate-report-btn"
               >
@@ -2041,6 +2163,312 @@ export const ReportsPage = () => {
                       )}
                     </TabsContent>
                   </Tabs>
+                </div>
+              ) : reportType === 'leave-accrual-audit' ? (
+                <div className="space-y-6" data-testid="leave-accrual-audit-report">
+                  {/* Leave Accrual Audit Header */}
+                  <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Fire/EMS" className="h-20 mx-auto mb-3" />
+                    <h2 className="font-heading text-2xl uppercase font-bold">
+                      Leave Accrual Audit Report
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {formatDisplayDate(reportData.start_date)} - {formatDisplayDate(reportData.end_date)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {reportData.personnel_id ? 'Single Personnel Report' : `All Personnel (${reportData.personnel_count} members)`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Generated by: {reportData.generated_by} on {new Date(reportData.generated_at).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm font-semibold text-blue-500 mb-2">Vacation</h4>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Usage:</span>
+                            <span className="font-bold text-red-500">-{reportData.summary?.total_usage?.vacation || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Accruals:</span>
+                            <span className="font-bold text-green-500">+{reportData.summary?.total_accruals?.vacation || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Adjustments:</span>
+                            <span className="font-bold text-orange-500">{reportData.summary?.total_adjustments?.vacation || 0}h</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm font-semibold text-red-500 mb-2">Sick</h4>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Usage:</span>
+                            <span className="font-bold text-red-500">-{reportData.summary?.total_usage?.sick || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Accruals:</span>
+                            <span className="font-bold text-green-500">+{reportData.summary?.total_accruals?.sick || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Adjustments:</span>
+                            <span className="font-bold text-orange-500">{reportData.summary?.total_adjustments?.sick || 0}h</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm font-semibold text-green-500 mb-2">Holiday</h4>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Usage:</span>
+                            <span className="font-bold text-red-500">-{reportData.summary?.total_usage?.holiday || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Accruals:</span>
+                            <span className="font-bold text-green-500">+{reportData.summary?.total_accruals?.holiday || 0}h</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Adjustments:</span>
+                            <span className="font-bold text-orange-500">{reportData.summary?.total_adjustments?.holiday || 0}h</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Personnel Audit Data */}
+                  {reportData.audit_data?.length > 0 ? (
+                    <div className="space-y-4">
+                      <h3 className="font-heading text-lg uppercase">Personnel Leave Audit</h3>
+                      {reportData.audit_data.map((person, idx) => (
+                        <div key={idx} className="p-4 bg-muted/50 rounded-lg border" data-testid={`audit-person-${idx}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <span className="font-semibold text-lg">{person.name}</span>
+                              <span className="text-xs text-muted-foreground ml-2">({person.payroll_number})</span>
+                              <span className="text-xs ml-2 px-2 py-0.5 bg-primary/20 text-primary rounded">{person.rank}</span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {person.station} | {person.shift} Shift
+                            </div>
+                          </div>
+
+                          {/* Current Balances */}
+                          <div className="grid grid-cols-3 gap-3 mb-3">
+                            <div className="p-2 bg-blue-500/10 rounded text-center">
+                              <p className="text-xs text-muted-foreground">Vacation Balance</p>
+                              <p className="text-xl font-bold text-blue-500">{person.current_balances?.vacation || 0}h</p>
+                              <p className="text-xs text-muted-foreground">Used: {person.leave_usage?.vacation || 0}h</p>
+                            </div>
+                            <div className="p-2 bg-red-500/10 rounded text-center">
+                              <p className="text-xs text-muted-foreground">Sick Balance</p>
+                              <p className="text-xl font-bold text-red-500">{person.current_balances?.sick || 0}h</p>
+                              <p className="text-xs text-muted-foreground">Used: {person.leave_usage?.sick || 0}h</p>
+                            </div>
+                            <div className="p-2 bg-green-500/10 rounded text-center">
+                              <p className="text-xs text-muted-foreground">Holiday Balance</p>
+                              <p className="text-xl font-bold text-green-500">{person.current_balances?.holiday || 0}h</p>
+                              <p className="text-xs text-muted-foreground">Used: {person.leave_usage?.holiday || 0}h</p>
+                            </div>
+                          </div>
+
+                          {/* Transactions */}
+                          {person.transactions?.length > 0 && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs text-muted-foreground mb-2">Transaction History:</p>
+                              <div className="max-h-40 overflow-y-auto space-y-1">
+                                {person.transactions.slice(0, 10).map((tx, txIdx) => (
+                                  <div key={txIdx} className="flex items-center justify-between text-sm p-2 bg-background rounded">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">{formatDisplayDate(tx.date)}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                        tx.type === 'usage' ? 'bg-red-500/20 text-red-500' :
+                                        tx.type === 'accrual' ? 'bg-green-500/20 text-green-500' :
+                                        'bg-orange-500/20 text-orange-500'
+                                      }`}>{tx.type}</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                        tx.leave_type === 'vacation' ? 'bg-blue-500/20 text-blue-500' :
+                                        tx.leave_type === 'sick' ? 'bg-red-500/20 text-red-500' :
+                                        'bg-green-500/20 text-green-500'
+                                      }`}>{tx.leave_type}</span>
+                                    </div>
+                                    <span className={`font-bold ${tx.hours > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {tx.hours > 0 ? '+' : ''}{tx.hours}h
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">
+                      No leave audit data found for this period
+                    </p>
+                  )}
+                </div>
+              ) : reportType === 'shift-coverage-heatmap' ? (
+                <div className="space-y-6" data-testid="shift-coverage-heatmap-report">
+                  {/* Heatmap Header */}
+                  <div className="text-center pb-4 border-b">
+                    <img src={LOGO_URL} alt="Fire/EMS" className="h-20 mx-auto mb-3" />
+                    <h2 className="font-heading text-2xl uppercase font-bold">
+                      Shift Coverage Heatmap
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {formatDisplayDate(reportData.start_date)} - {formatDisplayDate(reportData.end_date)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {reportData.station_count} Stations | {reportData.view_mode} View
+                    </p>
+                  </div>
+
+                  {/* Overall Summary */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-yellow-500">{reportData.overall_summary?.total_available || 0}</p>
+                      <p className="text-sm text-muted-foreground">Available</p>
+                    </div>
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-green-500">{reportData.overall_summary?.total_assigned || 0}</p>
+                      <p className="text-sm text-muted-foreground">Assigned</p>
+                    </div>
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-red-500">{reportData.overall_summary?.total_declined || 0}</p>
+                      <p className="text-sm text-muted-foreground">Declined</p>
+                    </div>
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-blue-500">{reportData.overall_summary?.total_hours || 0}h</p>
+                      <p className="text-sm text-muted-foreground">Total Hours</p>
+                    </div>
+                    <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-purple-500">{reportData.overall_summary?.coverage_rate || 0}%</p>
+                      <p className="text-sm text-muted-foreground">Coverage Rate</p>
+                    </div>
+                  </div>
+
+                  {/* Station Summary Cards */}
+                  <div className="space-y-2">
+                    <h3 className="font-heading text-lg uppercase">Station Summary</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {reportData.station_summaries?.map((station, idx) => (
+                        <Card key={idx} className="p-3">
+                          <div className="text-center">
+                            <p className="font-bold text-primary">{station.station_name}</p>
+                            <div className="flex items-center justify-center gap-2 mt-2 text-xs">
+                              <span className="text-yellow-500">{station.total_available} avail</span>
+                              <span className="text-green-500">{station.total_assigned} assign</span>
+                              <span className="text-red-500">{station.total_declined} decl</span>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div 
+                                  className="bg-green-500 h-2 rounded-full" 
+                                  style={{ width: `${station.coverage_rate}%` }}
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">{station.coverage_rate}% coverage</p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Heatmap Grid */}
+                  <div className="space-y-2">
+                    <h3 className="font-heading text-lg uppercase">Activity Heatmap</h3>
+                    <div className="overflow-x-auto">
+                      <div className="min-w-max">
+                        {/* Date Headers */}
+                        <div className="flex items-center gap-1 mb-1 ml-24">
+                          {reportData.dates?.slice(0, 31).map((date, idx) => {
+                            const d = new Date(date + 'T00:00:00');
+                            return (
+                              <div key={idx} className="w-8 text-center text-xs text-muted-foreground">
+                                {d.getDate()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Station Rows */}
+                        {reportData.grid_data?.map((row, rowIdx) => (
+                          <div key={rowIdx} className="flex items-center gap-1 mb-1">
+                            <div className="w-24 text-xs font-medium truncate pr-2">{row.station_name}</div>
+                            {row.cells?.slice(0, 31).map((cell, cellIdx) => {
+                              // Color intensity based on activity
+                              const bgColor = cell.intensity === 0 ? 'bg-muted/30' :
+                                cell.intensity === 1 ? 'bg-green-500/20' :
+                                cell.intensity === 2 ? 'bg-green-500/40' :
+                                cell.intensity === 3 ? 'bg-green-500/60' :
+                                'bg-green-500/80';
+                              
+                              return (
+                                <div 
+                                  key={cellIdx}
+                                  className={`w-8 h-8 rounded cursor-pointer ${bgColor} flex items-center justify-center text-xs font-bold transition-all hover:ring-2 hover:ring-primary relative`}
+                                  onMouseEnter={() => setHoveredCell({ row: rowIdx, cell: cellIdx, data: cell })}
+                                  onMouseLeave={() => setHoveredCell(null)}
+                                  data-testid={`heatmap-cell-${rowIdx}-${cellIdx}`}
+                                >
+                                  {cell.assigned > 0 && <span className="text-green-600">{cell.assigned}</span>}
+                                  
+                                  {/* Tooltip on hover */}
+                                  {hoveredCell?.row === rowIdx && hoveredCell?.cell === cellIdx && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-popover border rounded shadow-lg z-50 min-w-[150px]">
+                                      <p className="text-xs font-bold mb-1">{formatDisplayDate(cell.date)}</p>
+                                      <div className="text-xs space-y-0.5">
+                                        <p><span className="text-yellow-500">Available:</span> {cell.available}</p>
+                                        <p><span className="text-green-500">Assigned:</span> {cell.assigned}</p>
+                                        <p><span className="text-red-500">Declined:</span> {cell.declined}</p>
+                                        <p><span className="text-blue-500">Hours:</span> {cell.total_hours}h</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 mt-4 text-xs">
+                      <span className="text-muted-foreground">Activity Level:</span>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-muted/30"></div>
+                        <span>None</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-green-500/20"></div>
+                        <span>Low</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-green-500/40"></div>
+                        <span>Medium</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-green-500/60"></div>
+                        <span>High</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-4 h-4 rounded bg-green-500/80"></div>
+                        <span>Very High</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : null}
               </div>
