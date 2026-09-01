@@ -147,11 +147,48 @@ export const Navbar = () => {
                     <Calendar className="h-4 w-4" /> Holiday
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/battalion-chief/deployment" className="flex items-center gap-2" data-testid="nav-deployment">
-                    <Plane className="h-4 w-4" /> Deployment
-                  </Link>
-                </DropdownMenuItem>
+                {/* Deployments Submenu - moved from Personnel */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="flex items-center gap-2">
+                    <Plane className="h-4 w-4" /> Deployments
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="w-48">
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/roster" className="flex items-center gap-2" data-testid="nav-deploy-roster">
+                          <Users className="h-4 w-4" /> TIFMAS & EMTF Roster
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/tifmas-rank" className="flex items-center gap-2" data-testid="nav-tifmas-rank">
+                          <Flame className="h-4 w-4 text-orange-500" /> TIFMAS
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/emtf-rank" className="flex items-center gap-2" data-testid="nav-emtf-rank">
+                          <Ambulance className="h-4 w-4 text-blue-500" /> EMTF
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/tifmas-log" className="flex items-center gap-2" data-testid="nav-tifmas-log">
+                          <Flame className="h-4 w-4 text-orange-500" /> TIFMAS Deployment Log
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/emtf-log" className="flex items-center gap-2" data-testid="nav-emtf-log">
+                          <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Deployment Log
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to="/personnel/deployment-tracker/history" className="flex items-center gap-2" data-testid="nav-deploy-history">
+                          <History className="h-4 w-4" /> Deployment History
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/battalion-chief/overtime" className="flex items-center gap-2" data-testid="nav-overtime">
@@ -239,49 +276,6 @@ export const Navbar = () => {
                   <Hand className="h-4 w-4" /> Volunteer
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {/* Deployments Submenu */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="flex items-center gap-2">
-                  <Plane className="h-4 w-4" /> Deployments
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/roster" className="flex items-center gap-2" data-testid="nav-deploy-roster">
-                        <Users className="h-4 w-4" /> TIFMAS & EMTF Roster
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/tifmas-rank" className="flex items-center gap-2" data-testid="nav-tifmas-rank">
-                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/emtf-rank" className="flex items-center gap-2" data-testid="nav-emtf-rank">
-                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/tifmas-log" className="flex items-center gap-2" data-testid="nav-tifmas-log">
-                        <Flame className="h-4 w-4 text-orange-500" /> TIFMAS Deployment Log
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/emtf-log" className="flex items-center gap-2" data-testid="nav-emtf-log">
-                        <Ambulance className="h-4 w-4 text-blue-500" /> EMTF Deployment Log
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link to="/personnel/deployment-tracker/history" className="flex items-center gap-2" data-testid="nav-deploy-history">
-                        <History className="h-4 w-4" /> Deployment History
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -461,8 +455,25 @@ export const Navbar = () => {
                 <Link to="/battalion-chief/holiday" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Calendar className="h-4 w-4 inline mr-2" /> Holiday
                 </Link>
-                <Link to="/battalion-chief/deployment" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-                  <Plane className="h-4 w-4 inline mr-2" /> Deployment
+                {/* Deployments sub-section under BC */}
+                <div className="pl-4 py-1 text-xs text-muted-foreground">Deployments</div>
+                <Link to="/personnel/deployment-tracker/roster" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <Users className="h-4 w-4 inline mr-2" /> TIFMAS & EMTF Roster
+                </Link>
+                <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS
+                </Link>
+                <Link to="/personnel/deployment-tracker/emtf-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF
+                </Link>
+                <Link to="/personnel/deployment-tracker/tifmas-log" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Deployment Log
+                </Link>
+                <Link to="/personnel/deployment-tracker/emtf-log" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF Deployment Log
+                </Link>
+                <Link to="/personnel/deployment-tracker/history" className="px-4 py-2 hover:bg-muted rounded-md pl-8" onClick={() => setMobileMenuOpen(false)}>
+                  <History className="h-4 w-4 inline mr-2" /> Deployment History
                 </Link>
                 <Link to="/battalion-chief/overtime" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Clock className="h-4 w-4 inline mr-2" /> Overtime Available
@@ -507,27 +518,6 @@ export const Navbar = () => {
             </Link>
             <Link to="/volunteer" className="px-4 py-2 hover:bg-muted rounded-md pl-6" data-testid="mobile-nav-volunteer" onClick={() => setMobileMenuOpen(false)}>
               <Hand className="h-4 w-4 inline mr-2" /> Volunteer
-            </Link>
-            
-            {/* Deployments */}
-            <div className="px-4 py-2 text-xs font-bold uppercase text-muted-foreground mt-2 border-t pt-3">Deployments</div>
-            <Link to="/personnel/deployment-tracker/roster" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Users className="h-4 w-4 inline mr-2" /> TIFMAS & EMTF Roster
-            </Link>
-            <Link to="/personnel/deployment-tracker/tifmas-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS
-            </Link>
-            <Link to="/personnel/deployment-tracker/emtf-rank" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF
-            </Link>
-            <Link to="/personnel/deployment-tracker/tifmas-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Flame className="h-4 w-4 inline mr-2 text-orange-500" /> TIFMAS Deployment Log
-            </Link>
-            <Link to="/personnel/deployment-tracker/emtf-log" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <Ambulance className="h-4 w-4 inline mr-2 text-blue-500" /> EMTF Deployment Log
-            </Link>
-            <Link to="/personnel/deployment-tracker/history" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
-              <History className="h-4 w-4 inline mr-2" /> Deployment History
             </Link>
             
             {/* Reports */}

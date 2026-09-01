@@ -41,6 +41,66 @@ async def get_personnel(
     return personnel
 
 
+@router.get("/export")
+async def export_personnel(
+    current_user: dict = Depends(get_current_user)
+):
+    """Export all personnel to CSV format"""
+    from fastapi.responses import Response
+    import csv
+    import io
+    from datetime import datetime
+    
+    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
+    
+    # Get all active personnel
+    query = {"is_active": {"$ne": False}}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    personnel_list = await db.personnel.find(query, {"_id": 0}).to_list(1000)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write headers
+    headers = ["payroll_number", "first_name", "last_name", "rank", "shift", "station_id", "email", "phone", "certifications", "hire_date"]
+    writer.writerow(headers)
+    
+    # Write data rows
+    for person in personnel_list:
+        name_parts = person.get("name", "").split(" ", 1)
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        
+        certifications = person.get("certifications", [])
+        if isinstance(certifications, list):
+            certifications = ",".join(certifications)
+        
+        writer.writerow([
+            person.get("payroll_number", ""),
+            first_name,
+            last_name,
+            person.get("rank", ""),
+            person.get("shift", ""),
+            person.get("station_id", ""),
+            person.get("contact_email", "") or person.get("email", ""),
+            person.get("contact_phone", "") or person.get("phone", ""),
+            certifications,
+            person.get("hire_date", "")
+        ])
+    
+    csv_content = output.getvalue()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=personnel_export_{timestamp}.csv"}
+    )
+
+
 @router.get("/{personnel_id}", response_model=PersonnelBase)
 async def get_personnel_by_id(personnel_id: str, current_user: dict = Depends(get_current_user)):
     tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
@@ -262,66 +322,6 @@ async def get_import_template(current_user: dict = Depends(get_current_user)):
         content=csv_content,
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=personnel_import_template.csv"}
-    )
-
-
-@router.get("/export")
-async def export_personnel(
-    current_user: dict = Depends(get_current_user)
-):
-    """Export all personnel to CSV format"""
-    from fastapi.responses import Response
-    import csv
-    import io
-    from datetime import datetime
-    
-    tenant_id = current_user.get("_tenant_id") or current_user.get("tenant_id")
-    
-    # Get all active personnel
-    query = {"is_active": {"$ne": False}}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    
-    personnel_list = await db.personnel.find(query, {"_id": 0}).to_list(1000)
-    
-    # Create CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write headers
-    headers = ["payroll_number", "first_name", "last_name", "rank", "shift", "station_id", "email", "phone", "certifications", "hire_date"]
-    writer.writerow(headers)
-    
-    # Write data rows
-    for person in personnel_list:
-        name_parts = person.get("name", "").split(" ", 1)
-        first_name = name_parts[0] if name_parts else ""
-        last_name = name_parts[1] if len(name_parts) > 1 else ""
-        
-        certifications = person.get("certifications", [])
-        if isinstance(certifications, list):
-            certifications = ",".join(certifications)
-        
-        writer.writerow([
-            person.get("payroll_number", ""),
-            first_name,
-            last_name,
-            person.get("rank", ""),
-            person.get("shift", ""),
-            person.get("station_id", ""),
-            person.get("contact_email", "") or person.get("email", ""),
-            person.get("contact_phone", "") or person.get("phone", ""),
-            certifications,
-            person.get("hire_date", "")
-        ])
-    
-    csv_content = output.getvalue()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    return Response(
-        content=csv_content,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=personnel_export_{timestamp}.csv"}
     )
 
 

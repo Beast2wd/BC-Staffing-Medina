@@ -248,6 +248,8 @@ async def create_part_time_availability(
     if tenant_id:
         record_doc["tenant_id"] = tenant_id
     await db.part_time_availability.insert_one(record_doc)
+    # Return a copy without _id to avoid ObjectId serialization
+    record_doc.pop("_id", None)
     return record_doc
 
 

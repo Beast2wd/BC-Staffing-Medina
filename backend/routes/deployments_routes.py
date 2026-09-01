@@ -955,37 +955,162 @@ async def get_deployment_history(
     limit: int = 100,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get deployment history with filtering options"""
+    """Get comprehensive deployment history from all sources (deployments, deployment_log, deployment_history)"""
     tenant_id = get_tenant_id(current_user)
-    query = {}
     
+    all_deployments = []
+    seen_keys = set()
+    
+    # 1. Get from deployment_history collection first (most complete records)
+    history_query = {}
     if tenant_id:
-        query["tenant_id"] = tenant_id
-    
+        history_query["tenant_id"] = tenant_id
     if deployment_type:
-        query["deployment_type"] = deployment_type.upper()
-    
+        history_query["deployment_type"] = deployment_type.upper()
     if status:
-        query["status"] = status
+        history_query["status"] = status
     
-    if start_date:
-        query["start_date"] = {"$gte": start_date}
+    history_records = await db.deployment_history.find(history_query, {"_id": 0}).to_list(500)
     
-    if end_date:
-        if "start_date" in query:
-            query["start_date"]["$lte"] = end_date
-        else:
-            query["start_date"] = {"$lte": end_date}
+    for record in history_records:
+        record_start = record.get("start_date", "")
+        record_end = record.get("end_date", "")
+        
+        # Apply date filters
+        if start_date and record_start and record_start < start_date:
+            continue
+        if end_date and record_start and record_start > end_date:
+            continue
+        
+        # Apply personnel name filter
+        if personnel_name:
+            personnel_list = record.get("personnel", [])
+            if not any(personnel_name.lower() in p.get("name", "").lower() for p in personnel_list):
+                continue
+        
+        key = f"{record.get('deployment_type')}-{record_start}-{record.get('incident_name', '')}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            record["source"] = "history"
+            all_deployments.append(record)
     
-    if personnel_name:
-        query["personnel.name"] = {"$regex": personnel_name, "$options": "i"}
+    # 2. Get from deployments collection (BC Deployments)
+    deploy_query = {}
+    if tenant_id:
+        deploy_query["tenant_id"] = tenant_id
+    if deployment_type:
+        deploy_query["deployment_type"] = deployment_type.upper()
     
-    history = await db.deployment_history.find(
-        query, 
-        {"_id": 0}
-    ).sort("start_date", -1).limit(limit).to_list(limit)
+    deploy_records = await db.deployments.find(deploy_query, {"_id": 0}).to_list(500)
     
-    return history
+    for record in deploy_records:
+        record_start = record.get("start_date", "")
+        record_end = record.get("end_date", "")
+        
+        # Determine status for this record
+        record_status = "completed" if record_end and record_end < datetime.now().strftime("%Y-%m-%d") else "active"
+        
+        # Apply status filter
+        if status and record_status != status:
+            continue
+        
+        # Apply date filters
+        if start_date and record_start and record_start < start_date:
+            continue
+        if end_date and record_start and record_start > end_date:
+            continue
+        
+        # Apply personnel name filter
+        if personnel_name and personnel_name.lower() not in record.get("personnel_name", "").lower():
+            continue
+        
+        # Use consistent dedup key: deployment_type + start_date + location/incident_name
+        incident = record.get("location", "") or record.get("incident_name", "") or "Unknown"
+        key = f"{record.get('deployment_type')}-{record_start}-{incident}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            # Convert to unified format
+            all_deployments.append({
+                "id": record.get("id"),
+                "deployment_type": record.get("deployment_type", ""),
+                "incident_name": incident,
+                "location": record.get("location", ""),
+                "start_date": record_start,
+                "end_date": record_end,
+                "status": record_status,
+                "personnel": [{
+                    "id": record.get("personnel_id", ""),
+                    "name": record.get("personnel_name", ""),
+                    "position": "",
+                    "rank": ""
+                }],
+                "total_personnel": 1,
+                "notes": record.get("notes", ""),
+                "created_at": record.get("created_at", ""),
+                "source": "deployments"
+            })
+    
+    # 3. Get from deployment_log collection (TIFMAS/EMTF log entries)
+    log_query = {}
+    if tenant_id:
+        log_query["tenant_id"] = tenant_id
+    if deployment_type:
+        log_query["incident_type"] = deployment_type.upper()
+    
+    log_records = await db.deployment_log.find(log_query, {"_id": 0}).to_list(500)
+    
+    for record in log_records:
+        record_start = record.get("start_date") or record.get("date", "")
+        record_end = record.get("end_date") or record.get("date", "")
+        
+        # Determine status for this record  
+        record_status = "completed" if record_end and record_end < datetime.now().strftime("%Y-%m-%d") else "active"
+        
+        # Apply status filter
+        if status and record_status != status:
+            continue
+        
+        # Apply date filters
+        if start_date and record_start and record_start < start_date:
+            continue
+        if end_date and record_start and record_start > end_date:
+            continue
+        
+        # Apply personnel name filter
+        if personnel_name and personnel_name.lower() not in record.get("personnel_name", "").lower():
+            continue
+        
+        # Use consistent dedup key: deployment_type + start_date + incident_name
+        incident = record.get("incident_name", "") or "Unknown"
+        key = f"{record.get('incident_type')}-{record_start}-{incident}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            # Convert to unified format
+            all_deployments.append({
+                "id": record.get("id"),
+                "deployment_type": record.get("incident_type", ""),
+                "incident_name": incident,
+                "location": incident,
+                "start_date": record_start,
+                "end_date": record_end,
+                "status": record_status,
+                "personnel": [{
+                    "id": record.get("personnel_id", ""),
+                    "name": record.get("personnel_name", ""),
+                    "position": record.get("position", ""),
+                    "rank": ""
+                }],
+                "total_personnel": 1,
+                "notes": record.get("notes", ""),
+                "created_at": record.get("created_at", ""),
+                "source": "deployment_log"
+            })
+    
+    # Sort by start_date descending (most recent first)
+    all_deployments.sort(key=lambda x: x.get("start_date", "") or "", reverse=True)
+    
+    # Apply limit
+    return all_deployments[:limit]
 
 
 @router.post("/deployment-history")
@@ -1156,41 +1281,90 @@ async def get_deployment_stats(
     year: Optional[int] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get deployment statistics"""
+    """Get deployment statistics from all sources"""
     tenant_id = get_tenant_id(current_user)
     
     if year is None:
         year = datetime.now().year
     
-    query = {
-        "start_date": {
-            "$gte": f"{year}-01-01",
-            "$lte": f"{year}-12-31"
-        }
-    }
-    if tenant_id:
-        query["tenant_id"] = tenant_id
+    start_date = f"{year}-01-01"
+    end_date = f"{year}-12-31"
     
-    history = await db.deployment_history.find(query, {"_id": 0}).to_list(1000)
+    # Collect all deployments from all sources
+    all_records = []
+    seen_keys = set()
+    
+    # 1. From deployment_history
+    history_query = {}
+    if tenant_id:
+        history_query["tenant_id"] = tenant_id
+    history_records = await db.deployment_history.find(history_query, {"_id": 0}).to_list(1000)
+    for record in history_records:
+        record_start = record.get("start_date", "")
+        if record_start >= start_date and record_start <= end_date:
+            key = f"{record.get('deployment_type')}-{record_start}-{record.get('incident_name', '')}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_records.append(record)
+    
+    # 2. From deployments collection
+    deploy_query = {}
+    if tenant_id:
+        deploy_query["tenant_id"] = tenant_id
+    deploy_records = await db.deployments.find(deploy_query, {"_id": 0}).to_list(500)
+    for record in deploy_records:
+        record_start = record.get("start_date", "")
+        if record_start >= start_date and record_start <= end_date:
+            key = f"{record.get('deployment_type')}-{record_start}-{record.get('personnel_name', '')}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_records.append({
+                    "deployment_type": record.get("deployment_type", ""),
+                    "personnel": [{"name": record.get("personnel_name", ""), "id": record.get("personnel_id", "")}],
+                    "total_personnel": 1,
+                    "status": "completed" if record.get("end_date", "") and record.get("end_date", "") < datetime.now().strftime("%Y-%m-%d") else "active"
+                })
+    
+    # 3. From deployment_log
+    log_query = {}
+    if tenant_id:
+        log_query["tenant_id"] = tenant_id
+    log_records = await db.deployment_log.find(log_query, {"_id": 0}).to_list(500)
+    for record in log_records:
+        record_start = record.get("start_date") or record.get("date", "")
+        if record_start >= start_date and record_start <= end_date:
+            key = f"{record.get('incident_type')}-{record_start}-{record.get('personnel_name', '')}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_records.append({
+                    "deployment_type": record.get("incident_type", ""),
+                    "personnel": [{"name": record.get("personnel_name", ""), "id": record.get("personnel_id", "")}],
+                    "total_personnel": 1,
+                    "status": "completed"
+                })
     
     # Calculate stats
-    tifmas_count = len([h for h in history if h.get("deployment_type") == "TIFMAS"])
-    emtf_count = len([h for h in history if h.get("deployment_type") == "EMTF"])
+    tifmas_count = len([h for h in all_records if h.get("deployment_type") == "TIFMAS"])
+    emtf_count = len([h for h in all_records if h.get("deployment_type") == "EMTF"])
+    other_count = len([h for h in all_records if h.get("deployment_type") not in ["TIFMAS", "EMTF"]])
     
-    total_personnel = sum(h.get("total_personnel", 0) for h in history)
+    total_personnel = sum(h.get("total_personnel", 0) for h in all_records)
     
     # Personnel deployment counts
     personnel_counts = {}
-    for h in history:
+    for h in all_records:
         for p in h.get("personnel", []):
             name = p.get("name", "Unknown")
-            if name not in personnel_counts:
-                personnel_counts[name] = {"tifmas": 0, "emtf": 0, "total": 0}
-            personnel_counts[name]["total"] += 1
-            if h.get("deployment_type") == "TIFMAS":
-                personnel_counts[name]["tifmas"] += 1
-            elif h.get("deployment_type") == "EMTF":
-                personnel_counts[name]["emtf"] += 1
+            if name and name != "Unknown":
+                if name not in personnel_counts:
+                    personnel_counts[name] = {"tifmas": 0, "emtf": 0, "other": 0, "total": 0}
+                personnel_counts[name]["total"] += 1
+                if h.get("deployment_type") == "TIFMAS":
+                    personnel_counts[name]["tifmas"] += 1
+                elif h.get("deployment_type") == "EMTF":
+                    personnel_counts[name]["emtf"] += 1
+                else:
+                    personnel_counts[name]["other"] += 1
     
     # Top deployers
     top_deployers = sorted(
@@ -1201,15 +1375,16 @@ async def get_deployment_stats(
     
     return {
         "year": year,
-        "total_deployments": len(history),
+        "total_deployments": len(all_records),
         "tifmas_deployments": tifmas_count,
         "emtf_deployments": emtf_count,
+        "other_deployments": other_count,
         "total_personnel_deployed": total_personnel,
         "unique_personnel": len(personnel_counts),
         "top_deployers": top_deployers,
         "by_status": {
-            "active": len([h for h in history if h.get("status") == "active"]),
-            "completed": len([h for h in history if h.get("status") == "completed"]),
-            "cancelled": len([h for h in history if h.get("status") == "cancelled"])
+            "active": len([h for h in all_records if h.get("status") == "active"]),
+            "completed": len([h for h in all_records if h.get("status") == "completed"]),
+            "cancelled": len([h for h in all_records if h.get("status") == "cancelled"])
         }
     }

@@ -2,21 +2,77 @@
 Platform settings routes - for managing BC Staffing platform-wide settings
 """
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import Response
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import os
 import uuid
 import base64
+import requests
 
 from database import db
 from auth import get_current_user, require_super_admin
 
 router = APIRouter(prefix="/platform", tags=["Platform"])
 
-# Directory for storing uploaded videos
-UPLOAD_DIR = "/app/backend/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Emergent Object Storage configuration
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "bc-staffing"
+_storage_key = None  # Module-level, cached after first init
+
+
+def init_storage(force: bool = False):
+    """Initialize Emergent Object Storage. Call once at startup."""
+    global _storage_key
+    if _storage_key and not force:
+        return _storage_key
+    if not EMERGENT_KEY:
+        raise HTTPException(status_code=500, detail="Storage not configured: EMERGENT_LLM_KEY missing")
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    """Upload file to Emergent Object Storage."""
+    key = init_storage()
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120
+    )
+    if resp.status_code == 404:
+        # Storage key may have expired, reinit and retry
+        key = init_storage(force=True)
+        resp = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key, "Content-Type": content_type},
+            data=data, timeout=120
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str) -> tuple:
+    """Download file from Emergent Object Storage. Returns (content_bytes, content_type)."""
+    key = init_storage()
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60
+    )
+    if resp.status_code == 404:
+        # Storage key may have expired, reinit and retry
+        key = init_storage(force=True)
+        resp = requests.get(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key}, timeout=60
+        )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
 class PlatformSettings(BaseModel):
@@ -144,24 +200,34 @@ async def upload_intro_video(
     if len(content) > MAX_SIZE:
         raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB")
     
-    # Generate unique filename
+    # Generate unique filename and storage path
     ext = file.filename.split(".")[-1] if "." in file.filename else "mp4"
     filename = f"intro_video_{uuid.uuid4().hex[:8]}.{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    storage_path = f"{APP_NAME}/videos/{filename}"
     
-    # Save file
-    with open(filepath, "wb") as f:
-        f.write(content)
+    # Determine content type
+    content_types = {
+        "mp4": "video/mp4",
+        "webm": "video/webm",
+        "ogg": "video/ogg",
+        "mov": "video/quicktime"
+    }
+    content_type = content_types.get(ext.lower(), "video/mp4")
     
-    # Generate URL (will be served from /api/platform/video/)
-    video_url = f"/api/platform/video/{filename}"
+    # Upload to Emergent Object Storage
+    try:
+        result = put_object(storage_path, content, content_type)
+        video_url = f"/api/platform/video/{filename}"
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload video: {str(e)}")
     
-    # Update platform settings with video URL
+    # Update platform settings with video URL and storage path
     await db.platform_settings.update_one(
         {"id": "platform"},
         {
             "$set": {
                 "intro_video_url": video_url,
+                "intro_video_storage_path": result.get("path", storage_path),
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
         },
@@ -173,14 +239,15 @@ async def upload_intro_video(
 
 @router.get("/video/{filename}")
 async def serve_video(filename: str, request=None):
-    """Serve uploaded video files with proper streaming headers for HTML5 video playback"""
+    """Serve uploaded video files from Emergent Object Storage"""
     from fastapi import Request
-    from fastapi.responses import StreamingResponse, Response
-    import aiofiles
     
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Video not found")
+    # Get storage path from platform settings
+    settings = await db.platform_settings.find_one({"id": "platform"}, {"_id": 0})
+    storage_path = settings.get("intro_video_storage_path") if settings else None
+    
+    if not storage_path:
+        storage_path = f"{APP_NAME}/videos/{filename}"
     
     # Determine content type
     ext = filename.split(".")[-1].lower()
@@ -192,36 +259,25 @@ async def serve_video(filename: str, request=None):
     }
     content_type = content_types.get(ext, "video/mp4")
     
-    # Get file size
-    file_size = os.path.getsize(filepath)
-    
-    async def iterfile():
-        """Stream file in chunks"""
-        async with aiofiles.open(filepath, 'rb') as f:
-            while chunk := await f.read(65536):  # 64KB chunks
-                yield chunk
-    
-    # Return streaming response for better video playback
-    return StreamingResponse(
-        iterfile(),
-        media_type=content_type,
-        headers={
+    try:
+        data, _ = get_object(storage_path)
+        return Response(content=data, media_type=content_type, headers={
             "Accept-Ranges": "bytes",
-            "Content-Length": str(file_size),
-            "Cache-Control": "public, max-age=86400",
-            "X-Content-Type-Options": "nosniff"
-        }
-    )
+            "Content-Length": str(len(data))
+        })
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Video not found")
 
 
 @router.head("/video/{filename}")
 async def head_video(filename: str):
-    """Handle HEAD requests for video files"""
-    from fastapi.responses import Response
+    """Handle HEAD requests for video files from Emergent Object Storage"""
+    # Get storage path from platform settings
+    settings = await db.platform_settings.find_one({"id": "platform"}, {"_id": 0})
+    storage_path = settings.get("intro_video_storage_path") if settings else None
     
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Video not found")
+    if not storage_path:
+        storage_path = f"{APP_NAME}/videos/{filename}"
     
     ext = filename.split(".")[-1].lower()
     content_types = {
@@ -231,35 +287,28 @@ async def head_video(filename: str):
         "mov": "video/quicktime"
     }
     content_type = content_types.get(ext, "video/mp4")
-    file_size = os.path.getsize(filepath)
     
-    return Response(
-        content=None,
-        headers={
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(file_size),
-            "Content-Type": content_type,
-            "Cache-Control": "public, max-age=86400"
-        }
-    )
+    try:
+        data, _ = get_object(storage_path)
+        return Response(
+            content=None,
+            headers={
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(len(data)),
+                "Content-Type": content_type,
+                "Cache-Control": "public, max-age=86400"
+            }
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Video not found")
 
 
 @router.delete("/video")
 async def delete_intro_video(
     current_user: dict = Depends(require_super_admin())
 ):
-    """Delete intro video (Super Admin only)"""
-    # Get current settings
-    settings = await db.platform_settings.find_one({"id": "platform"})
-    if settings and settings.get("intro_video_url"):
-        # Extract filename and delete file
-        video_url = settings["intro_video_url"]
-        filename = video_url.split("/")[-1]
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-    
-    # Update settings to remove video URL
+    """Delete intro video reference (Super Admin only). Note: Emergent storage doesn't support delete, so we soft-delete by clearing the DB reference."""
+    # Update settings to remove video URL (soft-delete - storage doesn't support actual delete)
     await db.platform_settings.update_one(
         {"id": "platform"},
         {

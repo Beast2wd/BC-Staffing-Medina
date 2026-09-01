@@ -105,6 +105,17 @@ async def mark_all_notifications_read(current_user: dict = Depends(get_current_u
     return {"message": f"Marked {result.modified_count} notifications as read"}
 
 
+@router.delete("/user-notifications/clear-all")
+async def clear_all_notifications(current_user: dict = Depends(get_current_user)):
+    """Clear all notifications for current user"""
+    tenant_id = get_tenant_id(current_user)
+    query = {"user_id": current_user["id"]}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    result = await db.user_notifications.delete_many(query)
+    return {"message": f"Deleted {result.deleted_count} notifications"}
+
+
 @router.delete("/user-notifications/{notification_id}")
 async def delete_notification(
     notification_id: str,
@@ -119,17 +130,6 @@ async def delete_notification(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"message": "Notification deleted"}
-
-
-@router.delete("/user-notifications/clear-all")
-async def clear_all_notifications(current_user: dict = Depends(get_current_user)):
-    """Clear all notifications for current user"""
-    tenant_id = get_tenant_id(current_user)
-    query = {"user_id": current_user["id"]}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    result = await db.user_notifications.delete_many(query)
-    return {"message": f"Deleted {result.deleted_count} notifications"}
 
 
 # ===================== HELPER FUNCTION TO CREATE NOTIFICATIONS =====================

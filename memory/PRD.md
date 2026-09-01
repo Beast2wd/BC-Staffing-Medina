@@ -1158,4 +1158,14 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - `GET /api/reports/leave-accrual-audit` - Leave accrual audit with personnel/leave_type filters
 - `GET /api/reports/shift-coverage-heatmap` - Overtime heatmap with monthly/weekly view modes
 
+### Deployment History Unified & Navigation Restructure (December 2025)
+- ✅ **Unified Deployment History**: Backend now queries all 3 collections (deployment_history, deployments, deployment_log) to show complete deployment records
+- ✅ **Status Filter Fix**: Status filter (active/completed) now applies to all data sources, not just deployment_history
+- ✅ **Improved Deduplication**: Consistent dedup keys using deployment_type + start_date + incident_name across all sources
+- ✅ **Navigation Restructure**: Deployments submenu moved from Personnel menu to Battalion Chief menu
+- ✅ **Old Deployment Link Removed**: The simple /battalion-chief/deployment link has been replaced with the full Deployments submenu
+- ✅ **Mobile Navigation Updated**: Mobile menu also reflects the navigation change
+- ✅ **Deployments Submenu under BC**: TIFMAS & EMTF Roster, TIFMAS, EMTF, TIFMAS Log, EMTF Log, Deployment History
+
+
 

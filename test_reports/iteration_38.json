@@ -1,0 +1,38 @@
+{
+  "summary": "Tested unified Deployment History (backend + frontend) after moving Deployments submenu from Personnel to Battalion Chief. Backend pytest 10/10 pass covering GET /api/deployment-history (unified from 3 collections: deployment_history, deployments, deployment_log), sorted descending by start_date, filters (deployment_type TIFMAS/EMTF, status, date range, personnel_name), GET /api/deployment-history/stats returning total_deployments/tifmas_deployments/emtf_deployments/unique_personnel, and POST→GET persistence + DELETE cleanup. Unified endpoint returns 10 records including the two most recent (Ross Fire 2026-08-25, Wildland Fire Support 2026-02-07) confirming the original bug is fixed. Frontend Playwright: Battalion Chief dropdown now hosts a 'Deployments' submenu (data-testid Deployments trigger) with all 6 items: nav-deploy-roster (TIFMAS & EMTF Roster), nav-tifmas-rank (TIFMAS), nav-emtf-rank (EMTF), nav-tifmas-log (TIFMAS Deployment Log), nav-emtf-log (EMTF Deployment Log), nav-deploy-history (Deployment History). Personnel dropdown now only contains Overtime/Part-Time/Volunteer — no Deployments (confirmed by inner_text scan). The old flat 'Deployment' link under BC has been removed. DeploymentHistoryPage renders 4 stat cards (10 Total, 3 TIFMAS, 7 EMTF, 8 Personnel Deployed), the unified table with Type/Incident/Location/Dates/Personnel/Status columns and TIFMAS/EMTF colored badges, and Top Deployers panel. Filter EMTF reduces rows from 10 to 7 (matches EMTF count) verifying Filters+Recent-deployments bug fix. Row expansion reveals 'Deployed Personnel' badges. Export CSV button rendered.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "/api/deployment-history", "issue": "status query param is only applied to deployment_history collection; deployments and deployment_log records ignore this filter (they always pass through). Result: filtering by status='active' can include completed records from the other 2 sources."},
+    {"endpoint": "/api/deployment-history", "issue": "deployments collection converted record's incident_name falls back to deployment_type when location is empty (line 1027), which yields odd display values like 'TIFMAS' as an incident name."},
+    {"endpoint": "/api/deployment-history", "issue": "Dedup key in deployments source uses personnel_name while deployment_history uses incident_name — records covering the same real deployment across sources may not dedup and can appear twice (visible in UI: two 'Kerrville', two 'Wildland Fire Support' rows)."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DeploymentHistoryPage", "issue": "Console spam 'Invalid prop supplied to React.Fragment. React.Fragment can only have key and children props. data-state' on every row render, caused by <Collapsible asChild><>...</> — Radix passes data-state through asChild to the Fragment.", "selector": "table tbody tr", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_deployment_history.py", "/app/test_reports/pytest/deployment_history.xml"],
+  "action_items": [
+    "Apply status filter to deployments and deployment_log sources in GET /api/deployment-history (currently only history collection is filtered).",
+    "Fix Collapsible asChild wrapping in DeploymentHistoryPage.js — replace the <> fragment child with a component (e.g., a wrapper div or use two adjacent TableRow children without Collapsible asChild) to silence React.Fragment prop warning.",
+    "Improve dedup logic across sources so the same deployment isn't listed twice (e.g., key on incident_name+start_date+deployment_type consistently).",
+    "For BC 'deployments' source, avoid falling back to deployment_type when location/incident_name is empty — use a placeholder or leave blank."
+  ],
+  "critical_code_review_comments": [
+    "deployments_routes.py get_deployment_history: 3 nearly identical for-loops (~30 lines each) — extract a helper to normalize a raw record to the unified shape; reduces ~100 lines and centralizes dedup key logic.",
+    "deployments_routes.py: date filtering uses lexicographic string compare on start_date; assumes ISO YYYY-MM-DD everywhere. If any legacy record has MM/DD/YYYY, filter will silently drop it.",
+    "deployments_routes.py: sort key `x.get('start_date','') or ''` handles None but records with empty start_date sort last (empty string is 'smallest' so with reverse=True they end up last). Verify seed data always has start_date.",
+    "DeploymentHistoryPage.js: expandedRows uses deployment.id as key, but some records (from log) may have missing/duplicate ids in unified list — could cause multi-expand collisions.",
+    "DeploymentHistoryPage.js line 343: <Collapsible asChild><>...</> — this is the source of the React.Fragment data-state warning flooding the console.",
+    "Route order: GET /deployment-history/stats is defined AFTER PUT/DELETE /deployment-history/{history_id} — fine for GET, but if a future GET /deployment-history/{id} is added it must be placed after /stats to avoid path capture."
+  ],
+  "updated_files": ["/app/backend/tests/test_deployment_history.py", "/app/test_reports/iteration_38.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin 100001 / admin123 (tenant medina)",
+  "seed_data_creation": "Created + deleted one TEST_Hurricane Response deployment during persistence test; visible ghost 'TEST_Hurricane Response' row remained in unified list from a prior test run (present in one of the source collections). Non-blocking.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New pytest at /app/backend/tests/test_deployment_history.py covers unified endpoint + stats. Frontend selectors: battalion-chief-dropdown, personnel-dropdown, nav-deploy-roster, nav-tifmas-rank, nav-emtf-rank, nav-tifmas-log, nav-emtf-log, nav-deploy-history. Deployment history route: /personnel/deployment-tracker/history. Stats endpoint returns keys: year,total_deployments,tifmas_deployments,emtf_deployments,other_deployments,total_personnel_deployed,unique_personnel,top_deployers,by_status.",
+  "rca of the issue": "Original bug: 'Deployment history isn't showing 2 most recent deployments' — root cause was that the endpoint only queried the deployment_history collection, missing records saved to deployments (BC) and deployment_log (TIFMAS/EMTF) collections. Fix unifies the three collections (verified: 10 records including most-recent 2026-08-25 Ross Fire). 'Filters don't show recent deployments' — same root cause: filters applied only to one source. Fix now applies filters across all sources (verified: EMTF filter yields 7 rows matching EMTF stat). 'Move Deployments from Personnel to Battalion Chief' — Navbar.js updated (verified via menu inner_text scan: BC has Deployments submenu, Personnel does not). 'Delete current Deployment tab under BC' — old flat /battalion-chief/deployment link removed (grep returns 0 matches)."
+}
