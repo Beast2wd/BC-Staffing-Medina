@@ -1167,5 +1167,17 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Mobile Navigation Updated**: Mobile menu also reflects the navigation change
 - ✅ **Deployments Submenu under BC**: TIFMAS & EMTF Roster, TIFMAS, EMTF, TIFMAS Log, EMTF Log, Deployment History
 
+### Personnel Deployment Counts & Batch Assignment (December 2025)
+- ✅ **Personnel Deployment Cards**: Personnel Management table now includes "Deploys" column showing total deployment count
+- ✅ **Deployment Breakdown**: Shows TIFMAS (T:X) and EMTF (E:X) counts as color-coded badges
+- ✅ **API Endpoint**: `/api/personnel/with-deployment-counts` returns deployment_count, deployment_tifmas, deployment_emtf
+- ✅ **Batch Assignment UI**: "Add Deployment" dialog now supports selecting multiple personnel via checkboxes
+- ✅ **Personnel Search**: Search/filter personnel in the multi-select list
+- ✅ **Selection Badges**: Shows selected personnel as removable badges
+- ✅ **Batch Create Endpoint**: `/api/deployments/batch` creates deployments for all selected personnel at once
+- ✅ **Dynamic Save Button**: Button text changes to "Create X Deployments" when multiple personnel selected
+- ✅ **Tests Passed**: Backend 100%, Frontend 100% (iteration_39.json)
+
+
 
 

@@ -51,6 +51,105 @@ async def create_deployment(
     return data
 
 
+@router.post("/deployments/batch")
+async def create_batch_deployment(
+    data: dict,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Create deployments for multiple personnel at once.
+    
+    Expected data format:
+    {
+        "personnel_ids": ["id1", "id2", ...],
+        "deployment_type": "TIFMAS",
+        "start_date": "2025-01-01",
+        "end_date": "2025-01-10",
+        "location": "Incident Name",
+        "notes": "Optional notes"
+    }
+    """
+    tenant_id = get_tenant_id(current_user)
+    
+    personnel_ids = data.get("personnel_ids", [])
+    if not personnel_ids:
+        raise HTTPException(status_code=400, detail="At least one personnel must be selected")
+    
+    deployment_type = data.get("deployment_type", "")
+    start_date = data.get("start_date", "")
+    end_date = data.get("end_date", "")
+    location = data.get("location", "")
+    notes = data.get("notes", "")
+    
+    if not deployment_type or not start_date:
+        raise HTTPException(status_code=400, detail="Deployment type and start date are required")
+    
+    # Get personnel details for each ID
+    personnel_query = {"id": {"$in": personnel_ids}}
+    if tenant_id:
+        personnel_query["tenant_id"] = tenant_id
+    personnel_list = await db.personnel.find(personnel_query, {"_id": 0}).to_list(100)
+    
+    # Create a map of id -> personnel
+    personnel_map = {p["id"]: p for p in personnel_list}
+    
+    created_count = 0
+    created_deployments = []
+    errors = []
+    
+    for pid in personnel_ids:
+        person = personnel_map.get(pid)
+        if not person:
+            errors.append(f"Personnel ID {pid} not found")
+            continue
+        
+        # Create deployment record
+        deployment = DeploymentRecord(
+            id=str(uuid.uuid4()),
+            personnel_id=pid,
+            personnel_name=person.get("name", "Unknown"),
+            deployment_type=deployment_type,
+            start_date=start_date,
+            end_date=end_date,
+            location=location,
+            notes=notes,
+            created_by=current_user.get("name", ""),
+            created_at=datetime.now(timezone.utc).isoformat()
+        )
+        
+        deploy_doc = deployment.model_dump()
+        if tenant_id:
+            deploy_doc["tenant_id"] = tenant_id
+        
+        await db.deployments.insert_one(deploy_doc)
+        deploy_doc.pop("_id", None)
+        created_deployments.append(deploy_doc)
+        created_count += 1
+        
+        # Update deployment roster for TIFMAS/EMTF
+        if deployment_type in ["TIFMAS", "EMTF"]:
+            roster_query = {"name": person.get("name")}
+            if tenant_id:
+                roster_query["tenant_id"] = tenant_id
+            
+            field_name = "last_tifmas_deploy" if deployment_type == "TIFMAS" else "last_emtf_deploy"
+            count_field = "tifmas_count" if deployment_type == "TIFMAS" else "emtf_count"
+            
+            await db.deployment_roster.update_one(
+                roster_query,
+                {
+                    "$set": {field_name: start_date},
+                    "$inc": {count_field: 1}
+                }
+            )
+    
+    return {
+        "message": f"Created {created_count} deployments",
+        "created_count": created_count,
+        "deployments": created_deployments,
+        "errors": errors if errors else None
+    }
+
+
 @router.put("/deployments/{deployment_id}")
 async def update_deployment(
     deployment_id: str,

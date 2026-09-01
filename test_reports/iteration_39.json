@@ -1,0 +1,34 @@
+{
+  "summary": "Tested Personnel Deployment Counts + Batch Assignment features (backend + frontend). Backend pytest 6/6 pass in /app/backend/tests/test_deployment_counts_batch.py covering: GET /api/personnel/with-deployment-counts returns deployment_count, deployment_tifmas, deployment_emtf as ints with count>=tifmas+emtf invariant; POST /api/deployments/batch validation (empty personnel_ids => 400, missing type/start => 400) and successful batch create for 2 personnel (TIFMAS) — verified /api/personnel/with-deployment-counts increments deployment_count by 1 and deployment_tifmas by 1 for each, plus a single-personnel EMTF batch increments deployment_emtf. Frontend Playwright: Personnel Management page (/tools/personnel) shows 'Deploys' column header; Test User row displays '3' with badges 'T:2' and 'E:1' matching backend counts. BC Deployments page (/battalion-chief/deployment) — 'Add Deployment' dialog opens with multi-select personnel list (data-testid='personnel-search' + data-testid='personnel-option-{id}' rows with checkboxes). Search filter works (TEST_UI => 2 matched, 'Alpha' inactive => 0). Selecting 2 personnel shows label 'Personnel (2 selected)', selected badges 'TEST_UI_X_6YRM' and 'TEST_UI_Y_6YRM', and Save button text changes from 'Save Deployment' to 'Create 2 Deployments'. Batch create end-to-end via UI (fill TIFMAS/date/location, click Save) returns 200 and deployment record appears in /api/deployments.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Personnel Management refresh after batch create", "issue": "After creating batch deployments and navigating to /tools/personnel, the newly-affected personnel row still shows '-' in Deploys column until a hard refresh, though /api/personnel/with-deployment-counts already returns correct values. Likely StaffingContext caches personnelWithDeployments and does not refetch on route mount after batch mutation. Non-blocking (data eventually consistent on reload).", "affected_selectors": ["personnel-row-{id}"]}
+    ],
+    "design_issues": [
+      {"screen": "New Deployment dialog", "issues": ["Warning: 'Missing Description or aria-describedby={undefined} for DialogContent' — add DialogDescription for a11y."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_deployment_counts_batch.py", "/app/test_reports/pytest/deployment_counts_batch.xml"],
+  "action_items": [
+    "Have StaffingContext.fetchPersonnelWithDeployments re-run when the Personnel Management page mounts, or invalidate its cache after successful /deployments/batch, so Deploys column reflects new counts without hard refresh.",
+    "Add DialogDescription (or aria-describedby) to the New Deployment DialogContent to silence a11y warning.",
+    "Personnel search in dialog matches by name only (visible search-then-check with 'Alpha' returned 0 for inactive personnel — expected). Consider surfacing station/rank filter for large tenants (nice-to-have)."
+  ],
+  "critical_code_review_comments": [
+    "deployments_routes.py /deployments/batch: no rollback on partial failure — if insert_one succeeds for some and errors for others, created records remain and errors are only returned in a list. Consider transaction or explicit compensation.",
+    "deployments_routes.py /deployments/batch: personnel lookup uses to_list(100) — a batch with > 100 selected IDs will silently drop personnel; use to_list(len(personnel_ids)) or None.",
+    "deployments_routes.py /deployments/batch: for TIFMAS/EMTF, roster is matched by 'name' — fragile (duplicate names, rename). Should join on personnel_id.",
+    "personnel_routes.py /personnel/with-deployment-counts: deployment_history collection is NOT counted (only deployments + deployment_log). If admins add records directly via Deployment History (which unified endpoint reads from 3 sources incl. deployment_history), those won't reflect on personnel cards. Consider including deployment_history collection for consistency with iteration_38 unified view.",
+    "personnel_routes.py /personnel/with-deployment-counts: response is untyped (no response_model) while other endpoints use PersonnelBase — API contract drift.",
+    "DeploymentPage.js dialog: after batch create success, formData is presumably reset but selectedPersonnel badges rely on personnel array from context; if personnel list is refreshed slowly, stale IDs may render as raw UUIDs (fallback `person?.name || pid`)."
+  ],
+  "updated_files": ["/app/backend/tests/test_deployment_counts_batch.py", "/app/test_reports/iteration_39.json"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin 100001 / admin123 (tenant medina)",
+  "seed_data_creation": "Created + deleted TEST_UI_* personnel and TEST_UI_BATCH* deployments during tests. All cleaned up via API. Note: DELETE /api/personnel/{id} appears to soft-delete (is_active=False) — a subsequent recreate with same payroll_number returns 400 'Payroll number already exists' because the existence check ignores is_active. Non-blocking but worth flagging.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Selectors verified: [data-testid='add-deployment-btn'], [data-testid='personnel-search'], [data-testid='personnel-option-{id}'], [data-testid='save-deployment-btn'], [data-testid='type-select'], [data-testid='start-date-input'], [data-testid='end-date-input'], [data-testid='location-input'], [data-testid^='personnel-row-']. Deploys is the 7th <td> (index 6) in the personnel table. Only 1 real personnel (Test User) exists in medina tenant; create additional personnel via POST /api/personnel with station_id='sta-10', battalion_id='bat-8110'. Personnel Management URL is /tools/personnel (not /tools/personnel-management)."
+}

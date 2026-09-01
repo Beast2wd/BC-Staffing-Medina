@@ -12,6 +12,11 @@ from routes.user_notifications_routes import create_notification_for_personnel
 
 router = APIRouter(prefix="/personnel", tags=["Personnel"])
 
+
+def _get_tenant_id(current_user: dict) -> str:
+    """Extract tenant_id from current_user"""
+    return current_user.get("_tenant_id") or current_user.get("tenant_id")
+
 # Default password for new personnel - they must change on first login
 DEFAULT_PASSWORD = "changeme123"
 
@@ -38,6 +43,82 @@ async def get_personnel(
         query["shift"] = shift
     
     personnel = await db.personnel.find(query, {"_id": 0}).to_list(1000)
+    return personnel
+
+
+@router.get("/with-deployment-counts")
+async def get_personnel_with_deployment_counts(
+    battalion_id: str = "",
+    station_id: str = "",
+    shift: str = "",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all personnel with their deployment counts"""
+    tenant_id = _get_tenant_id(current_user)
+    
+    # Base personnel query
+    query = {"is_active": {"$ne": False}}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    if battalion_id:
+        query["battalion_id"] = battalion_id
+    if station_id:
+        query["station_id"] = station_id
+    if shift:
+        query["shift"] = shift
+    
+    personnel = await db.personnel.find(query, {"_id": 0}).to_list(1000)
+    
+    # Build a map of personnel_id -> deployment counts from all 3 collections
+    deployment_counts = {}
+    
+    # Count from deployments collection
+    deploy_query = {}
+    if tenant_id:
+        deploy_query["tenant_id"] = tenant_id
+    deploy_records = await db.deployments.find(deploy_query, {"personnel_id": 1, "deployment_type": 1, "_id": 0}).to_list(5000)
+    for rec in deploy_records:
+        pid = rec.get("personnel_id")
+        if pid:
+            if pid not in deployment_counts:
+                deployment_counts[pid] = {"total": 0, "tifmas": 0, "emtf": 0, "other": 0}
+            deployment_counts[pid]["total"] += 1
+            dtype = rec.get("deployment_type", "").upper()
+            if dtype == "TIFMAS":
+                deployment_counts[pid]["tifmas"] += 1
+            elif dtype == "EMTF":
+                deployment_counts[pid]["emtf"] += 1
+            else:
+                deployment_counts[pid]["other"] += 1
+    
+    # Count from deployment_log collection
+    log_query = {}
+    if tenant_id:
+        log_query["tenant_id"] = tenant_id
+    log_records = await db.deployment_log.find(log_query, {"personnel_id": 1, "incident_type": 1, "_id": 0}).to_list(5000)
+    for rec in log_records:
+        pid = rec.get("personnel_id")
+        if pid:
+            if pid not in deployment_counts:
+                deployment_counts[pid] = {"total": 0, "tifmas": 0, "emtf": 0, "other": 0}
+            deployment_counts[pid]["total"] += 1
+            dtype = rec.get("incident_type", "").upper()
+            if dtype == "TIFMAS":
+                deployment_counts[pid]["tifmas"] += 1
+            elif dtype == "EMTF":
+                deployment_counts[pid]["emtf"] += 1
+            else:
+                deployment_counts[pid]["other"] += 1
+    
+    # Add deployment counts to personnel
+    for person in personnel:
+        pid = person.get("id")
+        counts = deployment_counts.get(pid, {"total": 0, "tifmas": 0, "emtf": 0, "other": 0})
+        person["deployment_count"] = counts["total"]
+        person["deployment_tifmas"] = counts["tifmas"]
+        person["deployment_emtf"] = counts["emtf"]
+        person["deployment_other"] = counts["other"]
+    
     return personnel
 
 

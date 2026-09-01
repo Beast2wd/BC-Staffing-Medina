@@ -10,7 +10,7 @@ import { useStaffing } from '../../context/StaffingContext';
 import { BattalionSelector } from '../../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
 import { Plus, Save, Trash2, Users, Calendar, Clock, Flame, Ambulance, ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
@@ -37,13 +37,14 @@ export const DeploymentPage = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'by-name', 'by-month'
   const [formData, setFormData] = useState({
-    personnel_id: '',
+    personnel_ids: [], // Changed to array for multi-select
     deployment_type: '',
     start_date: '',
     end_date: '',
     location: '',
     notes: ''
   });
+  const [personnelSearch, setPersonnelSearch] = useState('');
   
   // Edit dialog state
   const [editDialog, setEditDialog] = useState({ open: false, deployment: null });
@@ -88,45 +89,59 @@ export const DeploymentPage = () => {
   };
 
   const handleAddDeployment = async () => {
-    if (!formData.personnel_id || !formData.deployment_type || !formData.start_date || !formData.end_date) {
+    if (formData.personnel_ids.length === 0 || !formData.deployment_type || !formData.start_date || !formData.end_date) {
       toast.error('Please fill in all required fields');
       return;
     }
     
     setLoading(true);
     try {
-      // Add to both deployments and deployment-log for sync
-      const deploymentId = crypto.randomUUID();
-      await api.post('/deployments', {
-        id: deploymentId,
-        ...formData
+      // Use batch endpoint for multiple personnel
+      const response = await api.post('/deployments/batch', {
+        personnel_ids: formData.personnel_ids,
+        deployment_type: formData.deployment_type,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        location: formData.location,
+        notes: formData.notes
       });
       
-      // Also add to deployment log if it's TIFMAS or EMTF
-      if (['TIFMAS', 'EMTF'].includes(formData.deployment_type)) {
-        const person = personnel.find(p => p.id === formData.personnel_id);
-        await api.post('/deployment-log', {
-          date: formData.start_date,
-          incident_type: formData.deployment_type,
-          incident_name: formData.location || formData.deployment_type,
-          personnel_name: person ? `${person.name}` : formData.personnel_id,
-          personnel_id: formData.personnel_id,
-          position: 'AST',
-          notes: formData.notes
-        });
+      const result = response.data;
+      toast.success(`Created ${result.created_count} deployment(s)`);
+      
+      if (result.errors && result.errors.length > 0) {
+        toast.warning(`Some errors: ${result.errors.join(', ')}`);
       }
       
-      toast.success('Deployment created');
-      setShowAddDialog(false);
       fetchDeployments();
       fetchDeploymentLog();
-      setFormData({ personnel_id: '', deployment_type: '', start_date: '', end_date: '', location: '', notes: '' });
+      setShowAddDialog(false);
+      setFormData({ personnel_ids: [], deployment_type: '', start_date: '', end_date: '', location: '', notes: '' });
+      setPersonnelSearch('');
     } catch (error) {
       toast.error('Failed to create deployment');
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Toggle personnel selection for batch add
+  const togglePersonnelForDeployment = (personId) => {
+    setFormData(prev => ({
+      ...prev,
+      personnel_ids: prev.personnel_ids.includes(personId)
+        ? prev.personnel_ids.filter(id => id !== personId)
+        : [...prev.personnel_ids, personId]
+    }));
+  };
+
+  // Filter personnel for search
+  const filteredPersonnel = personnel.filter(p => {
+    if (!personnelSearch) return true;
+    const search = personnelSearch.toLowerCase();
+    return p.name?.toLowerCase().includes(search) || p.payroll_number?.includes(search);
+  });
 
   const getPersonnelName = (personnelId) => {
     const person = personnel.find(p => p.id === personnelId);
@@ -382,28 +397,86 @@ export const DeploymentPage = () => {
                     <Plus className="h-4 w-4 mr-2" /> Add Deployment
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="font-heading uppercase">New Deployment</DialogTitle>
+                    <DialogDescription className="text-sm text-muted-foreground">
+                      Select one or more personnel to deploy
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
+                    {/* Personnel Multi-Select */}
                     <div className="space-y-2">
-                      <Label>Personnel</Label>
-                      <Select 
-                        value={formData.personnel_id} 
-                        onValueChange={(v) => setFormData({...formData, personnel_id: v})}
-                      >
-                        <SelectTrigger data-testid="personnel-select">
-                          <SelectValue placeholder="Select Personnel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {personnel.map(person => (
-                            <SelectItem key={person.id} value={person.id}>
-                              {person.rank} {person.name} ({person.shift} Shift)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center justify-between">
+                        <Label>Personnel ({formData.personnel_ids.length} selected)</Label>
+                        {formData.personnel_ids.length > 0 && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setFormData(prev => ({...prev, personnel_ids: []}))}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      <Input
+                        placeholder="Search personnel..."
+                        value={personnelSearch}
+                        onChange={(e) => setPersonnelSearch(e.target.value)}
+                        className="mb-2"
+                        data-testid="personnel-search"
+                      />
+                      <div className="border rounded-md max-h-40 overflow-y-auto">
+                        {filteredPersonnel.map(person => (
+                          <div 
+                            key={person.id}
+                            className={`flex items-center gap-2 p-2 hover:bg-muted cursor-pointer border-b last:border-b-0 ${formData.personnel_ids.includes(person.id) ? 'bg-primary/10' : ''}`}
+                            onClick={() => togglePersonnelForDeployment(person.id)}
+                            data-testid={`personnel-option-${person.id}`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded"
+                              checked={formData.personnel_ids.includes(person.id)}
+                              onChange={() => {}}
+                            />
+                            <span className="flex-1 text-sm">
+                              <span className="font-medium">{person.rank} {person.name}</span>
+                              <span className="text-muted-foreground ml-1">({person.shift} Shift)</span>
+                            </span>
+                          </div>
+                        ))}
+                        {filteredPersonnel.length === 0 && (
+                          <p className="text-center text-muted-foreground py-2 text-sm">No personnel found</p>
+                        )}
+                      </div>
+                      {/* Selected Personnel Badges */}
+                      {formData.personnel_ids.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {formData.personnel_ids.slice(0, 5).map(pid => {
+                            const person = personnel.find(p => p.id === pid);
+                            return (
+                              <span 
+                                key={pid} 
+                                className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs flex items-center gap-1"
+                              >
+                                {person?.name || pid}
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); togglePersonnelForDeployment(pid); }}
+                                  className="hover:text-destructive"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            );
+                          })}
+                          {formData.personnel_ids.length > 5 && (
+                            <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded-full text-xs">
+                              +{formData.personnel_ids.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -464,8 +537,17 @@ export const DeploymentPage = () => {
                       />
                     </div>
 
-                    <Button onClick={handleAddDeployment} disabled={loading} className="w-full" data-testid="save-deployment-btn">
-                      <Save className="h-4 w-4 mr-2" /> Save Deployment
+                    <Button 
+                      onClick={handleAddDeployment} 
+                      disabled={loading || formData.personnel_ids.length === 0} 
+                      className="w-full" 
+                      data-testid="save-deployment-btn"
+                    >
+                      <Save className="h-4 w-4 mr-2" /> 
+                      {formData.personnel_ids.length > 1 
+                        ? `Create ${formData.personnel_ids.length} Deployments`
+                        : 'Save Deployment'
+                      }
                     </Button>
                   </div>
                 </DialogContent>
