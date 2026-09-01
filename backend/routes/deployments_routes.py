@@ -955,13 +955,34 @@ async def get_deployment_history(
     limit: int = 100,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get comprehensive deployment history from all sources (deployments, deployment_log, deployment_history)"""
+    """Get comprehensive deployment history from all sources, aggregating personnel per deployment"""
     tenant_id = get_tenant_id(current_user)
     
-    all_deployments = []
-    seen_keys = set()
+    # Use a dict to aggregate personnel by deployment key
+    # Key: deployment_type-start_date-incident_name
+    deployments_map = {}
     
-    # 1. Get from deployment_history collection first (most complete records)
+    def get_deployment_key(dtype, sdate, incident):
+        """Create a normalized key for deployment grouping"""
+        return f"{(dtype or '').upper()}-{sdate or ''}-{(incident or '').strip().lower()}"
+    
+    def add_personnel_to_deployment(key, deployment_data, person_data):
+        """Add or merge personnel into a deployment"""
+        if key not in deployments_map:
+            deployments_map[key] = deployment_data
+            deployments_map[key]["personnel"] = []
+        
+        # Check if this person is already in the personnel list
+        existing_ids = {p.get("id") for p in deployments_map[key]["personnel"]}
+        if person_data.get("id") and person_data["id"] not in existing_ids:
+            deployments_map[key]["personnel"].append(person_data)
+        elif not person_data.get("id"):
+            # If no ID, check by name
+            existing_names = {p.get("name", "").lower() for p in deployments_map[key]["personnel"]}
+            if person_data.get("name", "").lower() not in existing_names:
+                deployments_map[key]["personnel"].append(person_data)
+    
+    # 1. Get from deployment_history collection first (may have pre-aggregated personnel)
     history_query = {}
     if tenant_id:
         history_query["tenant_id"] = tenant_id
@@ -975,6 +996,7 @@ async def get_deployment_history(
     for record in history_records:
         record_start = record.get("start_date", "")
         record_end = record.get("end_date", "")
+        incident = record.get("incident_name", "")
         
         # Apply date filters
         if start_date and record_start and record_start < start_date:
@@ -982,19 +1004,31 @@ async def get_deployment_history(
         if end_date and record_start and record_start > end_date:
             continue
         
-        # Apply personnel name filter
-        if personnel_name:
-            personnel_list = record.get("personnel", [])
-            if not any(personnel_name.lower() in p.get("name", "").lower() for p in personnel_list):
-                continue
+        key = get_deployment_key(record.get("deployment_type"), record_start, incident)
         
-        key = f"{record.get('deployment_type')}-{record_start}-{record.get('incident_name', '')}"
-        if key not in seen_keys:
-            seen_keys.add(key)
-            record["source"] = "history"
-            all_deployments.append(record)
+        # Add/merge this deployment
+        base_data = {
+            "id": record.get("id"),
+            "deployment_type": record.get("deployment_type", ""),
+            "incident_name": incident,
+            "location": record.get("location", "") or incident,
+            "start_date": record_start,
+            "end_date": record_end,
+            "status": record.get("status", "active"),
+            "notes": record.get("notes", ""),
+            "created_at": record.get("created_at", ""),
+            "source": "history"
+        }
+        
+        if key not in deployments_map:
+            deployments_map[key] = base_data
+            deployments_map[key]["personnel"] = []
+        
+        # Add all personnel from this record
+        for person in record.get("personnel", []):
+            add_personnel_to_deployment(key, base_data, person)
     
-    # 2. Get from deployments collection (BC Deployments)
+    # 2. Get from deployments collection (BC Deployments - each record is one person)
     deploy_query = {}
     if tenant_id:
         deploy_query["tenant_id"] = tenant_id
@@ -1006,8 +1040,9 @@ async def get_deployment_history(
     for record in deploy_records:
         record_start = record.get("start_date", "")
         record_end = record.get("end_date", "")
+        incident = record.get("location", "") or record.get("incident_name", "") or "Unknown"
         
-        # Determine status for this record
+        # Determine status
         record_status = "completed" if record_end and record_end < datetime.now().strftime("%Y-%m-%d") else "active"
         
         # Apply status filter
@@ -1020,37 +1055,31 @@ async def get_deployment_history(
         if end_date and record_start and record_start > end_date:
             continue
         
-        # Apply personnel name filter
-        if personnel_name and personnel_name.lower() not in record.get("personnel_name", "").lower():
-            continue
+        key = get_deployment_key(record.get("deployment_type"), record_start, incident)
         
-        # Use consistent dedup key: deployment_type + start_date + location/incident_name
-        incident = record.get("location", "") or record.get("incident_name", "") or "Unknown"
-        key = f"{record.get('deployment_type')}-{record_start}-{incident}"
-        if key not in seen_keys:
-            seen_keys.add(key)
-            # Convert to unified format
-            all_deployments.append({
-                "id": record.get("id"),
-                "deployment_type": record.get("deployment_type", ""),
-                "incident_name": incident,
-                "location": record.get("location", ""),
-                "start_date": record_start,
-                "end_date": record_end,
-                "status": record_status,
-                "personnel": [{
-                    "id": record.get("personnel_id", ""),
-                    "name": record.get("personnel_name", ""),
-                    "position": "",
-                    "rank": ""
-                }],
-                "total_personnel": 1,
-                "notes": record.get("notes", ""),
-                "created_at": record.get("created_at", ""),
-                "source": "deployments"
-            })
+        base_data = {
+            "id": record.get("id"),
+            "deployment_type": record.get("deployment_type", ""),
+            "incident_name": incident,
+            "location": record.get("location", ""),
+            "start_date": record_start,
+            "end_date": record_end,
+            "status": record_status,
+            "notes": record.get("notes", ""),
+            "created_at": record.get("created_at", ""),
+            "source": "deployments"
+        }
+        
+        person_data = {
+            "id": record.get("personnel_id", ""),
+            "name": record.get("personnel_name", ""),
+            "position": "",
+            "rank": ""
+        }
+        
+        add_personnel_to_deployment(key, base_data, person_data)
     
-    # 3. Get from deployment_log collection (TIFMAS/EMTF log entries)
+    # 3. Get from deployment_log collection (TIFMAS/EMTF log entries - each record is one person)
     log_query = {}
     if tenant_id:
         log_query["tenant_id"] = tenant_id
@@ -1062,8 +1091,9 @@ async def get_deployment_history(
     for record in log_records:
         record_start = record.get("start_date") or record.get("date", "")
         record_end = record.get("end_date") or record.get("date", "")
+        incident = record.get("incident_name", "") or "Unknown"
         
-        # Determine status for this record  
+        # Determine status
         record_status = "completed" if record_end and record_end < datetime.now().strftime("%Y-%m-%d") else "active"
         
         # Apply status filter
@@ -1076,35 +1106,41 @@ async def get_deployment_history(
         if end_date and record_start and record_start > end_date:
             continue
         
-        # Apply personnel name filter
-        if personnel_name and personnel_name.lower() not in record.get("personnel_name", "").lower():
-            continue
+        key = get_deployment_key(record.get("incident_type"), record_start, incident)
         
-        # Use consistent dedup key: deployment_type + start_date + incident_name
-        incident = record.get("incident_name", "") or "Unknown"
-        key = f"{record.get('incident_type')}-{record_start}-{incident}"
-        if key not in seen_keys:
-            seen_keys.add(key)
-            # Convert to unified format
-            all_deployments.append({
-                "id": record.get("id"),
-                "deployment_type": record.get("incident_type", ""),
-                "incident_name": incident,
-                "location": incident,
-                "start_date": record_start,
-                "end_date": record_end,
-                "status": record_status,
-                "personnel": [{
-                    "id": record.get("personnel_id", ""),
-                    "name": record.get("personnel_name", ""),
-                    "position": record.get("position", ""),
-                    "rank": ""
-                }],
-                "total_personnel": 1,
-                "notes": record.get("notes", ""),
-                "created_at": record.get("created_at", ""),
-                "source": "deployment_log"
-            })
+        base_data = {
+            "id": record.get("id"),
+            "deployment_type": record.get("incident_type", ""),
+            "incident_name": incident,
+            "location": incident,
+            "start_date": record_start,
+            "end_date": record_end,
+            "status": record_status,
+            "notes": record.get("notes", ""),
+            "created_at": record.get("created_at", ""),
+            "source": "deployment_log"
+        }
+        
+        person_data = {
+            "id": record.get("personnel_id", ""),
+            "name": record.get("personnel_name", ""),
+            "position": record.get("position", ""),
+            "rank": ""
+        }
+        
+        add_personnel_to_deployment(key, base_data, person_data)
+    
+    # Convert map to list and calculate totals
+    all_deployments = []
+    for key, deployment in deployments_map.items():
+        # Apply personnel name filter
+        if personnel_name:
+            matching = [p for p in deployment["personnel"] if personnel_name.lower() in p.get("name", "").lower()]
+            if not matching:
+                continue
+        
+        deployment["total_personnel"] = len(deployment["personnel"])
+        all_deployments.append(deployment)
     
     # Sort by start_date descending (most recent first)
     all_deployments.sort(key=lambda x: x.get("start_date", "") or "", reverse=True)
