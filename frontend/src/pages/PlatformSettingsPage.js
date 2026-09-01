@@ -17,7 +17,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 // Default BC Staffing branding
 const DEFAULT_SETTINGS = {
-  logo_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png",
+  logo_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/agzarcqg_IMG_0147.webp",
   login_background_url: "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/47tmgavx_IMG_9619.jpeg",
   intro_video_url: null,
   intro_video_sound: false,

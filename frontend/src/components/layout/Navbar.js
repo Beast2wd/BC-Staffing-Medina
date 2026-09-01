@@ -44,7 +44,7 @@ import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
 
 // Default logo fallback
-const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/1pvs2bmb_IMG_9603.png";
+const DEFAULT_LOGO = "https://customer-assets-jai6qajn.emergentagent.net/job_medina-fire-staffing/artifacts/agzarcqg_IMG_0147.webp";
 
 // NavLink component defined outside to prevent re-renders
 const NavLink = ({ to, children, active, disabled, primaryColor }) => (
