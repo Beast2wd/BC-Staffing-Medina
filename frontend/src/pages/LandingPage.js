@@ -165,7 +165,7 @@ export const LandingPage = () => {
           <div className="flex items-center justify-between h-16 sm:h-24">
             {/* Logo and Brand - Clickable to go to landing page */}
             <a href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="w-10 h-10 sm:w-20 sm:h-20 flex-shrink-0">
+              <div className="w-12 h-12 sm:w-24 sm:h-24 flex-shrink-0">
                 <img
                   src={LOGO_URL}
                   alt="BC Staffing"
@@ -412,7 +412,7 @@ export const LandingPage = () => {
       <footer className="border-t border-slate-800 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <a href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-            <div className="w-10 h-10 sm:w-14 sm:h-14 flex-shrink-0">
+            <div className="w-12 h-12 sm:w-24 sm:h-24 flex-shrink-0">
               <img
                 src={LOGO_URL}
                 alt="BC Staffing"
