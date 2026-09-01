@@ -425,7 +425,7 @@ export const LandingPage = () => {
             </div>
           </a>
           <p className="text-slate-500 text-xs sm:text-sm">
-            &copy; {new Date().getFullYear()} BC Staffing. All rights reserved.
+            &copy; {new Date().getFullYear()} BC Staffing 360. All rights reserved.
           </p>
         </div>
       </footer>
