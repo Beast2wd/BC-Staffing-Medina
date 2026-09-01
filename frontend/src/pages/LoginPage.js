@@ -214,19 +214,6 @@ export const LoginPage = () => {
               <strong className="text-zinc-300">Volunteers:</strong> Use your email address
             </p>
           </div>
-
-          {/* Platform Settings Link - Only shown on main BC Staffing login (not tenant context) */}
-          {!isSubdomainContext && (
-            <div className="mt-4 text-center">
-              <a 
-                href="/platform-settings"
-                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline"
-                data-testid="platform-settings-link"
-              >
-                Website Settings (Super Admin)
-              </a>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

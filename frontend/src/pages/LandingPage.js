@@ -219,16 +219,6 @@ export const LandingPage = () => {
                   <Building2 className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">Client Portal</span>
                 </Button>
-                <Button 
-                  onClick={() => navigate('/login')}
-                  size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white font-semibold px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg shadow-red-600/25"
-                  data-testid="header-login-btn"
-                >
-                  <span className="hidden sm:inline">Staff Login</span>
-                  <span className="sm:hidden">Login</span>
-                  <ArrowRight className="ml-1 sm:ml-2 h-4 w-4" />
-                </Button>
               </div>
             )}
           </div>
