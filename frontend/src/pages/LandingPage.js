@@ -174,7 +174,7 @@ export const LandingPage = () => {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                  BC STAFFING
+                  BC STAFFING 360
                 </h1>
                 <p className="text-sm text-slate-400">Fire &amp; EMS Staffing Solutions</p>
               </div>
