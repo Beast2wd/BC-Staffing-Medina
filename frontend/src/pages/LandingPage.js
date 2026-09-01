@@ -53,7 +53,7 @@ export const LandingPage = () => {
   const heroTitle = platformSettings?.hero_title || 'BC STAFFING';
   const heroSubtitle = platformSettings?.hero_subtitle || 'Fire & EMS Staffing Solutions';
   const heroDescription = platformSettings?.hero_description || 
-    'Integrated platform that facilitate staffing, overtime and deployment accountability and tracking, data collection for organizational analysis, sharing, and reporting — enhancing operational efficiency, personnel management, and emergency response.';
+    'Integrated platform that facilitates staffing, overtime and deployment accountability and tracking, data collection for organizational analysis, sharing, and reporting. Enhancing operational efficiency, personnel management, and emergency response.';
   const introVideoUrl = platformSettings?.intro_video_url || null;
   const introVideoSound = platformSettings?.intro_video_sound || false;
 
