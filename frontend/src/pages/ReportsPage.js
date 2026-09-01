@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatDisplayDate, formatDateRange } from '../utils/dateUtils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
-const LOGO_URL = '/medina-logo.png';
+const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d18b2c49-9504-43b5-8217-508d80db16bb/artifacts/toicx4yx_Logo-1.png';
 
 export const ReportsPage = () => {
   const { api, user } = useAuth();
