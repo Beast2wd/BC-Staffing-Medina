@@ -92,19 +92,6 @@ export const StaffingProvider = ({ children }) => {
     }
   }, [api, selectedBattalion]);
 
-  const fetchPersonnelWithDeployments = useCallback(async () => {
-    try {
-      const response = await api.get('/personnel/with-deployment-counts', {
-        params: { battalion_id: selectedBattalion }
-      });
-      setPersonnel(response.data);
-    } catch (error) {
-      console.error('Error fetching personnel with deployments:', error);
-      // Fall back to regular personnel fetch
-      fetchPersonnel();
-    }
-  }, [api, selectedBattalion, fetchPersonnel]);
-
   const fetchStaffingRecords = useCallback(async () => {
     try {
       const response = await api.get('/staffing', {
@@ -219,7 +206,6 @@ export const StaffingProvider = ({ children }) => {
       fetchBattalions,
       fetchStations,
       fetchPersonnel,
-      fetchPersonnelWithDeployments,
       fetchStaffingRecords,
       fetchLeaveRecords,
       fetchOvertimeRecords,

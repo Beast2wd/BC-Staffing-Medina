@@ -637,7 +637,7 @@ PersonnelFormDialog.displayName = 'PersonnelFormDialog';
 
 export const PersonnelManagementPage = () => {
   const { api } = useAuth();
-  const { personnel, stations, fetchPersonnel, fetchPersonnelWithDeployments, selectedBattalion, fetchAllData } = useStaffing();
+  const { personnel, stations, fetchPersonnel, selectedBattalion, fetchAllData } = useStaffing();
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -691,9 +691,7 @@ export const PersonnelManagementPage = () => {
 
   useEffect(() => {
     fetchAllData();
-    // Fetch personnel with deployment counts for the management page
-    fetchPersonnelWithDeployments();
-  }, [selectedBattalion, fetchPersonnelWithDeployments]);
+  }, [selectedBattalion]);
 
   // Fetch all active users for the dropdown
   const fetchAvailableUsers = async () => {
@@ -1628,7 +1626,6 @@ export const PersonnelManagementPage = () => {
                                 <TableHead>Rank</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Certifications</TableHead>
-                                <TableHead className="w-20">Deploys</TableHead>
                                 <TableHead className="w-32">Leave Alloc.</TableHead>
                                 <TableHead className="w-24">Actions</TableHead>
                               </TableRow>
@@ -1666,23 +1663,6 @@ export const PersonnelManagementPage = () => {
                                         </span>
                                       )}
                                     </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    {person.deployment_count > 0 ? (
-                                      <div className="flex flex-col gap-0.5 text-[10px]" title={`TIFMAS: ${person.deployment_tifmas || 0}, EMTF: ${person.deployment_emtf || 0}`}>
-                                        <span className="font-bold text-sm text-center">{person.deployment_count}</span>
-                                        <div className="flex gap-0.5 justify-center">
-                                          {person.deployment_tifmas > 0 && (
-                                            <span className="bg-orange-500/20 text-orange-600 px-1 rounded">T:{person.deployment_tifmas}</span>
-                                          )}
-                                          {person.deployment_emtf > 0 && (
-                                            <span className="bg-blue-500/20 text-blue-600 px-1 rounded">E:{person.deployment_emtf}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">-</span>
-                                    )}
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex flex-col gap-0.5 text-[10px]" title="Days / Hours per year">
