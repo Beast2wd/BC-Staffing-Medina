@@ -420,7 +420,7 @@ export const LandingPage = () => {
               />
             </div>
             <div>
-              <span className="text-lg sm:text-xl font-bold text-white block tracking-tight">BC STAFFING</span>
+              <span className="text-lg sm:text-xl font-bold text-white block tracking-tight">BC STAFFING 360</span>
               <span className="text-xs text-slate-400 hidden sm:block">Fire &amp; EMS Staffing Solutions</span>
             </div>
           </a>
