@@ -415,7 +415,9 @@ export const LandingPage = () => {
             </div>
           </a>
           <p className="text-slate-500 text-xs sm:text-sm">
-            &copy; {new Date().getFullYear()} BC Staffing 360. All rights reserved.
+            <a href="/login" className="hover:text-slate-300 transition-colors cursor-pointer">
+              &copy; {new Date().getFullYear()} BC Staffing 360. All rights reserved.
+            </a>
           </p>
         </div>
       </footer>
