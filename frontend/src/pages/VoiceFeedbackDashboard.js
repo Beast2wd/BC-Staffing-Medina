@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Navbar } from '../components/layout/Navbar';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -200,9 +201,12 @@ export const VoiceFeedbackDashboard = () => {
   const isSuperAdmin = user?.is_super_admin;
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-      {/* Hidden audio element */}
-      <audio ref={audioRef} className="hidden" />
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      
+      <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
+        {/* Hidden audio element */}
+        <audio ref={audioRef} className="hidden" />
 
       {/* Header */}
       <div className="mb-6">
@@ -472,6 +476,7 @@ export const VoiceFeedbackDashboard = () => {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 };
