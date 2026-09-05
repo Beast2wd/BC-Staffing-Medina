@@ -64,6 +64,7 @@ async def submit_voice_feedback(
     audio: UploadFile = File(...),
     page_name: str = Form(...),
     page_url: str = Form(...),
+    category: str = Form("other"),
     current_user: dict = Depends(get_current_user)
 ):
     """Submit voice feedback with audio recording"""
@@ -95,6 +96,7 @@ async def submit_voice_feedback(
         "user_role": current_user.get("role", "unknown"),
         "page_name": page_name,
         "page_url": page_url,
+        "category": category,
         "audio_data": audio_base64,
         "audio_filename": audio.filename,
         "audio_content_type": audio.content_type,
@@ -169,6 +171,7 @@ async def list_voice_feedback(
             "user_role": f.get("user_role"),
             "page_name": f.get("page_name"),
             "page_url": f.get("page_url"),
+            "category": f.get("category", "other"),
             "transcript": f.get("transcript"),
             "status": f.get("status"),
             "admin_notes": f.get("admin_notes", ""),

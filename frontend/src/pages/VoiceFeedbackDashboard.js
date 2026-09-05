@@ -44,6 +44,16 @@ const PLATFORM_SECTIONS = [
   { value: 'general', label: 'General / Other' }
 ];
 
+// Feedback categories
+const FEEDBACK_CATEGORIES = [
+  { value: 'bug', label: 'Bug Report', color: 'bg-red-500', icon: '🐛' },
+  { value: 'feature', label: 'Feature Request', color: 'bg-purple-500', icon: '✨' },
+  { value: 'ui', label: 'UI Improvement', color: 'bg-blue-500', icon: '🎨' },
+  { value: 'performance', label: 'Performance Issue', color: 'bg-orange-500', icon: '⚡' },
+  { value: 'question', label: 'Question / Help', color: 'bg-cyan-500', icon: '❓' },
+  { value: 'other', label: 'Other', color: 'bg-zinc-500', icon: '📝' }
+];
+
 const STATUS_CONFIG = {
   new: { label: 'New', color: 'bg-blue-500', icon: Circle },
   in_progress: { label: 'In Progress', color: 'bg-yellow-500', icon: Clock },
@@ -64,11 +74,16 @@ export const VoiceFeedbackDashboard = () => {
   // Recording state
   const [isRecordingOpen, setIsRecordingOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState('');
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -296,25 +311,47 @@ export const VoiceFeedbackDashboard = () => {
     setTranscript('');
     setRecordingTime(0);
     setSelectedSection('');
+    setSelectedCategory('');
     setIsRecordingOpen(false);
   };
 
+  // Audio compression function
+  const compressAudio = async (blob) => {
+    // For browsers that support AudioContext, we can compress
+    // For now, we'll just ensure the blob is reasonable size
+    // If the blob is larger than 5MB, we'll warn but still send
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    
+    if (blob.size > maxSize) {
+      toast.warning('Audio file is large. Compressing may take longer.');
+    }
+    
+    // Return the blob as-is for now (WebM is already compressed)
+    // Future enhancement: use AudioContext to resample/compress
+    return blob;
+  };
+
   const submitRecording = async () => {
-    if (!audioBlob || !selectedSection) {
-      toast.error('Please record audio and select a section');
+    if (!audioBlob || !selectedSection || !selectedCategory) {
+      toast.error('Please select a section, category, and record audio');
       return;
     }
 
     setIsSubmitting(true);
     
     try {
+      // Compress audio before upload
+      const compressedAudio = await compressAudio(audioBlob);
+      
       const sectionLabel = PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label || selectedSection;
+      const categoryLabel = FEEDBACK_CATEGORIES.find(c => c.value === selectedCategory)?.label || selectedCategory;
       
       const formData = new FormData();
       const filename = `feedback_${Date.now()}.webm`;
-      formData.append('audio', audioBlob, filename);
+      formData.append('audio', compressedAudio, filename);
       formData.append('page_name', sectionLabel);
       formData.append('page_url', `/${selectedSection}`);
+      formData.append('category', selectedCategory);
 
       const response = await axios.post(
         `${API_URL}/api/voice-feedback/submit`,
@@ -341,6 +378,7 @@ export const VoiceFeedbackDashboard = () => {
           setTranscript('');
           setRecordingTime(0);
           setSelectedSection('');
+          setSelectedCategory('');
           setIsRecordingOpen(false);
         }, 2000);
       }
@@ -349,6 +387,55 @@ export const VoiceFeedbackDashboard = () => {
       toast.error(error.response?.data?.detail || 'Failed to submit feedback');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Bulk selection functions
+  const toggleSelectAll = () => {
+    if (selectedIds.length === feedback.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(feedback.map(f => f.id));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id) 
+        : [...prev, id]
+    );
+  };
+
+  const bulkUpdateStatus = async (newStatus) => {
+    if (selectedIds.length === 0) {
+      toast.error('No items selected');
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    
+    try {
+      // Update each selected item
+      const updatePromises = selectedIds.map(id => 
+        axios.put(
+          `${API_URL}/api/voice-feedback/${id}/status?status=${newStatus}`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+      );
+      
+      await Promise.all(updatePromises);
+      
+      toast.success(`${selectedIds.length} item(s) updated to ${STATUS_CONFIG[newStatus].label}`);
+      setSelectedIds([]);
+      fetchFeedback();
+      fetchStats();
+    } catch (error) {
+      console.error('Error bulk updating:', error);
+      toast.error('Failed to update some items');
+    } finally {
+      setIsBulkUpdating(false);
     }
   };
 
@@ -436,11 +523,32 @@ export const VoiceFeedbackDashboard = () => {
               </Select>
             </div>
 
+            {/* Category Selector */}
+            <div className="mb-4">
+              <Label className="text-zinc-300 text-sm mb-2 block">Feedback Category</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={isRecording || audioBlob}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                  <SelectValue placeholder="What type of feedback is this?" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FEEDBACK_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      <span className="flex items-center gap-2">
+                        <span>{cat.icon}</span>
+                        <span>{cat.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Selected Section Info */}
-            {selectedSection && (
+            {selectedSection && selectedCategory && (
               <div className="bg-zinc-800 rounded-lg p-3 mb-4">
                 <p className="text-sm text-zinc-400">Recording feedback for:</p>
-                <p className="text-white font-medium">
+                <p className="text-white font-medium flex items-center gap-2">
+                  <span>{FEEDBACK_CATEGORIES.find(c => c.value === selectedCategory)?.icon}</span>
                   {PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label}
                 </p>
               </div>
@@ -460,11 +568,11 @@ export const VoiceFeedbackDashboard = () => {
               {!audioBlob ? (
                 <Button
                   onClick={isRecording ? stopRecording : startRecording}
-                  disabled={!selectedSection}
+                  disabled={!selectedSection || !selectedCategory}
                   className={`w-24 h-24 rounded-full transition-all duration-200 ${
                     isRecording 
                       ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                      : selectedSection 
+                      : (selectedSection && selectedCategory)
                         ? 'bg-zinc-700 hover:bg-zinc-600' 
                         : 'bg-zinc-800 cursor-not-allowed'
                   }`}
@@ -494,8 +602,8 @@ export const VoiceFeedbackDashboard = () => {
 
               {/* Instructions */}
               <p className="text-zinc-400 text-sm mt-4 text-center">
-                {!selectedSection 
-                  ? 'Select a section above to start'
+                {(!selectedSection || !selectedCategory)
+                  ? 'Select a section and category above to start'
                   : isRecording 
                     ? 'Speak clearly about the changes you want...' 
                     : audioBlob 
@@ -641,6 +749,45 @@ export const VoiceFeedbackDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.length > 0 && (
+        <Card className="bg-zinc-800 border-zinc-600 mb-4">
+          <CardContent className="p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-zinc-300 text-sm font-medium">
+                {selectedIds.length} selected
+              </span>
+              <div className="flex-1" />
+              <span className="text-zinc-400 text-sm">Bulk update to:</span>
+              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                <Button
+                  key={status}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => bulkUpdateStatus(status)}
+                  disabled={isBulkUpdating}
+                  className={`border-zinc-600 hover:${config.color} hover:text-white`}
+                >
+                  {isBulkUpdating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    config.label
+                  )}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedIds([])}
+                className="text-zinc-400 hover:text-white"
+              >
+                Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Feedback List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -658,15 +805,28 @@ export const VoiceFeedbackDashboard = () => {
         </Card>
       ) : (
         <div className="space-y-4">
+          {/* Select All Row */}
+          <div className="flex items-center gap-3 px-2">
+            <input
+              type="checkbox"
+              checked={selectedIds.length === feedback.length && feedback.length > 0}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-red-600 focus:ring-red-500"
+            />
+            <span className="text-zinc-400 text-sm">Select all</span>
+          </div>
+
           {feedback.map((item) => {
             const statusConfig = STATUS_CONFIG[item.status] || STATUS_CONFIG.new;
             const StatusIcon = statusConfig.icon;
+            const categoryConfig = FEEDBACK_CATEGORIES.find(c => c.value === item.category) || FEEDBACK_CATEGORIES[5];
             const isExpanded = expandedId === item.id;
+            const isSelected = selectedIds.includes(item.id);
             
             return (
               <Card 
                 key={item.id} 
-                className="bg-zinc-800/50 border-zinc-700 overflow-hidden"
+                className={`bg-zinc-800/50 border-zinc-700 overflow-hidden ${isSelected ? 'ring-2 ring-red-500' : ''}`}
               >
                 <CardContent className="p-0">
                   {/* Main Row */}
@@ -675,11 +835,27 @@ export const VoiceFeedbackDashboard = () => {
                     onClick={() => handleExpand(item.id)}
                   >
                     <div className="flex items-start justify-between gap-4">
+                      {/* Checkbox */}
+                      <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectOne(item.id)}
+                          className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-red-600 focus:ring-red-500"
+                        />
+                      </div>
+                      
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-2">
                           <Badge className={`${statusConfig.color} text-white`}>
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {statusConfig.label}
+                          </Badge>
+                          
+                          {/* Category Badge */}
+                          <Badge className={`${categoryConfig.color} text-white`}>
+                            <span className="mr-1">{categoryConfig.icon}</span>
+                            {categoryConfig.label}
                           </Badge>
                           
                           <Badge variant="outline" className="border-zinc-600 text-zinc-300">
