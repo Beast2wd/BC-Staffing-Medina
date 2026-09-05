@@ -58,7 +58,6 @@ import LeaveBalanceDashboard from "./pages/battalion-chief/LeaveBalanceDashboard
 
 // Voice Feedback
 import { VoiceFeedbackDashboard } from "./pages/VoiceFeedbackDashboard";
-import { VoiceFeedbackButton } from "./components/voice-feedback/VoiceFeedbackButton";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -292,9 +291,6 @@ const AppContent = () => {
           {/* Default Redirect */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-        
-        {/* Voice Feedback Button - Shows on all protected pages for admins */}
-        <VoiceFeedbackButton />
       </WebSocketProvider>
     </StaffingProvider>
   );

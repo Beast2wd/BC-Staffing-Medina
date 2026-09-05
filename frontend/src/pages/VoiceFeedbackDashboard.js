@@ -12,11 +12,37 @@ import { toast } from 'sonner';
 import { 
   Mic, Play, Pause, Search, Filter, Clock, User, 
   FileText, CheckCircle2, Circle, Loader2, Trash2,
-  ChevronDown, ChevronUp, MessageSquare, Building2
+  ChevronDown, ChevronUp, MessageSquare, Building2,
+  Square, Send, X, MicOff
 } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Platform sections/pages for dropdown
+const PLATFORM_SECTIONS = [
+  { value: 'dashboard', label: 'Dashboard / Daily Worksheet' },
+  { value: 'on-duty', label: 'On Duty View' },
+  { value: 'apparatus', label: 'Apparatus Assignment' },
+  { value: 'leave-management', label: 'Leave Management' },
+  { value: 'leave-calendar', label: 'Leave Calendar' },
+  { value: 'leave-balance', label: 'Leave Balance Dashboard' },
+  { value: 'overtime', label: 'Overtime Management' },
+  { value: 'volunteer', label: 'Volunteer Management' },
+  { value: 'part-time', label: 'Part-Time Management' },
+  { value: 'deployments', label: 'Deployments' },
+  { value: 'deployment-roster', label: 'Deployment Roster' },
+  { value: 'deployment-history', label: 'Deployment History' },
+  { value: 'personnel', label: 'Personnel Management' },
+  { value: 'user-management', label: 'User Management' },
+  { value: 'station-management', label: 'Station Management' },
+  { value: 'reports', label: 'Reports' },
+  { value: 'branding', label: 'Branding Settings' },
+  { value: 'calendar', label: 'Calendar View' },
+  { value: 'notifications', label: 'Notifications' },
+  { value: 'settings', label: 'Settings' },
+  { value: 'general', label: 'General / Other' }
+];
 
 const STATUS_CONFIG = {
   new: { label: 'New', color: 'bg-blue-500', icon: Circle },
@@ -35,12 +61,35 @@ export const VoiceFeedbackDashboard = () => {
   const [playingId, setPlayingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   
+  // Recording state
+  const [isRecordingOpen, setIsRecordingOpen] = useState(false);
+  const [selectedSection, setSelectedSection] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [transcript, setTranscript] = useState('');
+  
   const audioRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const streamRef = useRef(null);
 
   useEffect(() => {
     fetchFeedback();
     fetchStats();
   }, [statusFilter]);
+  
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   const fetchFeedback = async () => {
     try {
@@ -187,6 +236,128 @@ export const VoiceFeedbackDashboard = () => {
     }
   };
 
+  // Recording functions
+  const startRecording = async () => {
+    if (!selectedSection) {
+      toast.error('Please select a section first');
+      return;
+    }
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    stopRecording();
+    setAudioBlob(null);
+    setTranscript('');
+    setRecordingTime(0);
+    setSelectedSection('');
+    setIsRecordingOpen(false);
+  };
+
+  const submitRecording = async () => {
+    if (!audioBlob || !selectedSection) {
+      toast.error('Please record audio and select a section');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const sectionLabel = PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label || selectedSection;
+      
+      const formData = new FormData();
+      const filename = `feedback_${Date.now()}.webm`;
+      formData.append('audio', audioBlob, filename);
+      formData.append('page_name', sectionLabel);
+      formData.append('page_url', `/${selectedSection}`);
+
+      const response = await axios.post(
+        `${API_URL}/api/voice-feedback/submit`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setTranscript(response.data.transcript);
+        toast.success('Feedback submitted successfully!');
+        
+        // Refresh the list
+        fetchFeedback();
+        fetchStats();
+        
+        // Reset after showing transcript
+        setTimeout(() => {
+          setAudioBlob(null);
+          setTranscript('');
+          setRecordingTime(0);
+          setSelectedSection('');
+          setIsRecordingOpen(false);
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      toast.error(error.response?.data?.detail || 'Failed to submit feedback');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('en-US', {
       month: 'short',
@@ -209,15 +380,175 @@ export const VoiceFeedbackDashboard = () => {
         <audio ref={audioRef} className="hidden" />
 
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
-          <Mic className="h-8 w-8 text-red-500" />
-          Voice Feedback Dashboard
-        </h1>
-        <p className="text-zinc-400 mt-1">
-          {isSuperAdmin ? 'Review feedback from all tenants' : 'Review feedback from your team'}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
+            <Mic className="h-8 w-8 text-red-500" />
+            Voice Feedback Dashboard
+          </h1>
+          <p className="text-zinc-400 mt-1">
+            {isSuperAdmin ? 'Review feedback from all tenants' : 'Review feedback from your team'}
+          </p>
+        </div>
+        
+        {/* New Feedback Button */}
+        <Button
+          onClick={() => setIsRecordingOpen(true)}
+          className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-2"
+          data-testid="new-feedback-btn"
+        >
+          <Mic className="h-5 w-5" />
+          New Voice Feedback
+        </Button>
       </div>
+
+      {/* Recording Modal */}
+      {isRecordingOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">New Voice Feedback</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={cancelRecording}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            {/* Section Selector */}
+            <div className="mb-4">
+              <Label className="text-zinc-300 text-sm mb-2 block">Select Platform Section</Label>
+              <Select value={selectedSection} onValueChange={setSelectedSection} disabled={isRecording || audioBlob}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                  <SelectValue placeholder="Choose a section to report about..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {PLATFORM_SECTIONS.map((section) => (
+                    <SelectItem key={section.value} value={section.value}>
+                      {section.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Selected Section Info */}
+            {selectedSection && (
+              <div className="bg-zinc-800 rounded-lg p-3 mb-4">
+                <p className="text-sm text-zinc-400">Recording feedback for:</p>
+                <p className="text-white font-medium">
+                  {PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label}
+                </p>
+              </div>
+            )}
+
+            {/* Recording Area */}
+            <div className="flex flex-col items-center py-6">
+              {/* Recording indicator */}
+              {isRecording && (
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-red-400 font-mono">{formatTime(recordingTime)}</span>
+                </div>
+              )}
+
+              {/* Main Record Button */}
+              {!audioBlob ? (
+                <Button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={!selectedSection}
+                  className={`w-24 h-24 rounded-full transition-all duration-200 ${
+                    isRecording 
+                      ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                      : selectedSection 
+                        ? 'bg-zinc-700 hover:bg-zinc-600' 
+                        : 'bg-zinc-800 cursor-not-allowed'
+                  }`}
+                  data-testid="record-btn"
+                >
+                  {isRecording ? (
+                    <Square className="h-10 w-10 text-white" />
+                  ) : (
+                    <Mic className="h-10 w-10 text-white" />
+                  )}
+                </Button>
+              ) : (
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <div className="flex items-center gap-2 text-green-400">
+                    <MicOff className="h-5 w-5" />
+                    <span>Recording complete ({formatTime(recordingTime)})</span>
+                  </div>
+                  
+                  {/* Audio Preview */}
+                  <audio 
+                    controls 
+                    src={URL.createObjectURL(audioBlob)} 
+                    className="w-full"
+                  />
+                </div>
+              )}
+
+              {/* Instructions */}
+              <p className="text-zinc-400 text-sm mt-4 text-center">
+                {!selectedSection 
+                  ? 'Select a section above to start'
+                  : isRecording 
+                    ? 'Speak clearly about the changes you want...' 
+                    : audioBlob 
+                      ? 'Review your recording and submit' 
+                      : 'Tap the mic to start recording'}
+              </p>
+            </div>
+
+            {/* Transcript Preview */}
+            {transcript && (
+              <div className="bg-zinc-800 rounded-lg p-3 mb-4">
+                <p className="text-sm text-zinc-400 mb-1">Transcript:</p>
+                <p className="text-white text-sm">{transcript}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            {audioBlob && !transcript && (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setAudioBlob(null);
+                    setRecordingTime(0);
+                  }}
+                  className="flex-1 border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                  disabled={isSubmitting}
+                >
+                  Re-record
+                </Button>
+                <Button
+                  onClick={submitRecording}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isSubmitting}
+                  data-testid="submit-feedback-btn"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Transcribing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Submit
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
