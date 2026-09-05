@@ -38,7 +38,8 @@ import {
   History,
   Shield,
   Palette,
-  TrendingUp
+  TrendingUp,
+  Mic
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { NotificationBell } from './NotificationBell';
@@ -329,6 +330,11 @@ export const Navbar = () => {
                     <Palette className="h-4 w-4" /> Branding Settings
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/voice-feedback" className="flex items-center gap-2" data-testid="nav-voice-feedback">
+                    <Mic className="h-4 w-4" /> Voice Feedback
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -554,6 +560,9 @@ export const Navbar = () => {
                 </Link>
                 <Link to="/tools/branding" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
                   <Palette className="h-4 w-4 inline mr-2" /> Branding Settings
+                </Link>
+                <Link to="/voice-feedback" className="px-4 py-2 hover:bg-muted rounded-md pl-6" onClick={() => setMobileMenuOpen(false)}>
+                  <Mic className="h-4 w-4 inline mr-2" /> Voice Feedback
                 </Link>
               </>
             )}

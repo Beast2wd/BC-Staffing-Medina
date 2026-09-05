@@ -56,6 +56,10 @@ import { EMTFDeploymentLog } from "./pages/deployment-tracker/EMTFDeploymentLog"
 import { LeaveCalendarPage } from "./pages/battalion-chief/LeaveCalendarPage";
 import LeaveBalanceDashboard from "./pages/battalion-chief/LeaveBalanceDashboard";
 
+// Voice Feedback
+import { VoiceFeedbackDashboard } from "./pages/VoiceFeedbackDashboard";
+import { VoiceFeedbackButton } from "./components/voice-feedback/VoiceFeedbackButton";
+
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -280,9 +284,17 @@ const AppContent = () => {
             <ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>
           } />
           
+          {/* Voice Feedback Dashboard - Admin roles only */}
+          <Route path="/voice-feedback" element={
+            <ProtectedRoute><VoiceFeedbackDashboard /></ProtectedRoute>
+          } />
+          
           {/* Default Redirect */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        
+        {/* Voice Feedback Button - Shows on all protected pages for admins */}
+        <VoiceFeedbackButton />
       </WebSocketProvider>
     </StaffingProvider>
   );

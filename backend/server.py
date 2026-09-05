@@ -32,6 +32,7 @@ from routes.platform_routes import router as platform_router
 from routes.weather_routes import router as weather_router
 from routes.holiday_accrual_routes import router as holiday_accrual_router
 from routes.pto_settings_routes import router as pto_settings_router
+from routes.voice_feedback_routes import router as voice_feedback_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -60,6 +61,7 @@ app.include_router(platform_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
 app.include_router(holiday_accrual_router, prefix="/api")
 app.include_router(pto_settings_router, prefix="/api")
+app.include_router(voice_feedback_router, prefix="/api")
 
 # CORS middleware
 app.add_middleware(
