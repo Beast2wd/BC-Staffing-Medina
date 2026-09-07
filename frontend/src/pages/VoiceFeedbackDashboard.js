@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import { AudioWaveform } from '../components/ui/audio-waveform';
 import { toast } from 'sonner';
 import { 
   Mic, Play, Pause, Search, Filter, Clock, User, 
@@ -84,6 +85,10 @@ export const VoiceFeedbackDashboard = () => {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  
+  // Audio data for expanded items
+  const [expandedAudioData, setExpandedAudioData] = useState({});
+  const [loadingAudioId, setLoadingAudioId] = useState(null);
   
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -165,6 +170,21 @@ export const VoiceFeedbackDashboard = () => {
       }
     } else {
       setExpandedId(id);
+      
+      // Fetch audio data if not already loaded
+      if (!expandedAudioData[id]) {
+        setLoadingAudioId(id);
+        const details = await fetchFeedbackDetails(id);
+        if (details && details.audio_data) {
+          const audioBlob = base64ToBlob(details.audio_data, details.audio_content_type || 'audio/webm');
+          const audioUrl = URL.createObjectURL(audioBlob);
+          setExpandedAudioData(prev => ({
+            ...prev,
+            [id]: { blob: audioBlob, url: audioUrl }
+          }));
+        }
+        setLoadingAudioId(null);
+      }
     }
   };
 
@@ -586,17 +606,15 @@ export const VoiceFeedbackDashboard = () => {
                 </Button>
               ) : (
                 <div className="flex flex-col items-center gap-4 w-full">
-                  <div className="flex items-center gap-2 text-green-400">
+                  <div className="flex items-center gap-2 text-green-400 mb-2">
                     <MicOff className="h-5 w-5" />
                     <span>Recording complete ({formatTime(recordingTime)})</span>
                   </div>
                   
-                  {/* Audio Preview */}
-                  <audio 
-                    controls 
-                    src={URL.createObjectURL(audioBlob)} 
-                    className="w-full"
-                  />
+                  {/* Audio Preview with Waveform */}
+                  <div className="w-full bg-zinc-800 rounded-lg p-3">
+                    <AudioWaveform audioBlob={audioBlob} />
+                  </div>
                 </div>
               )}
 
@@ -917,6 +935,28 @@ export const VoiceFeedbackDashboard = () => {
                   {isExpanded && (
                     <div className="border-t border-zinc-700 p-4 bg-zinc-900/50">
                       <div className="grid gap-4">
+                        {/* Audio Waveform */}
+                        <div>
+                          <Label className="text-zinc-400 text-sm mb-2 block">Audio Recording</Label>
+                          <div className="bg-zinc-800 rounded-lg p-3">
+                            {loadingAudioId === item.id ? (
+                              <div className="flex items-center justify-center h-16">
+                                <Loader2 className="h-6 w-6 animate-spin text-red-500" />
+                                <span className="ml-2 text-zinc-400">Loading audio...</span>
+                              </div>
+                            ) : expandedAudioData[item.id] ? (
+                              <AudioWaveform
+                                audioUrl={expandedAudioData[item.id].url}
+                                onPlayStateChange={(playing) => setPlayingId(playing ? item.id : null)}
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center h-16 text-zinc-500">
+                                <span>Audio not available</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
                         {/* Full Transcript */}
                         <div>
                           <Label className="text-zinc-400 text-sm">Full Transcript</Label>
