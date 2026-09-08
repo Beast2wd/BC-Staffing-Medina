@@ -76,6 +76,7 @@ export const VoiceFeedbackDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [playingId, setPlayingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -108,7 +109,7 @@ export const VoiceFeedbackDashboard = () => {
   useEffect(() => {
     fetchFeedback();
     fetchStats();
-  }, [statusFilter]);
+  }, [statusFilter, priorityFilter]);
   
   // Cleanup recording on unmount
   useEffect(() => {
@@ -126,6 +127,9 @@ export const VoiceFeedbackDashboard = () => {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== 'all') {
         params.append('status', statusFilter);
+      }
+      if (priorityFilter && priorityFilter !== 'all') {
+        params.append('priority', priorityFilter);
       }
       if (searchQuery) {
         params.append('page_name', searchQuery);
@@ -790,15 +794,32 @@ export const VoiceFeedbackDashboard = () => {
             </div>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48 bg-zinc-900 border-zinc-700 text-white">
+              <SelectTrigger className="w-full sm:w-40 bg-zinc-900 border-zinc-700 text-white">
                 <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-full sm:w-40 bg-zinc-900 border-zinc-700 text-white">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priority</SelectItem>
+                {PRIORITY_LEVELS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    <span className="flex items-center gap-2">
+                      <span>{p.icon}</span>
+                      <span>{p.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             

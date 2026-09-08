@@ -127,6 +127,7 @@ async def submit_voice_feedback(
 @router.get("/list")
 async def list_voice_feedback(
     status: Optional[str] = None,
+    priority: Optional[str] = None,
     page_name: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
@@ -153,6 +154,8 @@ async def list_voice_feedback(
     # Apply filters
     if status and status in FEEDBACK_STATUSES:
         query["status"] = status
+    if priority and priority in ["low", "medium", "high", "urgent"]:
+        query["priority"] = priority
     if page_name:
         query["page_name"] = {"$regex": page_name, "$options": "i"}
     
