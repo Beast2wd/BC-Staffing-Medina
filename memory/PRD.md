@@ -1178,6 +1178,24 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Dynamic Save Button**: Button text changes to "Create X Deployments" when multiple personnel selected
 - ✅ **Tests Passed**: Backend 100%, Frontend 100% (iteration_39.json)
 
+### Voice Feedback CSV Export (December 2025)
+- ✅ **Voice Feedback Export Report Type**: Added to Reports page dropdown
+- ✅ **Status Filter**: Filter exported feedback by status (All, New, In Progress, Completed)
+- ✅ **Priority Filter**: Filter by priority (All, Low, Medium, High, Urgent)  
+- ✅ **Category Filter**: Filter by category (All, Bug, Feature, UI, Performance, Question, Other)
+- ✅ **Report Preview**: Table showing Date, User, Page, Category, Priority, Status, Transcript
+- ✅ **Summary Stats**: Cards showing Total, New, In Progress, Completed counts
+- ✅ **CSV Download**: Export button to download filtered feedback as CSV file
+- ✅ **Tests Passed**: Frontend 100% (iteration_41.json)
+
+### TIFMAS Roster Edit/Delete (December 2025)
+- ✅ **Delete Button in Edit Dialog**: Added Delete button to TIFMAS Rank edit dialog (TIFMASRankPage.js)
+- ✅ **Confirmation Prompt**: Browser confirm dialog before deletion
+- ✅ **API Integration**: Deletes via `DELETE /api/deployment-roster/{id}` endpoint
+- ✅ **Auto Refresh**: Roster list refreshes after deletion
+- ✅ **Proper Testability**: Added data-testid="delete-entry-in-dialog" for testing
+- ✅ **Tests Passed**: Frontend 100% (iteration_41.json)
+
 
 
 

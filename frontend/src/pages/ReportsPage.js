@@ -13,6 +13,8 @@ import { Label } from '../components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { formatDisplayDate, formatDateRange } from '../utils/dateUtils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Badge } from '../components/ui/badge';
 
 const LOGO_URL = '/medina-logo.png';
 
@@ -41,6 +43,11 @@ export const ReportsPage = () => {
   // Shift Coverage Heatmap state
   const [heatmapViewMode, setHeatmapViewMode] = useState('monthly'); // 'monthly' or 'weekly'
   const [hoveredCell, setHoveredCell] = useState(null);
+  
+  // Voice Feedback Export state
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState('all');
+  const [feedbackPriorityFilter, setFeedbackPriorityFilter] = useState('all');
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState('all');
   
   // Fetch personnel list for individual report dropdown
   const fetchPersonnelList = useCallback(async () => {
@@ -157,6 +164,41 @@ export const ReportsPage = () => {
             battalion_id: selectedBattalion
           }
         });
+      } else if (reportType === 'voice-feedback-export') {
+        // Voice feedback export - fetch and prepare for CSV download
+        const params = new URLSearchParams();
+        if (feedbackStatusFilter !== 'all') params.append('status', feedbackStatusFilter);
+        if (feedbackPriorityFilter !== 'all') params.append('priority', feedbackPriorityFilter);
+        if (feedbackCategoryFilter !== 'all') params.append('category', feedbackCategoryFilter);
+        
+        response = await api.get(`/voice-feedback/list?${params.toString()}`);
+        
+        // Transform for display/export
+        const feedbackData = response.data.feedback || [];
+        response = {
+          data: {
+            report_type: 'voice-feedback-export',
+            generated_at: new Date().toISOString(),
+            filters: {
+              status: feedbackStatusFilter,
+              priority: feedbackPriorityFilter,
+              category: feedbackCategoryFilter
+            },
+            total_count: feedbackData.length,
+            feedback: feedbackData.map(f => ({
+              id: f.id,
+              date: f.created_at,
+              user: f.user_name,
+              role: f.user_role,
+              page: f.page_name,
+              category: f.category || 'other',
+              priority: f.priority || 'medium',
+              status: f.status,
+              transcript: f.transcript,
+              admin_notes: f.admin_notes || ''
+            }))
+          }
+        };
       }
       
       setReportData(response.data);
@@ -190,6 +232,7 @@ export const ReportsPage = () => {
         case 'personnel': return `Personnel Report - ${reportData?.personnel?.name || ''}`;
         case 'leave-accrual-audit': return 'Leave Accrual Audit Report';
         case 'shift-coverage-heatmap': return 'Shift Coverage Heatmap';
+        case 'voice-feedback-export': return 'Voice Feedback Export';
         default: return 'Report';
       }
     };
@@ -845,6 +888,25 @@ export const ReportsPage = () => {
           csvContent += `"${dep.deployment_type}",${dep.start_date},${dep.end_date},${dep.days || '-'},"${dep.location || '-'}"\n`;
         });
       }
+    } else if (reportType === 'voice-feedback-export') {
+      // Voice Feedback Export CSV
+      filename = `voice-feedback-export-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      csvContent = 'VOICE FEEDBACK EXPORT\n';
+      csvContent += `Generated,${new Date().toLocaleString()}\n`;
+      csvContent += `Total Count,${reportData.total_count}\n`;
+      csvContent += `Status Filter,${reportData.filters?.status || 'all'}\n`;
+      csvContent += `Priority Filter,${reportData.filters?.priority || 'all'}\n`;
+      csvContent += `Category Filter,${reportData.filters?.category || 'all'}\n`;
+      csvContent += '\nFEEDBACK ITEMS\n';
+      csvContent += 'Date,User,Role,Page,Category,Priority,Status,Transcript,Admin Notes\n';
+      
+      reportData.feedback?.forEach(f => {
+        const date = new Date(f.date).toLocaleString();
+        const transcript = (f.transcript || '').replace(/"/g, '""'); // Escape quotes
+        const notes = (f.admin_notes || '').replace(/"/g, '""');
+        csvContent += `"${date}","${f.user}","${f.role}","${f.page}","${f.category}","${f.priority}","${f.status}","${transcript}","${notes}"\n`;
+      });
     } else {
       toast.error('CSV export not available for this report type');
       return;
@@ -913,6 +975,7 @@ export const ReportsPage = () => {
                     <SelectItem value="personnel">Individual Personnel Report</SelectItem>
                     <SelectItem value="leave-accrual-audit">Leave Accrual Audit</SelectItem>
                     <SelectItem value="shift-coverage-heatmap">Shift Coverage Heatmap</SelectItem>
+                    <SelectItem value="voice-feedback-export">Voice Feedback Export</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1116,8 +1179,60 @@ export const ReportsPage = () => {
                 </div>
               )}
 
+              {/* Voice Feedback Export Options */}
+              {reportType === 'voice-feedback-export' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Status Filter</Label>
+                    <Select value={feedbackStatusFilter} onValueChange={setFeedbackStatusFilter}>
+                      <SelectTrigger data-testid="feedback-status-select">
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Priority Filter</Label>
+                    <Select value={feedbackPriorityFilter} onValueChange={setFeedbackPriorityFilter}>
+                      <SelectTrigger data-testid="feedback-priority-select">
+                        <SelectValue placeholder="All Priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Priority</SelectItem>
+                        <SelectItem value="urgent">🔥 Urgent</SelectItem>
+                        <SelectItem value="high">▲ High</SelectItem>
+                        <SelectItem value="medium">◆ Medium</SelectItem>
+                        <SelectItem value="low">▽ Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category Filter</Label>
+                    <Select value={feedbackCategoryFilter} onValueChange={setFeedbackCategoryFilter}>
+                      <SelectTrigger data-testid="feedback-category-select">
+                        <SelectValue placeholder="All Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        <SelectItem value="bug">🐛 Bug Report</SelectItem>
+                        <SelectItem value="feature">✨ Feature Request</SelectItem>
+                        <SelectItem value="ui">🎨 UI Improvement</SelectItem>
+                        <SelectItem value="performance">⚡ Performance Issue</SelectItem>
+                        <SelectItem value="question">❓ Question / Help</SelectItem>
+                        <SelectItem value="other">📝 Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
               {/* Date inputs for non-part-time reports */}
-              {reportType !== 'part-time-hours' && (
+              {reportType !== 'part-time-hours' && reportType !== 'voice-feedback-export' && (
                 <div className="space-y-2">
                   <Label>{reportType === 'daily' ? 'Date' : 'Start Date'}</Label>
                   <Input
@@ -1170,7 +1285,7 @@ export const ReportsPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {(reportType === 'part-time-hours' || reportType === 'personnel') && (
+                        {(reportType === 'part-time-hours' || reportType === 'personnel' || reportType === 'voice-feedback-export') && (
                           <DropdownMenuItem onClick={handleExportCsv} data-testid="export-csv-btn">
                             <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to CSV
                           </DropdownMenuItem>
@@ -2468,6 +2583,109 @@ export const ReportsPage = () => {
                         <span>Very High</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              ) : reportType === 'voice-feedback-export' ? (
+                <div className="space-y-6" data-testid="voice-feedback-export-report">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-white">{reportData.total_count || 0}</p>
+                        <p className="text-zinc-400 text-sm">Total Feedback</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-blue-400">
+                          {reportData.feedback?.filter(f => f.status === 'new').length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">New</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-yellow-400">
+                          {reportData.feedback?.filter(f => f.status === 'in_progress').length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">In Progress</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-green-400">
+                          {reportData.feedback?.filter(f => f.status === 'completed').length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">Completed</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Feedback Table */}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-zinc-700">
+                          <TableHead className="text-zinc-300">Date</TableHead>
+                          <TableHead className="text-zinc-300">User</TableHead>
+                          <TableHead className="text-zinc-300">Page</TableHead>
+                          <TableHead className="text-zinc-300">Category</TableHead>
+                          <TableHead className="text-zinc-300">Priority</TableHead>
+                          <TableHead className="text-zinc-300">Status</TableHead>
+                          <TableHead className="text-zinc-300">Transcript</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reportData.feedback?.length > 0 ? (
+                          reportData.feedback.map((f, idx) => (
+                            <TableRow key={idx} className="border-zinc-700">
+                              <TableCell className="text-white text-sm">
+                                {new Date(f.date).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell className="text-white">{f.user}</TableCell>
+                              <TableCell className="text-zinc-300 text-sm">{f.page}</TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  f.category === 'bug' ? 'bg-red-500' :
+                                  f.category === 'feature' ? 'bg-purple-500' :
+                                  f.category === 'ui' ? 'bg-blue-500' :
+                                  f.category === 'performance' ? 'bg-orange-500' :
+                                  f.category === 'question' ? 'bg-cyan-500' : 'bg-zinc-500'
+                                }>
+                                  {f.category === 'bug' ? '🐛' : f.category === 'feature' ? '✨' : f.category === 'ui' ? '🎨' : f.category === 'performance' ? '⚡' : f.category === 'question' ? '❓' : '📝'} {f.category}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  f.priority === 'urgent' ? 'bg-red-600' :
+                                  f.priority === 'high' ? 'bg-orange-600' :
+                                  f.priority === 'medium' ? 'bg-yellow-600' : 'bg-slate-500'
+                                }>
+                                  {f.priority === 'urgent' ? '🔥' : f.priority === 'high' ? '▲' : f.priority === 'medium' ? '◆' : '▽'} {f.priority}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  f.status === 'new' ? 'bg-blue-500' :
+                                  f.status === 'in_progress' ? 'bg-yellow-500' : 'bg-green-500'
+                                }>
+                                  {f.status === 'new' ? 'New' : f.status === 'in_progress' ? 'In Progress' : 'Completed'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-zinc-300 text-sm max-w-xs truncate">
+                                {f.transcript || '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-zinc-400 py-8">
+                              No feedback found matching your filters
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
                 </div>
               ) : null}

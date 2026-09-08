@@ -269,10 +269,10 @@ export const DeploymentRosterPage = () => {
                       {canEdit && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(entry)}>
+                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(entry)} data-testid={`edit-roster-entry-${entry.id}`}>
                               <Edit2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(entry.id)}>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(entry.id)} data-testid={`delete-roster-entry-${entry.id}`}>
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
                           </div>
@@ -441,9 +441,24 @@ export const DeploymentRosterPage = () => {
             </div>
           </div>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog({ open: false, entry: null })}>Cancel</Button>
-            <Button onClick={handleSave}>Save</Button>
+          <DialogFooter className="flex justify-between sm:justify-between">
+            {editDialog.entry && (
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  handleDelete(editDialog.entry.id);
+                  setEditDialog({ open: false, entry: null });
+                }}
+                data-testid="delete-entry-in-dialog"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditDialog({ open: false, entry: null })}>Cancel</Button>
+              <Button onClick={handleSave}>Save</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

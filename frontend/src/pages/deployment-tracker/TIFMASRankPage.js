@@ -3,7 +3,7 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2 } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -36,9 +36,10 @@ import {
 import { formatDisplayDate } from '../../utils/dateUtils';
 
 // Memoized Edit Dialog Component to prevent re-renders
-const TIFMASEditDialog = memo(({ open, entry, onClose, onSave, api }) => {
+const TIFMASEditDialog = memo(({ open, entry, onClose, onSave, onDelete, api }) => {
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (entry) {
@@ -62,6 +63,22 @@ const TIFMASEditDialog = memo(({ open, entry, onClose, onSave, api }) => {
       toast.error('Failed to save changes');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this roster entry?')) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/deployment-roster/${entry.id}`);
+      toast.success('Entry deleted successfully');
+      onDelete && onDelete();
+      onClose();
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast.error('Failed to delete entry');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -204,13 +221,24 @@ const TIFMASEditDialog = memo(({ open, entry, onClose, onSave, api }) => {
           </div>
         </div>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
+        <DialogFooter className="flex justify-between sm:justify-between">
+          <Button 
+            variant="destructive" 
+            onClick={handleDelete} 
+            disabled={deleting}
+            data-testid="delete-entry-in-dialog"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {deleting ? 'Deleting...' : 'Delete'}
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600">
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -597,6 +625,7 @@ export const TIFMASRankPage = () => {
         entry={editDialog.entry}
         onClose={closeEditDialog}
         onSave={fetchRoster}
+        onDelete={fetchRoster}
         api={api}
       />
     </div>
