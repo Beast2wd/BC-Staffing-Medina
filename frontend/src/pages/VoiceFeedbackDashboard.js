@@ -55,6 +55,14 @@ const FEEDBACK_CATEGORIES = [
   { value: 'other', label: 'Other', color: 'bg-zinc-500', icon: '📝' }
 ];
 
+// Priority levels
+const PRIORITY_LEVELS = [
+  { value: 'low', label: 'Low', color: 'bg-slate-500', textColor: 'text-slate-300', icon: '▽' },
+  { value: 'medium', label: 'Medium', color: 'bg-yellow-600', textColor: 'text-yellow-300', icon: '◆' },
+  { value: 'high', label: 'High', color: 'bg-orange-600', textColor: 'text-orange-300', icon: '▲' },
+  { value: 'urgent', label: 'Urgent', color: 'bg-red-600', textColor: 'text-red-300', icon: '🔥' }
+];
+
 const STATUS_CONFIG = {
   new: { label: 'New', color: 'bg-blue-500', icon: Circle },
   in_progress: { label: 'In Progress', color: 'bg-yellow-500', icon: Clock },
@@ -81,6 +89,7 @@ export const VoiceFeedbackDashboard = () => {
   const [audioBlob, setAudioBlob] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState('medium');
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState([]);
@@ -226,13 +235,16 @@ export const VoiceFeedbackDashboard = () => {
     return new Blob([byteArray], { type: contentType });
   };
 
-  const updateStatus = async (id, newStatus, notes = null) => {
+  const updateStatus = async (id, newStatus, notes = null, priority = null) => {
     try {
       setUpdatingId(id);
       const params = new URLSearchParams();
       params.append('status', newStatus);
       if (notes !== null) {
         params.append('admin_notes', notes);
+      }
+      if (priority !== null) {
+        params.append('priority', priority);
       }
 
       await axios.put(
@@ -241,12 +253,12 @@ export const VoiceFeedbackDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      toast.success('Status updated');
+      toast.success(priority ? 'Priority updated' : 'Status updated');
       fetchFeedback();
       fetchStats();
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error('Failed to update status');
+      toast.error('Failed to update');
     } finally {
       setUpdatingId(null);
     }
@@ -332,6 +344,7 @@ export const VoiceFeedbackDashboard = () => {
     setRecordingTime(0);
     setSelectedSection('');
     setSelectedCategory('');
+    setSelectedPriority('medium');
     setIsRecordingOpen(false);
   };
 
@@ -372,6 +385,7 @@ export const VoiceFeedbackDashboard = () => {
       formData.append('page_name', sectionLabel);
       formData.append('page_url', `/${selectedSection}`);
       formData.append('category', selectedCategory);
+      formData.append('priority', selectedPriority);
 
       const response = await axios.post(
         `${API_URL}/api/voice-feedback/submit`,
@@ -399,6 +413,7 @@ export const VoiceFeedbackDashboard = () => {
           setRecordingTime(0);
           setSelectedSection('');
           setSelectedCategory('');
+          setSelectedPriority('medium');
           setIsRecordingOpen(false);
         }, 2000);
       }
@@ -563,14 +578,44 @@ export const VoiceFeedbackDashboard = () => {
               </Select>
             </div>
 
+            {/* Priority Selector */}
+            <div className="mb-4">
+              <Label className="text-zinc-300 text-sm mb-2 block">Priority Level</Label>
+              <div className="flex gap-2">
+                {PRIORITY_LEVELS.map((p) => (
+                  <Button
+                    key={p.value}
+                    type="button"
+                    variant={selectedPriority === p.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedPriority(p.value)}
+                    disabled={isRecording || audioBlob}
+                    className={
+                      selectedPriority === p.value
+                        ? `${p.color} text-white border-transparent`
+                        : `border-zinc-600 ${p.textColor} hover:${p.color} hover:text-white hover:border-transparent`
+                    }
+                  >
+                    <span className="mr-1">{p.icon}</span>
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             {/* Selected Section Info */}
             {selectedSection && selectedCategory && (
               <div className="bg-zinc-800 rounded-lg p-3 mb-4">
                 <p className="text-sm text-zinc-400">Recording feedback for:</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <span>{FEEDBACK_CATEGORIES.find(c => c.value === selectedCategory)?.icon}</span>
-                  {PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-white font-medium flex items-center gap-1">
+                    <span>{FEEDBACK_CATEGORIES.find(c => c.value === selectedCategory)?.icon}</span>
+                    {PLATFORM_SECTIONS.find(s => s.value === selectedSection)?.label}
+                  </span>
+                  <Badge className={`${PRIORITY_LEVELS.find(p => p.value === selectedPriority)?.color} text-white text-xs`}>
+                    {PRIORITY_LEVELS.find(p => p.value === selectedPriority)?.icon} {PRIORITY_LEVELS.find(p => p.value === selectedPriority)?.label}
+                  </Badge>
+                </div>
               </div>
             )}
 
@@ -838,6 +883,7 @@ export const VoiceFeedbackDashboard = () => {
             const statusConfig = STATUS_CONFIG[item.status] || STATUS_CONFIG.new;
             const StatusIcon = statusConfig.icon;
             const categoryConfig = FEEDBACK_CATEGORIES.find(c => c.value === item.category) || FEEDBACK_CATEGORIES[5];
+            const priorityConfig = PRIORITY_LEVELS.find(p => p.value === item.priority) || PRIORITY_LEVELS[1];
             const isExpanded = expandedId === item.id;
             const isSelected = selectedIds.includes(item.id);
             
@@ -865,6 +911,12 @@ export const VoiceFeedbackDashboard = () => {
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-2">
+                          {/* Priority Badge - First */}
+                          <Badge className={`${priorityConfig.color} text-white`}>
+                            <span className="mr-1">{priorityConfig.icon}</span>
+                            {priorityConfig.label}
+                          </Badge>
+                          
                           <Badge className={`${statusConfig.color} text-white`}>
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {statusConfig.label}
@@ -974,6 +1026,33 @@ export const VoiceFeedbackDashboard = () => {
                             className="mt-1 bg-zinc-800 border-zinc-700 text-white"
                             id={`notes-${item.id}`}
                           />
+                        </div>
+                        
+                        {/* Priority Update */}
+                        <div>
+                          <Label className="text-zinc-400 text-sm mb-2 block">Priority Level</Label>
+                          <div className="flex gap-2 flex-wrap">
+                            {PRIORITY_LEVELS.map((p) => (
+                              <Button
+                                key={p.value}
+                                size="sm"
+                                variant={item.priority === p.value ? 'default' : 'outline'}
+                                onClick={() => {
+                                  const notes = document.getElementById(`notes-${item.id}`)?.value;
+                                  updateStatus(item.id, item.status, notes, p.value);
+                                }}
+                                disabled={updatingId === item.id}
+                                className={
+                                  item.priority === p.value
+                                    ? `${p.color} text-white`
+                                    : `border-zinc-600 ${p.textColor} hover:${p.color} hover:text-white`
+                                }
+                              >
+                                <span className="mr-1">{p.icon}</span>
+                                {p.label}
+                              </Button>
+                            ))}
+                          </div>
                         </div>
                         
                         {/* Actions */}

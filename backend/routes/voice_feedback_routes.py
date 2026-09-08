@@ -65,6 +65,7 @@ async def submit_voice_feedback(
     page_name: str = Form(...),
     page_url: str = Form(...),
     category: str = Form("other"),
+    priority: str = Form("medium"),
     current_user: dict = Depends(get_current_user)
 ):
     """Submit voice feedback with audio recording"""
@@ -74,6 +75,11 @@ async def submit_voice_feedback(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant context required")
+    
+    # Validate priority
+    valid_priorities = ["low", "medium", "high", "urgent"]
+    if priority not in valid_priorities:
+        priority = "medium"
     
     # Read audio file
     audio_data = await audio.read()
@@ -97,6 +103,7 @@ async def submit_voice_feedback(
         "page_name": page_name,
         "page_url": page_url,
         "category": category,
+        "priority": priority,
         "audio_data": audio_base64,
         "audio_filename": audio.filename,
         "audio_content_type": audio.content_type,
@@ -172,6 +179,7 @@ async def list_voice_feedback(
             "page_name": f.get("page_name"),
             "page_url": f.get("page_url"),
             "category": f.get("category", "other"),
+            "priority": f.get("priority", "medium"),
             "transcript": f.get("transcript"),
             "status": f.get("status"),
             "admin_notes": f.get("admin_notes", ""),
@@ -228,13 +236,19 @@ async def update_feedback_status(
     feedback_id: str,
     status: str,
     admin_notes: Optional[str] = None,
+    priority: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update feedback status and admin notes"""
+    """Update feedback status, priority, and admin notes"""
     # Using imported db directly
     
     if status not in FEEDBACK_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {FEEDBACK_STATUSES}")
+    
+    # Validate priority if provided
+    valid_priorities = ["low", "medium", "high", "urgent"]
+    if priority and priority not in valid_priorities:
+        raise HTTPException(status_code=400, detail=f"Invalid priority. Must be one of: {valid_priorities}")
     
     try:
         feedback = await db.voice_feedback.find_one({"_id": ObjectId(feedback_id)})
@@ -259,6 +273,8 @@ async def update_feedback_status(
     }
     if admin_notes is not None:
         update_data["admin_notes"] = admin_notes
+    if priority is not None:
+        update_data["priority"] = priority
     
     await db.voice_feedback.update_one(
         {"_id": ObjectId(feedback_id)},
