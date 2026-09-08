@@ -128,6 +128,7 @@ async def submit_voice_feedback(
 async def list_voice_feedback(
     status: Optional[str] = None,
     priority: Optional[str] = None,
+    category: Optional[str] = None,
     page_name: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
@@ -156,6 +157,8 @@ async def list_voice_feedback(
         query["status"] = status
     if priority and priority in ["low", "medium", "high", "urgent"]:
         query["priority"] = priority
+    if category and category in ["bug", "feature", "ui", "performance", "question", "other"]:
+        query["category"] = category
     if page_name:
         query["page_name"] = {"$regex": page_name, "$options": "i"}
     

@@ -77,6 +77,7 @@ export const VoiceFeedbackDashboard = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [playingId, setPlayingId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -109,7 +110,7 @@ export const VoiceFeedbackDashboard = () => {
   useEffect(() => {
     fetchFeedback();
     fetchStats();
-  }, [statusFilter, priorityFilter]);
+  }, [statusFilter, priorityFilter, categoryFilter]);
   
   // Cleanup recording on unmount
   useEffect(() => {
@@ -130,6 +131,9 @@ export const VoiceFeedbackDashboard = () => {
       }
       if (priorityFilter && priorityFilter !== 'all') {
         params.append('priority', priorityFilter);
+      }
+      if (categoryFilter && categoryFilter !== 'all') {
+        params.append('category', categoryFilter);
       }
       if (searchQuery) {
         params.append('page_name', searchQuery);
@@ -817,6 +821,23 @@ export const VoiceFeedbackDashboard = () => {
                     <span className="flex items-center gap-2">
                       <span>{p.icon}</span>
                       <span>{p.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-44 bg-zinc-900 border-zinc-700 text-white">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {FEEDBACK_CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    <span className="flex items-center gap-2">
+                      <span>{c.icon}</span>
+                      <span>{c.label}</span>
                     </span>
                   </SelectItem>
                 ))}
