@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, memo, useRef } from 'react';
 import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -263,6 +263,12 @@ export const TIFMASRankPage = () => {
   
   // Edit state
   const [editDialog, setEditDialog] = useState({ open: false, entry: null });
+  
+  // CSV Import state
+  const [importing, setImporting] = useState(false);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState([]);
+  const fileInputRef = useRef(null);
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -280,6 +286,104 @@ export const TIFMASRankPage = () => {
   useEffect(() => {
     fetchRoster();
   }, []);
+
+  // CSV parsing function
+  const parseCSV = (text) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+    const data = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (const char of lines[i]) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      
+      const row = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx] || '';
+      });
+      
+      if (row.name) {
+        data.push(row);
+      }
+    }
+    
+    return data;
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = parseCSV(e.target.result);
+        if (data.length === 0) {
+          toast.error('No valid data found in CSV');
+          return;
+        }
+        setImportPreviewData(data);
+        setShowImportPreview(true);
+      } catch (err) {
+        toast.error('Error parsing CSV file');
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset for re-selection
+  };
+
+  const handleImport = async () => {
+    if (importPreviewData.length === 0) return;
+    
+    setImporting(true);
+    try {
+      const response = await api.post('/deployment-roster/bulk-import', importPreviewData);
+      toast.success(`Import complete: ${response.data.added} added, ${response.data.skipped} skipped`);
+      setShowImportPreview(false);
+      setImportPreviewData([]);
+      fetchRoster();
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Failed to import roster data');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const headers = 'name,rank,ems_level,eligible_tifmas,eligible_emtf,pack_test_level,ff1,crew_boss,engine_boss,astl,wpu,medl,mist,tech_spec';
+    const example = '"Smith, John",Captain,Paramedic,true,true,Arduous,true,true,false,false,false,false,false,false';
+    const csv = `${headers}\n${example}`;
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'roster_import_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleSelectPersonnel = (personId, checked) => {
     if (checked) {
@@ -389,15 +493,42 @@ export const TIFMASRankPage = () => {
             </Badge>
             
             {canEdit && (
-              <Button 
-                onClick={openDeployDialog}
-                disabled={selectedPersonnel.length === 0}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-                data-testid="deploy-personnel-btn"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Deploy Personnel ({selectedPersonnel.length})
-              </Button>
+              <div className="flex gap-2 flex-wrap justify-end">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".csv"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="csv-file-input"
+                />
+                <Button 
+                  variant="outline" 
+                  onClick={downloadTemplate}
+                  className="border-orange-500 text-orange-500 hover:bg-orange-500/10"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Template
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-orange-500 text-orange-500 hover:bg-orange-500/10"
+                  data-testid="import-csv-btn"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+                <Button 
+                  onClick={openDeployDialog}
+                  disabled={selectedPersonnel.length === 0}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  data-testid="deploy-personnel-btn"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Deploy ({selectedPersonnel.length})
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -614,6 +745,67 @@ export const TIFMASRankPage = () => {
               data-testid="deploy-confirm-btn"
             >
               {deploying ? 'Deploying...' : 'Yes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Preview Dialog */}
+      <Dialog open={showImportPreview} onOpenChange={setShowImportPreview}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-orange-500" />
+              Import Preview - {importPreviewData.length} Entries
+            </DialogTitle>
+            <DialogDescription>
+              Review the data below. Existing entries (by name) will be skipped.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="overflow-x-auto max-h-96">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Rank</TableHead>
+                  <TableHead>EMS Level</TableHead>
+                  <TableHead>TIFMAS</TableHead>
+                  <TableHead>EMTF</TableHead>
+                  <TableHead>Pack Test</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importPreviewData.slice(0, 50).map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell>{row.rank || '-'}</TableCell>
+                    <TableCell>{row.ems_level || '-'}</TableCell>
+                    <TableCell>{row.eligible_tifmas || '-'}</TableCell>
+                    <TableCell>{row.eligible_emtf || '-'}</TableCell>
+                    <TableCell>{row.pack_test_level || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {importPreviewData.length > 50 && (
+              <p className="text-muted-foreground text-sm mt-2 px-4">
+                ... and {importPreviewData.length - 50} more entries
+              </p>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportPreview(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleImport}
+              disabled={importing}
+              className="bg-orange-500 hover:bg-orange-600"
+              data-testid="confirm-import-btn"
+            >
+              {importing ? 'Importing...' : `Import ${importPreviewData.length} Entries`}
             </Button>
           </DialogFooter>
         </DialogContent>

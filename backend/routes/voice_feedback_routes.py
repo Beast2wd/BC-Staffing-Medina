@@ -66,9 +66,10 @@ async def submit_voice_feedback(
     page_url: str = Form(...),
     category: str = Form("other"),
     priority: str = Form("medium"),
+    attachments: List[UploadFile] = File(default=[]),
     current_user: dict = Depends(get_current_user)
 ):
-    """Submit voice feedback with audio recording"""
+    """Submit voice feedback with audio recording and optional file attachments"""
     # Using imported db directly
     
     # Get tenant_id from user
@@ -94,6 +95,43 @@ async def submit_voice_feedback(
     # Store audio as base64 (for simplicity - could use object storage for production)
     audio_base64 = base64.b64encode(audio_data).decode('utf-8')
     
+    # Process attachments (max 5 files, 10MB each)
+    attachment_list = []
+    if attachments:
+        if len(attachments) > 5:
+            raise HTTPException(status_code=400, detail="Maximum 5 attachments allowed")
+        
+        allowed_types = [
+            "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
+            "application/pdf", "text/plain"
+        ]
+        
+        for attachment in attachments:
+            if attachment.filename:  # Skip empty file inputs
+                att_data = await attachment.read()
+                
+                # Check file size (max 10MB per file)
+                if len(att_data) > 10 * 1024 * 1024:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Attachment '{attachment.filename}' exceeds 10MB limit"
+                    )
+                
+                # Check content type
+                if attachment.content_type and attachment.content_type not in allowed_types:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File type '{attachment.content_type}' not allowed. Allowed: PNG, JPG, GIF, WEBP, PDF, TXT"
+                    )
+                
+                # Store attachment as base64
+                attachment_list.append({
+                    "filename": attachment.filename,
+                    "content_type": attachment.content_type,
+                    "size": len(att_data),
+                    "data": base64.b64encode(att_data).decode('utf-8')
+                })
+    
     # Create feedback record
     feedback = {
         "tenant_id": tenant_id,
@@ -108,6 +146,7 @@ async def submit_voice_feedback(
         "audio_filename": audio.filename,
         "audio_content_type": audio.content_type,
         "transcript": transcript,
+        "attachments": attachment_list,
         "status": "new",
         "admin_notes": "",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -120,7 +159,8 @@ async def submit_voice_feedback(
         "success": True,
         "message": "Feedback submitted successfully",
         "feedback_id": str(result.inserted_id),
-        "transcript": transcript
+        "transcript": transcript,
+        "attachments_count": len(attachment_list)
     }
 
 
@@ -176,6 +216,15 @@ async def list_voice_feedback(
     # Format response (exclude audio data for list view)
     result = []
     for f in feedback_list:
+        # Get attachments info without data
+        attachments_info = []
+        for att in f.get("attachments", []):
+            attachments_info.append({
+                "filename": att.get("filename"),
+                "content_type": att.get("content_type"),
+                "size": att.get("size", 0)
+            })
+        
         result.append({
             "id": str(f["_id"]),
             "tenant_id": f.get("tenant_id"),
@@ -189,6 +238,8 @@ async def list_voice_feedback(
             "transcript": f.get("transcript"),
             "status": f.get("status"),
             "admin_notes": f.get("admin_notes", ""),
+            "attachments_count": len(f.get("attachments", [])),
+            "attachments": attachments_info,
             "created_at": f.get("created_at"),
             "updated_at": f.get("updated_at")
         })
@@ -227,9 +278,12 @@ async def get_voice_feedback(
         "user_role": feedback.get("user_role"),
         "page_name": feedback.get("page_name"),
         "page_url": feedback.get("page_url"),
+        "category": feedback.get("category", "other"),
+        "priority": feedback.get("priority", "medium"),
         "audio_data": feedback.get("audio_data"),
         "audio_content_type": feedback.get("audio_content_type", "audio/webm"),
         "transcript": feedback.get("transcript"),
+        "attachments": feedback.get("attachments", []),
         "status": feedback.get("status"),
         "admin_notes": feedback.get("admin_notes", ""),
         "created_at": feedback.get("created_at"),

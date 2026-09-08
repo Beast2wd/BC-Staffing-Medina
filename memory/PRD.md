@@ -1196,6 +1196,32 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Proper Testability**: Added data-testid="delete-entry-in-dialog" for testing
 - ✅ **Tests Passed**: Frontend 100% (iteration_41.json)
 
+### Roster Bulk Import (December 2025)
+- ✅ **CSV Import for TIFMAS**: Import CSV button added to TIFMAS Rank page header
+- ✅ **CSV Import for EMTF**: Import CSV button added to EMTF Rank page header
+- ✅ **Template Download**: Download template CSV with expected column headers and example row
+- ✅ **Preview Before Import**: Shows parsed data in a table before confirming import
+- ✅ **Skip Existing**: Entries with names matching existing roster entries are automatically skipped
+- ✅ **API Endpoint**: `POST /api/deployment-roster/bulk-import` handles the import logic
+- ✅ **Feedback Messages**: Shows count of added vs skipped entries after import
+- ✅ **Tests Passed**: Backend 100% (7/7), Frontend 100% (iteration_42.json)
+
+### EMTF Roster Edit/Delete (December 2025)
+- ✅ **Delete Button in Edit Dialog**: Added Delete button to EMTF Rank edit dialog (EMTFRankPage.js)
+- ✅ **Matches TIFMAS Behavior**: Same delete functionality as TIFMAS page
+- ✅ **Tests Passed**: Frontend 100% (iteration_42.json)
+
+### Voice Feedback Attachments (December 2025)
+- ✅ **File Attachment Support**: Up to 5 files, max 10MB each per feedback submission
+- ✅ **Supported Formats**: PNG, JPG, GIF, WEBP, PDF, TXT
+- ✅ **Add File Button**: Appears in recording modal after audio is captured
+- ✅ **File Preview**: Shows filename, size, and thumbnail for images
+- ✅ **Remove Attachments**: Can remove individual attachments before submitting
+- ✅ **Attachment Count Badge**: Paperclip badge shows attachment count in feedback list
+- ✅ **Expanded View**: Shows full attachment details when feedback is expanded
+- ✅ **Backend Validation**: Rejects oversized files or too many attachments with clear error messages
+- ✅ **Tests Passed**: Backend 100% (7/7), Frontend 100% (iteration_42.json)
+
 
 
 

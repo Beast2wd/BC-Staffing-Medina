@@ -14,7 +14,7 @@ import {
   Mic, Play, Pause, Search, Filter, Clock, User, 
   FileText, CheckCircle2, Circle, Loader2, Trash2,
   ChevronDown, ChevronUp, MessageSquare, Building2,
-  Square, Send, X, MicOff
+  Square, Send, X, MicOff, Paperclip, Image, File
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -92,6 +92,8 @@ export const VoiceFeedbackDashboard = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('medium');
+  const [attachments, setAttachments] = useState([]);
+  const attachmentInputRef = useRef(null);
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState([]);
@@ -353,7 +355,68 @@ export const VoiceFeedbackDashboard = () => {
     setSelectedSection('');
     setSelectedCategory('');
     setSelectedPriority('medium');
+    setAttachments([]);
     setIsRecordingOpen(false);
+  };
+
+  // Attachment handling functions
+  const handleAttachmentSelect = (event) => {
+    const files = Array.from(event.target.files);
+    const currentCount = attachments.length;
+    const maxFiles = 5;
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    const allowedTypes = [
+      'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
+      'application/pdf', 'text/plain'
+    ];
+    
+    const newFiles = [];
+    
+    for (const file of files) {
+      if (currentCount + newFiles.length >= maxFiles) {
+        toast.error(`Maximum ${maxFiles} attachments allowed`);
+        break;
+      }
+      
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds 10MB limit`);
+        continue;
+      }
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`${file.name}: File type not allowed. Use PNG, JPG, GIF, WEBP, PDF, or TXT`);
+        continue;
+      }
+      
+      newFiles.push({
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+      });
+    }
+    
+    setAttachments(prev => [...prev, ...newFiles]);
+    event.target.value = ''; // Reset for re-selection
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments(prev => {
+      const newList = [...prev];
+      if (newList[index].preview) {
+        URL.revokeObjectURL(newList[index].preview);
+      }
+      newList.splice(index, 1);
+      return newList;
+    });
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   // Audio compression function
@@ -394,6 +457,11 @@ export const VoiceFeedbackDashboard = () => {
       formData.append('page_url', `/${selectedSection}`);
       formData.append('category', selectedCategory);
       formData.append('priority', selectedPriority);
+      
+      // Add attachments
+      for (const att of attachments) {
+        formData.append('attachments', att.file, att.name);
+      }
 
       const response = await axios.post(
         `${API_URL}/api/voice-feedback/submit`,
@@ -408,11 +476,17 @@ export const VoiceFeedbackDashboard = () => {
 
       if (response.data.success) {
         setTranscript(response.data.transcript);
-        toast.success('Feedback submitted successfully!');
+        const attachCount = response.data.attachments_count || 0;
+        toast.success(`Feedback submitted successfully!${attachCount > 0 ? ` (${attachCount} attachments)` : ''}`);
         
         // Refresh the list
         fetchFeedback();
         fetchStats();
+        
+        // Cleanup attachment previews
+        attachments.forEach(att => {
+          if (att.preview) URL.revokeObjectURL(att.preview);
+        });
         
         // Reset after showing transcript
         setTimeout(() => {
@@ -422,6 +496,7 @@ export const VoiceFeedbackDashboard = () => {
           setSelectedSection('');
           setSelectedCategory('');
           setSelectedPriority('medium');
+          setAttachments([]);
           setIsRecordingOpen(false);
         }, 2000);
       }
@@ -668,6 +743,72 @@ export const VoiceFeedbackDashboard = () => {
                   <div className="w-full bg-zinc-800 rounded-lg p-3">
                     <AudioWaveform audioBlob={audioBlob} />
                   </div>
+                </div>
+              )}
+
+              {/* Attachments Section */}
+              {audioBlob && !transcript && (
+                <div className="w-full mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-zinc-300 text-sm flex items-center gap-2">
+                      <Paperclip className="h-4 w-4" />
+                      Attachments ({attachments.length}/5)
+                    </Label>
+                    <input
+                      type="file"
+                      ref={attachmentInputRef}
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf,text/plain"
+                      multiple
+                      onChange={handleAttachmentSelect}
+                      className="hidden"
+                      data-testid="attachment-input"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={attachments.length >= 5 || isSubmitting}
+                      className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                    >
+                      <Paperclip className="h-4 w-4 mr-1" />
+                      Add File
+                    </Button>
+                  </div>
+                  
+                  {/* Attachment List */}
+                  {attachments.length > 0 && (
+                    <div className="space-y-2 bg-zinc-800 rounded-lg p-3">
+                      {attachments.map((att, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-zinc-700/50 rounded p-2">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            {att.preview ? (
+                              <img src={att.preview} alt="" className="w-8 h-8 object-cover rounded" />
+                            ) : (
+                              <File className="h-6 w-6 text-zinc-400" />
+                            )}
+                            <div className="overflow-hidden">
+                              <p className="text-sm text-white truncate">{att.name}</p>
+                              <p className="text-xs text-zinc-400">{formatFileSize(att.size)}</p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAttachment(idx)}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1 h-auto"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-zinc-500 mt-2">
+                    Supports: PNG, JPG, GIF, WEBP, PDF, TXT (max 10MB each)
+                  </p>
                 </div>
               )}
 
@@ -981,6 +1122,13 @@ export const VoiceFeedbackDashboard = () => {
                               {item.tenant_name}
                             </Badge>
                           )}
+                          
+                          {item.attachments_count > 0 && (
+                            <Badge variant="outline" className="border-zinc-600 text-zinc-300">
+                              <Paperclip className="h-3 w-3 mr-1" />
+                              {item.attachments_count}
+                            </Badge>
+                          )}
                         </div>
                         
                         <p className="text-white text-sm line-clamp-2 mb-2">
@@ -1058,6 +1206,34 @@ export const VoiceFeedbackDashboard = () => {
                             {item.transcript || '[No transcript available]'}
                           </div>
                         </div>
+                        
+                        {/* Attachments */}
+                        {item.attachments && item.attachments.length > 0 && (
+                          <div>
+                            <Label className="text-zinc-400 text-sm flex items-center gap-2">
+                              <Paperclip className="h-4 w-4" />
+                              Attachments ({item.attachments.length})
+                            </Label>
+                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {item.attachments.map((att, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className="bg-zinc-800 rounded-lg p-2 flex items-center gap-2"
+                                >
+                                  {att.content_type?.startsWith('image/') ? (
+                                    <Image className="h-5 w-5 text-blue-400" />
+                                  ) : (
+                                    <File className="h-5 w-5 text-zinc-400" />
+                                  )}
+                                  <div className="overflow-hidden flex-1">
+                                    <p className="text-sm text-white truncate">{att.filename}</p>
+                                    <p className="text-xs text-zinc-500">{formatFileSize(att.size)}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Admin Notes */}
                         <div>
