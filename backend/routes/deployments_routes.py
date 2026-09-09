@@ -492,6 +492,7 @@ async def bulk_import_with_history(
     added_count = 0
     skipped_count = 0
     errors = []
+    added_entry_ids = []  # Track IDs for rollback
     
     for item in data:
         name = item.get("name", "").strip()
@@ -504,8 +505,9 @@ async def bulk_import_with_history(
             continue
         
         try:
+            entry_id = str(uuid.uuid4())
             entry_data = {
-                "id": str(uuid.uuid4()),
+                "id": entry_id,
                 "name": name,
                 "rank": item.get("rank", "Firefighter"),
                 "ems_level": item.get("ems_level", ""),
@@ -534,12 +536,13 @@ async def bulk_import_with_history(
             
             await db.deployment_roster.insert_one(entry_data)
             added_count += 1
+            added_entry_ids.append(entry_id)  # Track for rollback
             existing_names.add(name.lower())
             
         except Exception as e:
             errors.append(f"Error importing {name}: {str(e)}")
     
-    # Log to import history
+    # Log to import history with added entry IDs for rollback
     history_entry = {
         "id": str(uuid.uuid4()),
         "tenant_id": tenant_id,
@@ -550,6 +553,8 @@ async def bulk_import_with_history(
         "added": added_count,
         "skipped": skipped_count,
         "errors_count": len(errors),
+        "added_entry_ids": added_entry_ids,  # Store IDs for rollback
+        "rolled_back": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.import_history.insert_one(history_entry)
@@ -560,6 +565,59 @@ async def bulk_import_with_history(
         "skipped": skipped_count,
         "errors": errors if errors else None,
         "history_id": history_entry["id"]
+    }
+
+
+@router.post("/deployment-roster/import-history/{history_id}/rollback")
+async def rollback_import(
+    history_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Rollback a CSV import by deleting all entries that were added"""
+    tenant_id = get_tenant_id(current_user)
+    
+    # Find the import history entry
+    query = {"id": history_id}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    history_entry = await db.import_history.find_one(query)
+    
+    if not history_entry:
+        raise HTTPException(status_code=404, detail="Import history not found")
+    
+    if history_entry.get("rolled_back"):
+        raise HTTPException(status_code=400, detail="This import has already been rolled back")
+    
+    added_entry_ids = history_entry.get("added_entry_ids", [])
+    
+    if not added_entry_ids:
+        raise HTTPException(status_code=400, detail="No entries to rollback (import may be from before rollback feature)")
+    
+    # Delete all entries that were added in this import
+    delete_query = {"id": {"$in": added_entry_ids}}
+    if tenant_id:
+        delete_query["tenant_id"] = tenant_id
+    
+    result = await db.deployment_roster.delete_many(delete_query)
+    
+    # Mark the import as rolled back
+    await db.import_history.update_one(
+        {"id": history_id},
+        {
+            "$set": {
+                "rolled_back": True,
+                "rolled_back_at": datetime.now(timezone.utc).isoformat(),
+                "rolled_back_by": current_user.get("name", "Unknown"),
+                "rolled_back_count": result.deleted_count
+            }
+        }
+    )
+    
+    return {
+        "message": f"Rollback complete: {result.deleted_count} entries deleted",
+        "deleted": result.deleted_count,
+        "history_id": history_id
     }
 
 

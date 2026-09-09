@@ -1,0 +1,49 @@
+{
+  "summary": "Tested Import Rollback feature end-to-end for deployment roster CSV imports. Backend (4/4 pytest PASS): rollback requires auth, 404 for missing history, full happy-path (import 3 entries -> added_entry_ids stored -> POST /rollback deletes entries -> history marked rolled_back with rolled_back_count=3 -> second rollback returns 400), and 400 for imports with no added_entry_ids (duplicate-only import). Frontend (TIFMAS flow verified with Playwright): Import CSV of 3 unique names, switched to Import History tab, Undo button (data-testid=rollback-btn-<id>) visible for that import, clicking opens 'Undo CSV Import' dialog with correct entry count (3), confirming delete removes entries from roster and displays 'Rolled Back' badge; Undo button removed for that row. EMTF page shares identical logic (backend endpoint is common). All acceptance criteria from the review request are met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend": {
+      "test_rollback_requires_auth": "PASS - 401/403 without token",
+      "test_rollback_nonexistent_id": "PASS - 404 for random uuid",
+      "test_import_stores_added_ids_and_rollback_removes_entries": "PASS - import stores added_entry_ids[3]; POST rollback deletes 3 roster rows; history marked rolled_back=true, rolled_back_count=3; second rollback returns 400",
+      "test_rollback_history_without_added_entry_ids": "PASS - duplicate-only import produces added=0/added_entry_ids=[]; rollback returns 400"
+    },
+    "frontend": {
+      "Import History shows Undo button after new import": "PASS - rollback-btn-<id> present with 3 entries added",
+      "Undo dialog opens with correct details": "PASS - shows Import Date, Filename, Entries to Delete=3, title 'Undo CSV Import'",
+      "Confirm delete button label": "PASS - 'Delete 3 Entries'",
+      "After rollback the Undo button disappears and 'Rolled Back' badge appears": "PASS",
+      "Entries removed from roster after rollback": "PASS - TEST_UI_RB_*_A/B/C not present in roster tab",
+      "N/A shown for imports with no added entries": "VERIFIED VIA CODE (line 887 in TIFMASRankPage.js) - Not e2e clicked but logic covered by backend test #4"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_import_rollback.py",
+    "/app/test_reports/pytest/iter45_rollback.xml"
+  ],
+  "action_items": [
+    "LOW: Add data-testid to the rollback confirmation button in the Undo dialog (currently no testid on the 'Delete N Entries' button in both TIFMASRankPage.js line ~1195 and EMTFRankPage.js) for easier automation. Suggest data-testid='rollback-confirm-btn'.",
+    "LOW: Consider adding data-testid='rolled-back-badge-<id>' on the 'Rolled Back' badge (TIFMAS line 872, EMTF equivalent) to disambiguate multiple badges when counting."
+  ],
+  "critical_code_review_comments": [
+    "TIFMASRankPage.js (~1213 lines) and EMTFRankPage.js are near-duplicates for import/rollback/history/cleanup logic. Extract shared behavior into a hook (e.g. useRosterImport) or module to eliminate the >50 lines of duplicated rollback logic (openRollbackDialog/handleRollback/dialog JSX).",
+    "Backend rollback endpoint deletes entries but does NOT clean up references from downstream collections (deployments/deployment_history) that may reference deleted deployment_roster ids. If a rolled-back entry was already deployed, referential integrity may break. Consider validating that added_entry_ids have no active deployments before allowing rollback, or cascading appropriately.",
+    "Rollback endpoint should also record the user who performed the rollback and expose it in the history GET response (currently stored as rolled_back_by but the frontend Import History table doesn't display it).",
+    "The 'Delete N Entries' confirm button lacks a data-testid, making it harder to test destructive flows deterministically.",
+    "Frontend guard `entry.added > 0 && entry.added_entry_ids?.length > 0` is correct, but is duplicated in TIFMAS and EMTF - another DRY violation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_import_rollback.py"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% for happy-path rollback flow"},
+  "test_credentials": "Admin/Super Admin payroll=100001 / password=admin123",
+  "seed_data_creation": "Test creates TEST_RB_* and TEST_UI_RB_* deployment_roster rows and cleans them up via the rollback flow itself. A single TEST_RB_DUP_* row is created and later rolled back at end of test_rollback_history_without_added_entry_ids. Net roster impact: 0.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Rollback feature is fully working. Backend pytest at /app/backend/tests/test_import_rollback.py is green (4/4). If adding more coverage: test rollback in a multi-tenant context (ensure tenant_id scoping prevents cross-tenant rollback), and test that deployments/history referencing rolled-back roster ids are handled (currently no cascade)."
+}

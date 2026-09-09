@@ -3,7 +3,7 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download, History, Clock, User, FileText, AlertCircle } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download, History, Clock, User, FileText, AlertCircle, Undo2 } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -284,6 +284,11 @@ export const TIFMASRankPage = () => {
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [cleanupPeriod, setCleanupPeriod] = useState('90');
   const [cleaningHistory, setCleaningHistory] = useState(false);
+  
+  // Rollback state
+  const [showRollbackDialog, setShowRollbackDialog] = useState(false);
+  const [rollbackEntry, setRollbackEntry] = useState(null);
+  const [rollingBack, setRollingBack] = useState(false);
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -479,6 +484,30 @@ export const TIFMASRankPage = () => {
     } finally {
       setCleaningHistory(false);
     }
+  };
+
+  const handleRollback = async () => {
+    if (!rollbackEntry) return;
+    
+    setRollingBack(true);
+    try {
+      const response = await api.post(`/deployment-roster/import-history/${rollbackEntry.id}/rollback`);
+      toast.success(`Rollback complete: ${response.data.deleted} entries removed`);
+      setShowRollbackDialog(false);
+      setRollbackEntry(null);
+      fetchImportHistory();
+      fetchRoster();
+    } catch (error) {
+      console.error('Error rolling back:', error);
+      toast.error(error.response?.data?.detail || 'Failed to rollback import');
+    } finally {
+      setRollingBack(false);
+    }
+  };
+
+  const openRollbackDialog = (entry) => {
+    setRollbackEntry(entry);
+    setShowRollbackDialog(true);
   };
 
   const downloadTemplate = () => {
@@ -802,6 +831,7 @@ export const TIFMASRankPage = () => {
                           <TableHead className="text-center">Added</TableHead>
                           <TableHead className="text-center">Skipped</TableHead>
                           <TableHead className="text-center">Errors</TableHead>
+                          <TableHead className="text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -811,13 +841,17 @@ export const TIFMASRankPage = () => {
                               <Clock className="h-4 w-4 text-muted-foreground" />
                               {new Date(entry.created_at).toLocaleString()}
                             </TableCell>
-                            <TableCell className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              {entry.user_name}
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                {entry.user_name}
+                              </div>
                             </TableCell>
-                            <TableCell className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              {entry.filename || 'Unknown'}
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                {entry.filename || 'Unknown'}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">{entry.total_rows}</TableCell>
                             <TableCell className="text-center">
@@ -831,6 +865,26 @@ export const TIFMASRankPage = () => {
                                 <Badge className="bg-red-500">{entry.errors_count}</Badge>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {entry.rolled_back ? (
+                                <Badge variant="outline" className="text-zinc-500">
+                                  Rolled Back
+                                </Badge>
+                              ) : entry.added > 0 && entry.added_entry_ids?.length > 0 ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openRollbackDialog(entry)}
+                                  className="border-amber-500 text-amber-500 hover:bg-amber-500/10"
+                                  data-testid={`rollback-btn-${entry.id}`}
+                                >
+                                  <Undo2 className="h-4 w-4 mr-1" />
+                                  Undo
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">N/A</span>
                               )}
                             </TableCell>
                           </TableRow>
@@ -1094,6 +1148,51 @@ export const TIFMASRankPage = () => {
               disabled={cleaningHistory}
             >
               {cleaningHistory ? 'Clearing...' : 'Clear History'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rollback Import Dialog */}
+      <Dialog open={showRollbackDialog} onOpenChange={setShowRollbackDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <Undo2 className="h-5 w-5" />
+              Undo CSV Import
+            </DialogTitle>
+            <DialogDescription>
+              This will delete all {rollbackEntry?.added || 0} entries that were added in this import. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {rollbackEntry && (
+            <div className="py-4 space-y-2 bg-muted/50 rounded-lg p-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Import Date:</span>
+                <span>{new Date(rollbackEntry.created_at).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Filename:</span>
+                <span>{rollbackEntry.filename}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Entries to Delete:</span>
+                <Badge className="bg-red-500">{rollbackEntry.added}</Badge>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRollbackDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleRollback}
+              disabled={rollingBack}
+            >
+              {rollingBack ? 'Rolling Back...' : `Delete ${rollbackEntry?.added || 0} Entries`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1263,6 +1263,17 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Orange Theme**: PDF uses orange (#F97316) header color matching TIFMAS branding
 - ✅ **Tests Passed**: Excel 100%, PDF fixed post-test (iteration_44.json)
 
+### Import Rollback (December 2025)
+- ✅ **Undo Button**: Each import history entry has "Undo" button (if rollback-eligible)
+- ✅ **Entry Tracking**: Import history stores `added_entry_ids` array for all new imports
+- ✅ **Rollback Endpoint**: `POST /api/deployment-roster/import-history/{id}/rollback`
+- ✅ **Confirmation Dialog**: Shows import details (date, filename, entry count) before deleting
+- ✅ **Rolled Back Badge**: After rollback, shows "Rolled Back" badge instead of Undo button
+- ✅ **N/A State**: Shows "N/A" for imports with no added entries (all skipped) or old imports
+- ✅ **Cross-Platform**: Works on both TIFMAS and EMTF roster pages (shared history)
+- ✅ **Safeguards**: Can only rollback once, records who rolled back and when
+- ✅ **Tests Passed**: Backend 100% (4/4), Frontend 100% (iteration_45.json)
+
 
 
 
