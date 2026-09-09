@@ -430,6 +430,115 @@ async def bulk_import_deployment_roster(
     }
 
 
+@router.post("/deployment-roster/bulk-import-with-history")
+async def bulk_import_with_history(
+    data: List[dict],
+    filename: str = None,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Bulk import roster entries and log to import history"""
+    tenant_id = get_tenant_id(current_user)
+    
+    # Get existing names in roster
+    existing_query = {}
+    if tenant_id:
+        existing_query["tenant_id"] = tenant_id
+    existing_entries = await db.deployment_roster.find(existing_query, {"_id": 0, "name": 1}).to_list(1000)
+    existing_names = {e.get("name", "").strip().lower() for e in existing_entries}
+    
+    added_count = 0
+    skipped_count = 0
+    errors = []
+    
+    for item in data:
+        name = item.get("name", "").strip()
+        if not name:
+            errors.append("Row with missing name skipped")
+            continue
+        
+        if name.lower() in existing_names:
+            skipped_count += 1
+            continue
+        
+        try:
+            entry_data = {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "rank": item.get("rank", "Firefighter"),
+                "ems_level": item.get("ems_level", ""),
+                "seniority_date": item.get("seniority_date", ""),
+                "eligible_tifmas": str(item.get("eligible_tifmas", "")).lower() in ["true", "yes", "1", "x"],
+                "eligible_emtf": str(item.get("eligible_emtf", "")).lower() in ["true", "yes", "1", "x"],
+                "last_deployment": item.get("last_deployment", ""),
+                "deployments_last_12mo": int(item.get("deployments_last_12mo", 0) or 0),
+                "last_tifmas_deploy": item.get("last_tifmas_deploy", ""),
+                "last_emtf_deploy": item.get("last_emtf_deploy", ""),
+                "ff1": str(item.get("ff1", "")).lower() in ["true", "yes", "1", "x"],
+                "crew_boss": str(item.get("crew_boss", "")).lower() in ["true", "yes", "1", "x"],
+                "engine_boss": str(item.get("engine_boss", "")).lower() in ["true", "yes", "1", "x"],
+                "mist": str(item.get("mist", "")).lower() in ["true", "yes", "1", "x"],
+                "wpu": str(item.get("wpu", "")).lower() in ["true", "yes", "1", "x"],
+                "astl": str(item.get("astl", "")).lower() in ["true", "yes", "1", "x"],
+                "medl": str(item.get("medl", "")).lower() in ["true", "yes", "1", "x"],
+                "tech_spec": str(item.get("tech_spec", "")).lower() in ["true", "yes", "1", "x"],
+                "pack_test_level": item.get("pack_test_level", "Arduous"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            if tenant_id:
+                entry_data["tenant_id"] = tenant_id
+            
+            await db.deployment_roster.insert_one(entry_data)
+            added_count += 1
+            existing_names.add(name.lower())
+            
+        except Exception as e:
+            errors.append(f"Error importing {name}: {str(e)}")
+    
+    # Log to import history
+    history_entry = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "user_id": current_user.get("id"),
+        "user_name": current_user.get("name", "Unknown"),
+        "filename": filename or "Unknown",
+        "total_rows": len(data),
+        "added": added_count,
+        "skipped": skipped_count,
+        "errors_count": len(errors),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.import_history.insert_one(history_entry)
+    
+    return {
+        "message": f"Import complete: {added_count} added, {skipped_count} skipped",
+        "added": added_count,
+        "skipped": skipped_count,
+        "errors": errors if errors else None,
+        "history_id": history_entry["id"]
+    }
+
+
+@router.get("/deployment-roster/import-history")
+async def get_import_history(
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Get import history for the tenant"""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    history = await db.import_history.find(
+        query, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    return {"history": history}
+
+
 @router.get("/deployment-roster/tifmas-rank")
 async def get_tifmas_rank(
     current_user: dict = Depends(get_current_user)

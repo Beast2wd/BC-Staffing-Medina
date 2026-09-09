@@ -1222,6 +1222,23 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Backend Validation**: Rejects oversized files or too many attachments with clear error messages
 - ✅ **Tests Passed**: Backend 100% (7/7), Frontend 100% (iteration_42.json)
 
+### Deployment Roster Export (December 2025)
+- ✅ **New Report Type**: "Deployment Roster Export" added to Reports page dropdown
+- ✅ **Roster Filter**: Select All (TIFMAS & EMTF), TIFMAS Only, or EMTF Only
+- ✅ **Summary Cards**: Total entries, TIFMAS eligible, EMTF eligible, FF1 certified counts
+- ✅ **Roster Table**: Displays Name, Rank, EMS Level, Roster Type, Pack Test, certifications, deployment history
+- ✅ **CSV Download**: Export dropdown with CSV export option
+- ✅ **Tests Passed**: Backend 100%, Frontend 100% (iteration_43.json)
+
+### Import History (December 2025)
+- ✅ **History Tab**: New "Import History" tab on both TIFMAS and EMTF Rank pages
+- ✅ **History Tracking**: Each CSV import logs: timestamp, user, filename, total rows, added, skipped, errors
+- ✅ **Backend Endpoint**: `POST /api/deployment-roster/bulk-import-with-history` logs to import_history collection
+- ✅ **History Retrieval**: `GET /api/deployment-roster/import-history` returns recent imports for tenant
+- ✅ **Empty State**: Shows helpful message when no imports have been made
+- ✅ **Loading State**: Shows spinner while fetching history
+- ✅ **Tests Passed**: Backend 100% (6/6), Frontend 100% (iteration_43.json)
+
 
 
 

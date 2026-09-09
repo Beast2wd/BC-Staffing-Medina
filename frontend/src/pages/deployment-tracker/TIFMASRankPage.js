@@ -3,13 +3,14 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download, History, Clock, User, FileText } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -268,7 +269,13 @@ export const TIFMASRankPage = () => {
   const [importing, setImporting] = useState(false);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importPreviewData, setImportPreviewData] = useState([]);
+  const [importFilename, setImportFilename] = useState('');
   const fileInputRef = useRef(null);
+  
+  // Import History state
+  const [activeTab, setActiveTab] = useState('roster');
+  const [importHistory, setImportHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -334,6 +341,7 @@ export const TIFMASRankPage = () => {
       return;
     }
     
+    setImportFilename(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -358,16 +366,32 @@ export const TIFMASRankPage = () => {
     
     setImporting(true);
     try {
-      const response = await api.post('/deployment-roster/bulk-import', importPreviewData);
+      const response = await api.post('/deployment-roster/bulk-import-with-history', importPreviewData, {
+        params: { filename: importFilename }
+      });
       toast.success(`Import complete: ${response.data.added} added, ${response.data.skipped} skipped`);
       setShowImportPreview(false);
       setImportPreviewData([]);
+      setImportFilename('');
       fetchRoster();
+      fetchImportHistory();
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Failed to import roster data');
     } finally {
       setImporting(false);
+    }
+  };
+  
+  const fetchImportHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await api.get('/deployment-roster/import-history');
+      setImportHistory(response.data.history || []);
+    } catch (error) {
+      console.error('Error fetching import history:', error);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -533,6 +557,19 @@ export const TIFMASRankPage = () => {
           </div>
         </div>
 
+        <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); if (val === 'history') fetchImportHistory(); }} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
+            <TabsTrigger value="roster" className="flex items-center gap-2">
+              <Flame className="h-4 w-4" />
+              Roster
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Import History
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="roster">
         <Card>
           <CardHeader className="bg-orange-500/10 border-b border-orange-500/20">
             <CardTitle className="text-orange-500 flex items-center gap-2">
@@ -635,6 +672,80 @@ export const TIFMASRankPage = () => {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+          
+          <TabsContent value="history">
+            <Card>
+              <CardHeader className="bg-orange-500/10 border-b border-orange-500/20">
+                <CardTitle className="text-orange-500 flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Import History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+                  </div>
+                ) : importHistory.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No import history found</p>
+                    <p className="text-sm">Import a CSV file to see history here</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Imported By</TableHead>
+                          <TableHead>Filename</TableHead>
+                          <TableHead className="text-center">Total Rows</TableHead>
+                          <TableHead className="text-center">Added</TableHead>
+                          <TableHead className="text-center">Skipped</TableHead>
+                          <TableHead className="text-center">Errors</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importHistory.map((entry) => (
+                          <TableRow key={entry.id}>
+                            <TableCell className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              {new Date(entry.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              {entry.user_name}
+                            </TableCell>
+                            <TableCell className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              {entry.filename || 'Unknown'}
+                            </TableCell>
+                            <TableCell className="text-center">{entry.total_rows}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge className="bg-green-500">{entry.added}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline">{entry.skipped}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {entry.errors_count > 0 ? (
+                                <Badge className="bg-red-500">{entry.errors_count}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Deploy Personnel Dialog */}

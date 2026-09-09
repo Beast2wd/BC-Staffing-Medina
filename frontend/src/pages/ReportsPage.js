@@ -49,6 +49,9 @@ export const ReportsPage = () => {
   const [feedbackPriorityFilter, setFeedbackPriorityFilter] = useState('all');
   const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState('all');
   
+  // Deployment Roster Export state
+  const [rosterExportType, setRosterExportType] = useState('all'); // 'all', 'tifmas', 'emtf'
+  
   // Fetch personnel list for individual report dropdown
   const fetchPersonnelList = useCallback(async () => {
     try {
@@ -199,6 +202,43 @@ export const ReportsPage = () => {
             }))
           }
         };
+      } else if (reportType === 'deployment-roster-export') {
+        // Deployment roster export
+        let rosterData = [];
+        
+        if (rosterExportType === 'all' || rosterExportType === 'tifmas') {
+          const tifmasResponse = await api.get('/deployment-roster/tifmas-rank');
+          rosterData = [...rosterData, ...tifmasResponse.data.map(r => ({ ...r, roster_type: 'TIFMAS' }))];
+        }
+        
+        if (rosterExportType === 'all' || rosterExportType === 'emtf') {
+          const emtfResponse = await api.get('/deployment-roster/emtf-rank');
+          // Avoid duplicates if same person is in both
+          const existingIds = new Set(rosterData.map(r => r.id));
+          const emtfEntries = emtfResponse.data
+            .filter(r => !existingIds.has(r.id))
+            .map(r => ({ ...r, roster_type: 'EMTF' }));
+          rosterData = [...rosterData, ...emtfEntries];
+          
+          // Mark entries that appear in both
+          if (rosterExportType === 'all') {
+            const emtfIds = new Set(emtfResponse.data.map(r => r.id));
+            rosterData = rosterData.map(r => ({
+              ...r,
+              roster_type: emtfIds.has(r.id) && r.roster_type === 'TIFMAS' ? 'TIFMAS/EMTF' : r.roster_type
+            }));
+          }
+        }
+        
+        response = {
+          data: {
+            report_type: 'deployment-roster-export',
+            generated_at: new Date().toISOString(),
+            roster_filter: rosterExportType,
+            total_count: rosterData.length,
+            roster: rosterData
+          }
+        };
       }
       
       setReportData(response.data);
@@ -233,6 +273,7 @@ export const ReportsPage = () => {
         case 'leave-accrual-audit': return 'Leave Accrual Audit Report';
         case 'shift-coverage-heatmap': return 'Shift Coverage Heatmap';
         case 'voice-feedback-export': return 'Voice Feedback Export';
+        case 'deployment-roster-export': return 'Deployment Roster Export';
         default: return 'Report';
       }
     };
@@ -907,6 +948,26 @@ export const ReportsPage = () => {
         const notes = (f.admin_notes || '').replace(/"/g, '""');
         csvContent += `"${date}","${f.user}","${f.role}","${f.page}","${f.category}","${f.priority}","${f.status}","${transcript}","${notes}"\n`;
       });
+    } else if (reportType === 'deployment-roster-export') {
+      // Deployment Roster Export CSV
+      filename = `deployment-roster-${rosterExportType}-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      csvContent = 'DEPLOYMENT ROSTER EXPORT\n';
+      csvContent += `Generated,${new Date().toLocaleString()}\n`;
+      csvContent += `Roster Filter,${rosterExportType === 'all' ? 'All (TIFMAS & EMTF)' : rosterExportType.toUpperCase()}\n`;
+      csvContent += `Total Entries,${reportData.total_count}\n`;
+      csvContent += '\nROSTER ENTRIES\n';
+      csvContent += 'Name,Rank,EMS Level,Roster Type,Eligible TIFMAS,Eligible EMTF,Pack Test Level,FF1,Crew Boss,Engine Boss,ASTL,WPU,MEDL,MIST,Tech Spec,Seniority Date,Last Deployment,Deploys (12mo)\n';
+      
+      reportData.roster?.forEach(r => {
+        const name = (r.name || '').replace(/"/g, '""');
+        csvContent += `"${name}","${r.rank || ''}","${r.ems_level || ''}","${r.roster_type || ''}",`;
+        csvContent += `${r.eligible_tifmas ? 'Yes' : 'No'},${r.eligible_emtf ? 'Yes' : 'No'},"${r.pack_test_level || ''}",`;
+        csvContent += `${r.ff1 ? 'Yes' : 'No'},${r.crew_boss ? 'Yes' : 'No'},${r.engine_boss ? 'Yes' : 'No'},`;
+        csvContent += `${r.astl ? 'Yes' : 'No'},${r.wpu ? 'Yes' : 'No'},${r.medl ? 'Yes' : 'No'},`;
+        csvContent += `${r.mist ? 'Yes' : 'No'},${r.tech_spec ? 'Yes' : 'No'},`;
+        csvContent += `"${r.seniority_date || ''}","${r.last_deployment || ''}",${r.deployments_last_12mo || 0}\n`;
+      });
     } else {
       toast.error('CSV export not available for this report type');
       return;
@@ -976,6 +1037,7 @@ export const ReportsPage = () => {
                     <SelectItem value="leave-accrual-audit">Leave Accrual Audit</SelectItem>
                     <SelectItem value="shift-coverage-heatmap">Shift Coverage Heatmap</SelectItem>
                     <SelectItem value="voice-feedback-export">Voice Feedback Export</SelectItem>
+                    <SelectItem value="deployment-roster-export">Deployment Roster Export</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1231,8 +1293,25 @@ export const ReportsPage = () => {
                 </>
               )}
 
+              {/* Deployment Roster Export Options */}
+              {reportType === 'deployment-roster-export' && (
+                <div className="space-y-2">
+                  <Label>Roster Type</Label>
+                  <Select value={rosterExportType} onValueChange={setRosterExportType}>
+                    <SelectTrigger data-testid="roster-export-type-select">
+                      <SelectValue placeholder="Select Roster" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All (TIFMAS & EMTF)</SelectItem>
+                      <SelectItem value="tifmas">TIFMAS Only</SelectItem>
+                      <SelectItem value="emtf">EMTF Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Date inputs for non-part-time reports */}
-              {reportType !== 'part-time-hours' && reportType !== 'voice-feedback-export' && (
+              {reportType !== 'part-time-hours' && reportType !== 'voice-feedback-export' && reportType !== 'deployment-roster-export' && (
                 <div className="space-y-2">
                   <Label>{reportType === 'daily' ? 'Date' : 'Start Date'}</Label>
                   <Input
@@ -1285,7 +1364,7 @@ export const ReportsPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {(reportType === 'part-time-hours' || reportType === 'personnel' || reportType === 'voice-feedback-export') && (
+                        {(reportType === 'part-time-hours' || reportType === 'personnel' || reportType === 'voice-feedback-export' || reportType === 'deployment-roster-export') && (
                           <DropdownMenuItem onClick={handleExportCsv} data-testid="export-csv-btn">
                             <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to CSV
                           </DropdownMenuItem>
@@ -2681,6 +2760,101 @@ export const ReportsPage = () => {
                           <TableRow>
                             <TableCell colSpan={7} className="text-center text-zinc-400 py-8">
                               No feedback found matching your filters
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : reportType === 'deployment-roster-export' ? (
+                <div className="space-y-6" data-testid="deployment-roster-export-report">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-white">
+                          {reportData.total_count || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">Total Entries</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-orange-400">
+                          {reportData.roster?.filter(r => r.eligible_tifmas).length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">TIFMAS Eligible</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-blue-400">
+                          {reportData.roster?.filter(r => r.eligible_emtf).length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">EMTF Eligible</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-zinc-800/50 border-zinc-700">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-3xl font-bold text-green-400">
+                          {reportData.roster?.filter(r => r.ff1).length || 0}
+                        </p>
+                        <p className="text-zinc-400 text-sm">FF1 Certified</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Roster Table */}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-zinc-700">
+                          <TableHead className="text-zinc-300">Name</TableHead>
+                          <TableHead className="text-zinc-300">Rank</TableHead>
+                          <TableHead className="text-zinc-300">EMS Level</TableHead>
+                          <TableHead className="text-zinc-300">Roster Type</TableHead>
+                          <TableHead className="text-zinc-300">Pack Test</TableHead>
+                          <TableHead className="text-zinc-300 text-center">FF1</TableHead>
+                          <TableHead className="text-zinc-300 text-center">Crew Boss</TableHead>
+                          <TableHead className="text-zinc-300 text-center">Engine Boss</TableHead>
+                          <TableHead className="text-zinc-300">Last Deploy</TableHead>
+                          <TableHead className="text-zinc-300 text-center">Deploys (12mo)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reportData.roster?.length > 0 ? (
+                          reportData.roster.map((r, idx) => (
+                            <TableRow key={idx} className="border-zinc-700">
+                              <TableCell className="text-white font-medium">{r.name}</TableCell>
+                              <TableCell className="text-zinc-300">{r.rank || '-'}</TableCell>
+                              <TableCell className="text-zinc-300">{r.ems_level || '-'}</TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  r.roster_type === 'TIFMAS/EMTF' ? 'bg-purple-500' :
+                                  r.roster_type === 'TIFMAS' ? 'bg-orange-500' : 'bg-blue-500'
+                                }>
+                                  {r.roster_type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-zinc-300">{r.pack_test_level || '-'}</TableCell>
+                              <TableCell className="text-center">
+                                {r.ff1 ? <Badge className="bg-green-500">Yes</Badge> : <span className="text-zinc-500">-</span>}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {r.crew_boss ? <Badge className="bg-green-500">Yes</Badge> : <span className="text-zinc-500">-</span>}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {r.engine_boss ? <Badge className="bg-green-500">Yes</Badge> : <span className="text-zinc-500">-</span>}
+                              </TableCell>
+                              <TableCell className="text-zinc-300 text-sm">{r.last_deployment || '-'}</TableCell>
+                              <TableCell className="text-center text-white">{r.deployments_last_12mo || 0}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={10} className="text-center text-zinc-400 py-8">
+                              No roster entries found
                             </TableCell>
                           </TableRow>
                         )}
