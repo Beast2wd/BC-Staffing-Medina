@@ -3,7 +3,7 @@ import { Navbar } from '../../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
-import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download, History, Clock, User, FileText } from 'lucide-react';
+import { Flame, Trophy, CheckCircle, XCircle, Send, Calendar, MapPin, AlertTriangle, Edit2, Trash2, Upload, Download, History, Clock, User, FileText, AlertCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -276,6 +276,14 @@ export const TIFMASRankPage = () => {
   const [activeTab, setActiveTab] = useState('roster');
   const [importHistory, setImportHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  // Import validation state
+  const [importValidation, setImportValidation] = useState({ warnings: [], errors: [] });
+  
+  // History cleanup state
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [cleanupPeriod, setCleanupPeriod] = useState('90');
+  const [cleaningHistory, setCleaningHistory] = useState(false);
 
   const fetchRoster = async () => {
     setLoading(true);
@@ -324,12 +332,62 @@ export const TIFMASRankPage = () => {
         row[h] = values[idx] || '';
       });
       
-      if (row.name) {
-        data.push(row);
-      }
+      // Push all rows, validation will catch missing names
+      data.push(row);
     }
     
     return data;
+  };
+
+  // Validate import data
+  const validateImportData = (data) => {
+    const warnings = [];
+    const errors = [];
+    const names = new Set();
+    const existingNames = new Set(roster.map(r => r.name?.toLowerCase().trim()));
+    
+    data.forEach((row, idx) => {
+      const rowNum = idx + 2; // Account for header row
+      
+      // Check for missing name
+      if (!row.name || !row.name.trim()) {
+        errors.push(`Row ${rowNum}: Missing required field 'name'`);
+        return;
+      }
+      
+      const nameLower = row.name.toLowerCase().trim();
+      
+      // Check for duplicates within the file
+      if (names.has(nameLower)) {
+        warnings.push(`Row ${rowNum}: Duplicate name "${row.name}" found in file`);
+      } else {
+        names.add(nameLower);
+      }
+      
+      // Check if name already exists in roster
+      if (existingNames.has(nameLower)) {
+        warnings.push(`Row ${rowNum}: "${row.name}" already exists in roster (will be skipped)`);
+      }
+      
+      // Validate boolean fields
+      const boolFields = ['eligible_tifmas', 'eligible_emtf', 'ff1', 'crew_boss', 'engine_boss', 'astl', 'wpu', 'medl', 'mist', 'tech_spec'];
+      const validBoolValues = ['true', 'false', 'yes', 'no', '1', '0', 'x', ''];
+      boolFields.forEach(field => {
+        const val = (row[field] || '').toLowerCase().trim();
+        if (val && !validBoolValues.includes(val)) {
+          warnings.push(`Row ${rowNum}: Invalid value "${row[field]}" for ${field} (expected true/false/yes/no)`);
+        }
+      });
+      
+      // Validate pack test level
+      const validPackTests = ['arduous', 'moderate', 'light', ''];
+      const packTest = (row.pack_test_level || '').toLowerCase().trim();
+      if (packTest && !validPackTests.includes(packTest)) {
+        warnings.push(`Row ${rowNum}: Unknown pack test level "${row.pack_test_level}" (expected Arduous/Moderate/Light)`);
+      }
+    });
+    
+    return { warnings, errors };
   };
 
   const handleFileSelect = (event) => {
@@ -350,6 +408,17 @@ export const TIFMASRankPage = () => {
           toast.error('No valid data found in CSV');
           return;
         }
+        
+        // Validate the data
+        const validation = validateImportData(data);
+        setImportValidation(validation);
+        
+        if (validation.errors.length > 0) {
+          toast.error(`Found ${validation.errors.length} error(s) in CSV data`);
+        } else if (validation.warnings.length > 0) {
+          toast.warning(`Found ${validation.warnings.length} warning(s) - review before importing`);
+        }
+        
         setImportPreviewData(data);
         setShowImportPreview(true);
       } catch (err) {
@@ -392,6 +461,23 @@ export const TIFMASRankPage = () => {
       console.error('Error fetching import history:', error);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    setCleaningHistory(true);
+    try {
+      const response = await api.delete('/deployment-roster/import-history', {
+        params: { older_than_days: cleanupPeriod === 'all' ? 0 : parseInt(cleanupPeriod) }
+      });
+      toast.success(`Cleared ${response.data.deleted} history entries`);
+      setShowCleanupDialog(false);
+      fetchImportHistory();
+    } catch (error) {
+      console.error('Error clearing history:', error);
+      toast.error('Failed to clear history');
+    } finally {
+      setCleaningHistory(false);
     }
   };
 
@@ -676,11 +762,22 @@ export const TIFMASRankPage = () => {
           
           <TabsContent value="history">
             <Card>
-              <CardHeader className="bg-orange-500/10 border-b border-orange-500/20">
+              <CardHeader className="bg-orange-500/10 border-b border-orange-500/20 flex flex-row items-center justify-between">
                 <CardTitle className="text-orange-500 flex items-center gap-2">
                   <History className="h-5 w-5" />
                   Import History
                 </CardTitle>
+                {importHistory.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowCleanupDialog(true)}
+                    className="border-red-500 text-red-500 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear History
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 {loadingHistory ? (
@@ -874,6 +971,42 @@ export const TIFMASRankPage = () => {
             </DialogDescription>
           </DialogHeader>
           
+          {/* Validation Warnings/Errors */}
+          {(importValidation.errors.length > 0 || importValidation.warnings.length > 0) && (
+            <div className="space-y-3">
+              {importValidation.errors.length > 0 && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-red-500 font-medium mb-2">
+                    <XCircle className="h-4 w-4" />
+                    {importValidation.errors.length} Error(s) - Must fix before importing
+                  </div>
+                  <ul className="text-sm text-red-400 space-y-1 max-h-24 overflow-auto">
+                    {importValidation.errors.map((err, idx) => (
+                      <li key={idx}>• {err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {importValidation.warnings.length > 0 && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-yellow-500 font-medium mb-2">
+                    <AlertCircle className="h-4 w-4" />
+                    {importValidation.warnings.length} Warning(s) - Review recommended
+                  </div>
+                  <ul className="text-sm text-yellow-400 space-y-1 max-h-32 overflow-auto">
+                    {importValidation.warnings.slice(0, 10).map((warn, idx) => (
+                      <li key={idx}>• {warn}</li>
+                    ))}
+                    {importValidation.warnings.length > 10 && (
+                      <li className="text-yellow-500">... and {importValidation.warnings.length - 10} more warnings</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="overflow-x-auto max-h-96">
             <Table>
               <TableHeader>
@@ -912,11 +1045,55 @@ export const TIFMASRankPage = () => {
             </Button>
             <Button 
               onClick={handleImport}
-              disabled={importing}
+              disabled={importing || importValidation.errors.length > 0}
               className="bg-orange-500 hover:bg-orange-600"
               data-testid="confirm-import-btn"
             >
-              {importing ? 'Importing...' : `Import ${importPreviewData.length} Entries`}
+              {importing ? 'Importing...' : importValidation.errors.length > 0 ? 'Fix Errors First' : `Import ${importPreviewData.length} Entries`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear History Dialog */}
+      <Dialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-500">
+              <Trash2 className="h-5 w-5" />
+              Clear Import History
+            </DialogTitle>
+            <DialogDescription>
+              Select how far back to clear import history. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <Label className="text-sm font-medium">Clear entries older than:</Label>
+            <Select value={cleanupPeriod} onValueChange={setCleanupPeriod}>
+              <SelectTrigger className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 days</SelectItem>
+                <SelectItem value="90">90 days</SelectItem>
+                <SelectItem value="180">6 months</SelectItem>
+                <SelectItem value="365">1 year</SelectItem>
+                <SelectItem value="all">All history</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCleanupDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleClearHistory}
+              disabled={cleaningHistory}
+            >
+              {cleaningHistory ? 'Clearing...' : 'Clear History'}
             </Button>
           </DialogFooter>
         </DialogContent>

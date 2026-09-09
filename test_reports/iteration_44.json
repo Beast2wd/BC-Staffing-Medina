@@ -1,0 +1,70 @@
+{
+  "summary": "Tested 3 new features: (1) Import validation for TIFMAS/EMTF Rank pages, (2) Import History cleanup via new DELETE endpoint, (3) Deployment Roster PDF/Excel export in Reports. Backend DELETE endpoint 4/4 pytest PASS. Frontend: validation warnings for duplicate/already-exists/invalid-bool/invalid-pack-test WORK; Clear History dialog WORKS end-to-end (all 5 period options; deletion succeeds); Excel export WORKS (35KB xlsx w/ Summary + Roster sheets). CRITICAL BUG FOUND: PDF export throws 'doc.autoTable is not a function' due to jspdf-autotable v5 API change. Secondary bug: parseCSV silently drops rows with empty name, so the 'missing name' ERROR path is unreachable and Import button is never disabled by validation errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ReportsPage - handleExportPdf",
+        "issue": "PDF export fails with runtime error 'TypeError: doc.autoTable is not a function'. jspdf-autotable v5.x (package.json: ^5.0.8) no longer augments the jsPDF prototype; the plugin now exports autoTable as a named function. Import 'jspdf-autotable' side-effect no longer attaches doc.autoTable in v5. Fix: `import autoTable from 'jspdf-autotable';` then call `autoTable(doc, { startY: 75, head: [...], body: tableData, ... });` instead of `doc.autoTable({...})`. Affects line 896 of /app/frontend/src/pages/ReportsPage.js.",
+        "selector": "[data-testid=\"export-pdf-btn\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "TIFMASRankPage/EMTFRankPage - parseCSV + validateImportData",
+        "issue": "parseCSV (line 335) filters out any row where `row.name` is falsy: `if (row.name) { data.push(row); }`. Because empty-name rows never reach validateImportData, the 'Row X: Missing required field name' ERROR is unreachable. Consequently, the Import button's `disabled={importing || importValidation.errors.length > 0}` guard is never triggered by missing names, contradicting requirement: 'Import validation should show errors for missing name fields in CSV' and 'Import button should be disabled if there are validation errors'. Fix: push all rows to `data` in parseCSV (drop the `if (row.name)` gate) and let validateImportData surface the error.",
+        "selector": "input[type=\"file\"] (TIFMAS/EMTF import)",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend": {
+      "test_delete_requires_auth": "PASS - 401/403 without token",
+      "test_delete_older_than_days_zero_clears_all": "PASS - seeds row then DELETE?older_than_days=0 returns {deleted>=1}; GET history is empty after",
+      "test_delete_older_than_days_large_deletes_nothing": "PASS - DELETE?older_than_days=365 returns {deleted:0}; recent row still present",
+      "test_delete_supports_common_periods": "PASS - DELETE with days=30/90/180/365 all return 200 with deleted field"
+    },
+    "frontend": {
+      "TIFMAS validation - duplicate in file": "PASS - warning 'Row 3: Duplicate name \"TEST_VAL_A, John\" found in file' shown",
+      "TIFMAS validation - already exists in roster": "PASS - warning 'Row 2: \"Hicks, Ben\" already exists in roster (will be skipped)' shown",
+      "TIFMAS validation - invalid boolean value": "PASS - warning 'Invalid value \"invalidbool\" for eligible_tifmas' shown",
+      "TIFMAS validation - invalid pack test level": "PASS - warning 'Unknown pack test level \"SuperHeavy\"' shown",
+      "TIFMAS validation - missing name error": "FAIL - parseCSV filters rows with empty name before validation runs; no error surfaced",
+      "Import button disabled with errors": "NOT VERIFIABLE - see missing-name bug; no way to produce errors",
+      "TIFMAS Clear History button visibility": "PASS - button visible on Import History tab when history exists",
+      "Clear History dialog period options": "PASS - options exactly ['30 days','90 days','6 months','1 year','All history']",
+      "Clear History deletion flow": "PASS - selecting 30 days and confirming Clear History fires DELETE and closes dialog",
+      "Deployment Roster Export dropdown options": "PASS - Export dropdown exposes export-csv-btn, export-excel-btn, export-pdf-btn when reportType=deployment-roster-export",
+      "Excel export": "PASS - deployment-roster-all-2026-09-09.xlsx (35031 bytes) downloaded; valid ZIP (PK) header; xlsx built with Summary + Roster sheets per source",
+      "PDF export": "FAIL - handleExportPdf throws 'TypeError: doc.autoTable is not a function'; no file is downloaded"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_import_history_cleanup.py",
+    "/app/test_reports/pytest/iter44_cleanup.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix PDF export in /app/frontend/src/pages/ReportsPage.js: change `import 'jspdf-autotable'` to `import autoTable from 'jspdf-autotable'` and replace `doc.autoTable({...})` with `autoTable(doc, {...})` (jspdf-autotable v5 API). Apply same fix anywhere else doc.autoTable is used.",
+    "HIGH: Fix parseCSV in TIFMASRankPage.js and EMTFRankPage.js (line ~335): remove the `if (row.name)` gate so rows with missing name reach validateImportData; the validator will emit the missing-name error and disable the Import button. Verify Import button becomes disabled when errors exist and label shows 'Fix Errors First'."
+  ],
+  "critical_code_review_comments": [
+    "jspdf-autotable v5 breaking change not addressed: prototype patching was removed; code still uses `doc.autoTable(...)`. Add a smoke test that renders and downloads the PDF as part of CI.",
+    "parseCSV double-validates 'name': it drops empty-name rows AND validateImportData tries to error on them. Pick one place; keeping validation in validateImportData is preferable so the UI can show errors and disable Import.",
+    "TIFMASRankPage.js and EMTFRankPage.js share ~identical validate/import/history/cleanup logic. This is a substantial DRY violation (>50 lines duplicated). Extract into a shared hook (e.g. useRosterImport) or module.",
+    "Clear History dialog uses generic button text 'Clear History' both for the toolbar trigger and the destructive confirm inside the dialog. Consider adding data-testid='clear-history-btn' (trigger) and data-testid='clear-history-confirm-btn' (confirm) to disambiguate for tests.",
+    "handleExportPdf's logo load path uses try/catch around a Promise with img.onerror = reject, and continues on failure - good. But `img.crossOrigin='Anonymous'` combined with a same-origin path is unnecessary and may cause tainted-canvas issues if LOGO_URL is ever swapped to a CDN.",
+    "backend DELETE /api/deployment-roster/import-history: `older_than_days` accepts 0=all; consider validating negative values (currently silently treated same as 0). Also compares `created_at` as ISO string via $lt which works only because created_at is stored as ISO string; add an index on (tenant_id, created_at) for scale."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_import_history_cleanup.py"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "~80% (10/12 checks pass; PDF export and missing-name validation broken)"},
+  "test_credentials": "Admin/Super Admin payroll=100001 / password=admin123",
+  "seed_data_creation": "During cleanup pytest, several TEST_CLEANUP_* deployment_roster entries + import_history rows were created (cleanup_test.csv, cleanup_all.csv, cleanup_recent.csv). Import history rows were subsequently cleared by the tests themselves; a few TEST_CLEANUP_* roster entries remain in deployment_roster (visible in Reports).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes: (1) jspdf-autotable import/usage per v5 API, and (2) parseCSV to stop filtering missing-name rows - retest by: uploading /tmp CSV with an empty name row, verifying 'Row X: Missing required field name' shows in red errors section, Import button becomes disabled with label 'Fix Errors First'. Then click Export -> Export to PDF on a generated Deployment Roster Export report and verify a valid PDF (%PDF- header) downloads. Excel export and DELETE endpoint are already fully green.",
+  "rca of the issue": "PDF: jspdf-autotable ^5.0.8 removed automatic jsPDF.prototype.autoTable augmentation from side-effect import in v5; must import autoTable as named default and call as function - see https://github.com/simonbengtsson/jsPDF-AutoTable v5 migration. Missing-name validation: parseCSV in TIFMAS/EMTFRankPage discards rows where name is empty (`if (row.name) data.push(row)`), so validateImportData never sees them and its error branch is dead code, leaving the Import button always enabled regardless of missing names."
+}

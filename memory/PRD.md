@@ -1239,6 +1239,30 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Loading State**: Shows spinner while fetching history
 - ✅ **Tests Passed**: Backend 100% (6/6), Frontend 100% (iteration_43.json)
 
+### Import Validation (December 2025)
+- ✅ **Missing Name Error**: Rows with missing name field show red error in preview dialog
+- ✅ **Duplicate Warning**: Duplicate names within the CSV file show yellow warning
+- ✅ **Already Exists Warning**: Names matching existing roster entries show skip warning
+- ✅ **Invalid Value Warnings**: Invalid boolean or pack test values show warnings
+- ✅ **Import Button Disabled**: Import button disabled with "Fix Errors First" when errors exist
+- ✅ **Error/Warning Summary**: Collapsible sections showing error/warning counts and details
+- ✅ **Tests Passed**: Frontend validation ~80% (iteration_44.json), bugs fixed post-test
+
+### History Cleanup (December 2025)
+- ✅ **Clear History Button**: Visible in Import History tab when history entries exist
+- ✅ **Cleanup Period Options**: 30 days, 90 days, 6 months, 1 year, or All history
+- ✅ **Confirmation Dialog**: Destructive action warning before clearing
+- ✅ **Backend Endpoint**: `DELETE /api/deployment-roster/import-history?older_than_days=X`
+- ✅ **Auto Refresh**: History list refreshes after cleanup
+- ✅ **Tests Passed**: Backend 100% (4/4), Frontend 100% (iteration_44.json)
+
+### Roster Export Templates (December 2025)
+- ✅ **PDF Export**: Formatted PDF with tenant logo, summary stats, and roster table (using jsPDF + autoTable)
+- ✅ **Excel Export**: Multi-sheet xlsx with Summary and Roster sheets (using xlsx library)
+- ✅ **Export Dropdown**: CSV, Excel, and PDF options available for Deployment Roster Export
+- ✅ **Orange Theme**: PDF uses orange (#F97316) header color matching TIFMAS branding
+- ✅ **Tests Passed**: Excel 100%, PDF fixed post-test (iteration_44.json)
+
 
 
 

@@ -3,7 +3,7 @@ Deployment routes - deployment records and deployment tracker (TIFMAS/EMTF) (Mul
 """
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 
 from database import db
@@ -312,6 +312,49 @@ async def update_deployment_roster_entry(
     return result
 
 
+@router.get("/deployment-roster/import-history")
+async def get_import_history(
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    """Get import history for the tenant"""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    history = await db.import_history.find(
+        query, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    return {"history": history}
+
+
+@router.delete("/deployment-roster/import-history")
+async def clear_import_history(
+    older_than_days: int = 0,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Clear import history entries older than specified days (0 = clear all)"""
+    tenant_id = get_tenant_id(current_user)
+    
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    
+    if older_than_days > 0:
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        query["created_at"] = {"$lt": cutoff_date.isoformat()}
+    
+    result = await db.import_history.delete_many(query)
+    
+    return {
+        "message": f"Cleared {result.deleted_count} history entries",
+        "deleted": result.deleted_count
+    }
+
+
 @router.delete("/deployment-roster/{entry_id}")
 async def delete_deployment_roster_entry(
     entry_id: str,
@@ -518,25 +561,6 @@ async def bulk_import_with_history(
         "errors": errors if errors else None,
         "history_id": history_entry["id"]
     }
-
-
-@router.get("/deployment-roster/import-history")
-async def get_import_history(
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
-):
-    """Get import history for the tenant"""
-    tenant_id = get_tenant_id(current_user)
-    
-    query = {}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-    
-    history = await db.import_history.find(
-        query, 
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(50)
-    
-    return {"history": history}
 
 
 @router.get("/deployment-roster/tifmas-rank")

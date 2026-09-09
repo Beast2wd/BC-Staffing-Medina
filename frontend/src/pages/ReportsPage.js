@@ -8,13 +8,16 @@ import { useAuth } from '../context/AuthContext';
 import { useStaffing } from '../context/StaffingContext';
 import { BattalionSelector } from '../components/dashboard/BattalionSelector';
 import { toast } from 'sonner';
-import { Download, FileText, Calendar, Printer, FileSpreadsheet, User, Clock, Truck, Award, Briefcase } from 'lucide-react';
+import { Download, FileText, Calendar, Printer, FileSpreadsheet, User, Clock, Truck, Award, Briefcase, FileIcon } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { formatDisplayDate, formatDateRange } from '../utils/dateUtils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const LOGO_URL = '/medina-logo.png';
 
@@ -786,35 +789,53 @@ export const ReportsPage = () => {
     return battalion ? `Battalion ${battalion.battalion_number}` : selectedBattalion;
   };
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = () => {
     if (!reportData) {
       toast.error('Please generate a report first');
       return;
     }
     
-    try {
-      const response = await api.get('/reports/export/excel', {
-        params: {
-          date: startDate,
-          end_date: endDate,
-          battalion_id: selectedBattalion,
-          report_type: reportType
-        },
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${reportType}_report_${startDate}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('Excel report downloaded');
-    } catch (error) {
-      toast.error('Failed to export Excel report');
-      console.error(error);
+    if (reportType === 'deployment-roster-export') {
+      try {
+        const wb = XLSX.utils.book_new();
+        
+        // Summary sheet
+        const summaryData = [
+          ['DEPLOYMENT ROSTER EXPORT'],
+          ['Generated', new Date().toLocaleString()],
+          ['Roster Filter', rosterExportType === 'all' ? 'All (TIFMAS & EMTF)' : rosterExportType.toUpperCase()],
+          [''],
+          ['SUMMARY'],
+          ['Total Entries', reportData.total_count || 0],
+          ['TIFMAS Eligible', reportData.roster?.filter(r => r.eligible_tifmas).length || 0],
+          ['EMTF Eligible', reportData.roster?.filter(r => r.eligible_emtf).length || 0],
+          ['FF1 Certified', reportData.roster?.filter(r => r.ff1).length || 0]
+        ];
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+        
+        // Roster data sheet
+        const rosterHeaders = ['Name', 'Rank', 'EMS Level', 'Roster Type', 'TIFMAS', 'EMTF', 'Pack Test', 'FF1', 'Crew Boss', 'Engine Boss', 'ASTL', 'WPU', 'MEDL', 'MIST', 'Tech Spec', 'Last Deploy', 'Deploys (12mo)'];
+        const rosterRows = reportData.roster?.map(r => [
+          r.name, r.rank, r.ems_level, r.roster_type,
+          r.eligible_tifmas ? 'Yes' : 'No', r.eligible_emtf ? 'Yes' : 'No',
+          r.pack_test_level, r.ff1 ? 'Yes' : 'No', r.crew_boss ? 'Yes' : 'No',
+          r.engine_boss ? 'Yes' : 'No', r.astl ? 'Yes' : 'No', r.wpu ? 'Yes' : 'No',
+          r.medl ? 'Yes' : 'No', r.mist ? 'Yes' : 'No', r.tech_spec ? 'Yes' : 'No',
+          r.last_deployment, r.deployments_last_12mo || 0
+        ]) || [];
+        const rosterData = [rosterHeaders, ...rosterRows];
+        const rosterSheet = XLSX.utils.aoa_to_sheet(rosterData);
+        XLSX.utils.book_append_sheet(wb, rosterSheet, 'Roster');
+        
+        XLSX.writeFile(wb, `deployment-roster-${rosterExportType}-${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success('Excel report downloaded');
+      } catch (error) {
+        toast.error('Failed to export Excel report');
+        console.error(error);
+      }
+    } else {
+      toast.info('Excel export only available for Deployment Roster Export');
     }
   };
 
@@ -824,29 +845,71 @@ export const ReportsPage = () => {
       return;
     }
     
-    try {
-      const response = await api.get('/reports/export/pdf', {
-        params: {
-          date: startDate,
-          end_date: endDate,
-          battalion_id: selectedBattalion,
-          report_type: reportType
-        },
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${reportType}_report_${startDate}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('PDF report downloaded');
-    } catch (error) {
-      toast.error('Failed to export PDF report');
-      console.error(error);
+    if (reportType === 'deployment-roster-export') {
+      try {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        // Try to add logo
+        try {
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = LOGO_URL;
+          });
+          doc.addImage(img, 'PNG', 14, 10, 30, 30);
+        } catch (e) {
+          // Logo not available, continue without it
+        }
+        
+        // Title
+        doc.setFontSize(20);
+        doc.setTextColor(40);
+        doc.text('Deployment Roster Export', pageWidth / 2, 25, { align: 'center' });
+        
+        // Subtitle
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        const filterText = rosterExportType === 'all' ? 'All (TIFMAS & EMTF)' : rosterExportType.toUpperCase();
+        doc.text(`Filter: ${filterText} | Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 35, { align: 'center' });
+        
+        // Summary
+        doc.setFontSize(14);
+        doc.setTextColor(40);
+        doc.text('Summary', 14, 50);
+        
+        doc.setFontSize(10);
+        doc.text(`Total Entries: ${reportData.total_count || 0}`, 14, 58);
+        doc.text(`TIFMAS Eligible: ${reportData.roster?.filter(r => r.eligible_tifmas).length || 0}`, 14, 64);
+        doc.text(`EMTF Eligible: ${reportData.roster?.filter(r => r.eligible_emtf).length || 0}`, 80, 58);
+        doc.text(`FF1 Certified: ${reportData.roster?.filter(r => r.ff1).length || 0}`, 80, 64);
+        
+        // Table
+        const tableData = reportData.roster?.map(r => [
+          r.name, r.rank || '-', r.ems_level || '-', r.roster_type,
+          r.ff1 ? 'Y' : '-', r.crew_boss ? 'Y' : '-', r.engine_boss ? 'Y' : '-',
+          r.deployments_last_12mo || 0
+        ]) || [];
+        
+        autoTable(doc, {
+          startY: 75,
+          head: [['Name', 'Rank', 'EMS', 'Type', 'FF1', 'CB', 'EB', 'Deploys']],
+          body: tableData,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [249, 115, 22] }, // Orange
+          alternateRowStyles: { fillColor: [245, 245, 245] }
+        });
+        
+        doc.save(`deployment-roster-${rosterExportType}-${new Date().toISOString().split('T')[0]}.pdf`);
+        toast.success('PDF report downloaded');
+      } catch (error) {
+        toast.error('Failed to export PDF report');
+        console.error(error);
+      }
+    } else {
+      toast.info('PDF export only available for Deployment Roster Export');
     }
   };
 
@@ -1369,12 +1432,16 @@ export const ReportsPage = () => {
                             <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to CSV
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onClick={handleExportExcel} data-testid="export-excel-btn">
-                          <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to Excel
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleExportPdf} data-testid="export-pdf-btn">
-                          <FileText className="h-4 w-4 mr-2" /> Export to PDF
-                        </DropdownMenuItem>
+                        {reportType === 'deployment-roster-export' && (
+                          <>
+                            <DropdownMenuItem onClick={handleExportExcel} data-testid="export-excel-btn">
+                              <FileSpreadsheet className="h-4 w-4 mr-2" /> Export to Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportPdf} data-testid="export-pdf-btn">
+                              <FileIcon className="h-4 w-4 mr-2" /> Export to PDF
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
