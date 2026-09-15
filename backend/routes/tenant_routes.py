@@ -928,3 +928,135 @@ async def update_tenant_timezone_settings(
             "shift_reference_shift": settings.shift_reference_shift
         }
     }
+
+
+
+# ===================== WEBHOOK NOTIFICATION SETTINGS (SUPER ADMIN ONLY) =====================
+
+class WebhookSettingsUpdate(BaseModel):
+    """Schema for updating tenant webhook settings"""
+    webhook_url: Optional[str] = None
+    webhook_enabled: bool = False
+    webhook_api_key: Optional[str] = None
+
+
+class WebhookSettingsResponse(BaseModel):
+    """Response model for webhook settings"""
+    tenant_id: str
+    tenant_name: str
+    webhook_url: Optional[str] = None
+    webhook_enabled: bool = False
+    has_api_key: bool = False  # Don't expose the actual key
+
+
+@router.get("/{tenant_id}/webhook-settings", response_model=WebhookSettingsResponse)
+async def get_tenant_webhook_settings(
+    tenant_id: str,
+    current_user: dict = Depends(require_super_admin())
+):
+    """Get webhook notification settings for a tenant (Super Admin only)"""
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    settings = tenant.get("settings", {})
+    
+    return WebhookSettingsResponse(
+        tenant_id=tenant_id,
+        tenant_name=tenant.get("name", ""),
+        webhook_url=settings.get("webhook_url"),
+        webhook_enabled=settings.get("webhook_enabled", False),
+        has_api_key=bool(settings.get("webhook_api_key"))
+    )
+
+
+@router.put("/{tenant_id}/webhook-settings")
+async def update_tenant_webhook_settings(
+    tenant_id: str,
+    settings: WebhookSettingsUpdate,
+    current_user: dict = Depends(require_super_admin())
+):
+    """Update webhook notification settings for a tenant (Super Admin only)"""
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Build update fields
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    
+    # Always update enabled status
+    update_fields["settings.webhook_enabled"] = settings.webhook_enabled
+    
+    # Update URL if provided
+    if settings.webhook_url is not None:
+        # Basic URL validation
+        if settings.webhook_url and not settings.webhook_url.startswith("https://"):
+            raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
+        update_fields["settings.webhook_url"] = settings.webhook_url
+    
+    # Update API key if provided (empty string clears it)
+    if settings.webhook_api_key is not None:
+        update_fields["settings.webhook_api_key"] = settings.webhook_api_key if settings.webhook_api_key else None
+    
+    await db.tenants.update_one(
+        {"id": tenant_id},
+        {"$set": update_fields}
+    )
+    
+    return {
+        "message": "Webhook settings updated successfully",
+        "tenant_id": tenant_id
+    }
+
+
+@router.post("/{tenant_id}/webhook-settings/test")
+async def test_tenant_webhook(
+    tenant_id: str,
+    current_user: dict = Depends(require_super_admin())
+):
+    """Send a test webhook to verify configuration (Super Admin only)"""
+    from services.webhook_service import webhook_service
+    
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    settings = tenant.get("settings", {})
+    
+    if not settings.get("webhook_url"):
+        raise HTTPException(status_code=400, detail="Webhook URL not configured")
+    
+    result = await webhook_service.test_webhook(tenant_id)
+    
+    if result.get("success"):
+        return {
+            "message": "Test webhook sent successfully",
+            "http_status": result.get("http_status")
+        }
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Webhook test failed: {result.get('error')}"
+        )
+
+
+@router.get("/{tenant_id}/webhook-deliveries")
+async def get_tenant_webhook_deliveries(
+    tenant_id: str,
+    limit: int = 20,
+    current_user: dict = Depends(require_super_admin())
+):
+    """Get recent webhook delivery history for a tenant (Super Admin only)"""
+    tenant = await db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    deliveries = await db.webhook_deliveries.find(
+        {"tenant_id": tenant_id},
+        {"_id": 0, "payload": 0}  # Exclude payload for brevity
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return {
+        "tenant_id": tenant_id,
+        "deliveries": deliveries
+    }

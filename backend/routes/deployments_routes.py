@@ -1,7 +1,7 @@
 """
 Deployment routes - deployment records and deployment tracker (TIFMAS/EMTF) (Multi-tenant enabled)
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 import uuid
@@ -13,6 +13,7 @@ from models import (
 )
 from auth import get_current_user, require_role, RANK_ORDER, get_last_name, sort_by_rank_and_name
 from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
+from services.webhook_service import webhook_service
 
 router = APIRouter(tags=["Deployments"])
 
@@ -54,6 +55,7 @@ async def create_deployment(
 @router.post("/deployments/batch")
 async def create_batch_deployment(
     data: dict,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
 ):
     """Create deployments for multiple personnel at once.
@@ -140,6 +142,23 @@ async def create_batch_deployment(
                     "$set": {field_name: start_date},
                     "$inc": {count_field: 1}
                 }
+            )
+        
+        # Send Make.com webhook notification for deployment assignment
+        if tenant_id:
+            background_tasks.add_task(
+                webhook_service.send_deployment_notification,
+                tenant_id,
+                pid,
+                person.get("name", ""),
+                person.get("email"),
+                person.get("phone"),
+                deployment_type,
+                start_date,
+                end_date,
+                location,
+                current_user.get("name", ""),
+                notes
             )
     
     return {

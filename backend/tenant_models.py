@@ -47,6 +47,11 @@ class TenantSettings(BaseModel):
     holiday_reset_mode: str = "none"  # none, calendar_year, fiscal_year
     holiday_allow_negative: bool = True  # Allow negative balance
     holiday_pay_period_start_date: Optional[str] = None  # YYYY-MM-DD anchor date for pay periods
+    # Webhook Notification Settings (Make.com integration)
+    # Single URL for all notification types - Make.com scenario routes by event_type
+    webhook_url: Optional[str] = None  # Make.com webhook URL
+    webhook_enabled: bool = False  # Master enable/disable for webhooks
+    webhook_api_key: Optional[str] = None  # Optional Make.com API key for authentication
     # Operational settings
     shifts: List[str] = ["A", "B", "C"]
     ranks: List[str] = [

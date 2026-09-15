@@ -15,6 +15,7 @@ from auth import get_current_user, require_role
 from websocket_manager import manager
 from routes.user_notifications_routes import create_notification_for_personnel
 from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
+from services.webhook_service import webhook_service
 
 router = APIRouter(tags=["Overtime & Leave"])
 
@@ -138,6 +139,21 @@ async def update_overtime_record(
                     "View Overtime",
                     {"date": existing.get("date"), "hours": hours, "approved_by": current_user.get("name")}
                 )
+                # Send Make.com webhook notification
+                if tenant_id:
+                    background_tasks.add_task(
+                        webhook_service.send_overtime_notification,
+                        tenant_id,
+                        personnel_id,
+                        personnel.get("name", ""),
+                        personnel.get("email"),
+                        personnel.get("phone"),
+                        existing.get("date"),
+                        hours,
+                        current_user.get("name", ""),
+                        existing.get("station_id"),
+                        data.notes
+                    )
         elif new_status == "declined" and prev_status == "assigned":
             # Deduct hours when declining from assigned
             await db.personnel.update_one(

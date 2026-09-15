@@ -320,3 +320,62 @@ async def get_notification_details(
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     return notification
+
+
+@router.post("/test-email")
+async def test_email_notification(
+    recipient_email: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Test SendGrid email configuration by sending a test email"""
+    if not sendgrid_client:
+        return {
+            "success": False,
+            "error": "SendGrid client not initialized",
+            "config": {
+                "api_key_set": bool(SENDGRID_API_KEY),
+                "sender_email": SENDGRID_SENDER_EMAIL
+            }
+        }
+    
+    try:
+        result = await send_email_notification(
+            email=recipient_email,
+            subject="Test Email - BC Staffing System",
+            message="This is a test email from the BC Staffing notification system. If you received this, email notifications are working correctly!",
+            recipient_name=current_user.get("name", "Admin")
+        )
+        
+        return {
+            "success": result.get("success", False),
+            "error": result.get("error"),
+            "status_code": result.get("status_code"),
+            "recipient": recipient_email,
+            "sender": SENDGRID_SENDER_EMAIL
+        }
+    except Exception as e:
+        logger.error(f"Test email error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
+
+@router.get("/config/status")
+async def get_notification_config_status(
+    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+):
+    """Check notification service configuration status"""
+    return {
+        "sendgrid": {
+            "configured": bool(sendgrid_client),
+            "api_key_set": bool(SENDGRID_API_KEY),
+            "sender_email": SENDGRID_SENDER_EMAIL if SENDGRID_API_KEY else None
+        },
+        "twilio": {
+            "configured": bool(twilio_client),
+            "account_sid_set": bool(TWILIO_ACCOUNT_SID),
+            "phone_number": TWILIO_PHONE_NUMBER if TWILIO_ACCOUNT_SID else None
+        }
+    }

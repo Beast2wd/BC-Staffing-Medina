@@ -49,7 +49,15 @@ import {
   Calendar,
   Clock,
   LogOut,
-  Home
+  Home,
+  Bell,
+  Webhook,
+  Send,
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  Key,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
@@ -73,6 +81,17 @@ const SuperAdminDashboard = () => {
   const [tenantPreviewData, setTenantPreviewData] = useState(null);
   const [impersonationMode, setImpersonationMode] = useState('view');
   const [loadingPreview, setLoadingPreview] = useState(false);
+  
+  // Webhook/Notifications settings state
+  const [showWebhookDialog, setShowWebhookDialog] = useState(false);
+  const [webhookSettings, setWebhookSettings] = useState(null);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookEnabled, setWebhookEnabled] = useState(false);
+  const [webhookApiKey, setWebhookApiKey] = useState('');
+  const [savingWebhook, setSavingWebhook] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookDeliveries, setWebhookDeliveries] = useState([]);
+  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
 
   const fetchTenants = async () => {
     try {
@@ -175,6 +194,87 @@ const SuperAdminDashboard = () => {
     clearManualSubdomain();
     localStorage.removeItem('impersonation_info');
     navigate('/');
+  };
+
+  // Webhook settings functions
+  const openWebhookSettings = async (tenant) => {
+    setSelectedTenant(tenant);
+    setWebhookSettings(null);
+    setWebhookUrl('');
+    setWebhookEnabled(false);
+    setWebhookApiKey('');
+    setWebhookDeliveries([]);
+    setShowWebhookDialog(true);
+    
+    try {
+      const response = await api.get(`/tenants/${tenant.id}/webhook-settings`);
+      setWebhookSettings(response.data);
+      setWebhookUrl(response.data.webhook_url || '');
+      setWebhookEnabled(response.data.webhook_enabled || false);
+      // Don't populate API key - it's masked for security
+    } catch (error) {
+      toast.error('Failed to load webhook settings');
+    }
+    
+    // Load recent deliveries
+    fetchWebhookDeliveries(tenant.id);
+  };
+
+  const fetchWebhookDeliveries = async (tenantId) => {
+    setLoadingDeliveries(true);
+    try {
+      const response = await api.get(`/tenants/${tenantId}/webhook-deliveries?limit=10`);
+      setWebhookDeliveries(response.data.deliveries || []);
+    } catch (error) {
+      console.error('Failed to load webhook deliveries:', error);
+    } finally {
+      setLoadingDeliveries(false);
+    }
+  };
+
+  const saveWebhookSettings = async () => {
+    if (!selectedTenant) return;
+    
+    setSavingWebhook(true);
+    try {
+      const payload = {
+        webhook_url: webhookUrl || null,
+        webhook_enabled: webhookEnabled
+      };
+      
+      // Only include API key if it was changed (not empty)
+      if (webhookApiKey) {
+        payload.webhook_api_key = webhookApiKey;
+      }
+      
+      await api.put(`/tenants/${selectedTenant.id}/webhook-settings`, payload);
+      toast.success('Webhook settings saved successfully');
+      
+      // Refresh settings
+      const response = await api.get(`/tenants/${selectedTenant.id}/webhook-settings`);
+      setWebhookSettings(response.data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save webhook settings');
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  const testWebhook = async () => {
+    if (!selectedTenant) return;
+    
+    setTestingWebhook(true);
+    try {
+      await api.post(`/tenants/${selectedTenant.id}/webhook-settings/test`);
+      toast.success('Test webhook sent successfully! Check your Make.com scenario.');
+      
+      // Refresh deliveries after test
+      setTimeout(() => fetchWebhookDeliveries(selectedTenant.id), 1000);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Webhook test failed');
+    } finally {
+      setTestingWebhook(false);
+    }
   };
 
   return (
@@ -390,6 +490,17 @@ const SuperAdminDashboard = () => {
                             className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30"
                           >
                             <LogIn className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openWebhookSettings(tenant)}
+                            title="Notification Webhooks"
+                            disabled={!tenant.is_active}
+                            className="text-amber-400 hover:text-amber-300 hover:bg-amber-900/30"
+                            data-testid={`webhook-settings-btn-${tenant.subdomain}`}
+                          >
+                            <Bell className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -732,6 +843,227 @@ const SuperAdminDashboard = () => {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Webhook/Notifications Settings Dialog */}
+        <Dialog open={showWebhookDialog} onOpenChange={setShowWebhookDialog}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-amber-500" />
+                Notification Settings - {selectedTenant?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Configure Make.com webhook for email/SMS notifications when overtime or deployments are assigned.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <Tabs defaultValue="settings" className="mt-4">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="settings">Webhook Settings</TabsTrigger>
+                <TabsTrigger value="history">Delivery History</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="settings" className="space-y-6 mt-4">
+                {/* Info Box */}
+                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-blue-400 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-blue-400 mb-1">How it works</p>
+                      <p className="text-slate-400">
+                        When overtime is assigned or a deployment is created, BC Staffing sends a webhook to your Make.com scenario. 
+                        Make.com then handles sending emails/SMS through your configured services.
+                      </p>
+                      <a 
+                        href="https://www.make.com/en/help/webhooks/instant-triggers" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-2 text-blue-400 hover:text-blue-300"
+                      >
+                        Learn about Make.com webhooks <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Webhook URL */}
+                <div className="space-y-2">
+                  <Label htmlFor="webhook-url" className="flex items-center gap-2">
+                    <Webhook className="h-4 w-4" />
+                    Make.com Webhook URL
+                  </Label>
+                  <Input
+                    id="webhook-url"
+                    type="url"
+                    placeholder="https://hook.us1.make.com/..."
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    className="font-mono text-sm"
+                    data-testid="webhook-url-input"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Create a scenario in Make.com with a Custom Webhook trigger, then paste the URL here.
+                  </p>
+                </div>
+                
+                {/* API Key (Optional) */}
+                <div className="space-y-2">
+                  <Label htmlFor="webhook-apikey" className="flex items-center gap-2">
+                    <Key className="h-4 w-4" />
+                    API Key (Optional)
+                  </Label>
+                  <Input
+                    id="webhook-apikey"
+                    type="password"
+                    placeholder={webhookSettings?.has_api_key ? "••••••••••••••••" : "Enter API key for added security"}
+                    value={webhookApiKey}
+                    onChange={(e) => setWebhookApiKey(e.target.value)}
+                    className="font-mono text-sm"
+                    data-testid="webhook-apikey-input"
+                  />
+                  <p className="text-xs text-slate-500">
+                    If configured in Make.com, enter the API key for webhook authentication.
+                  </p>
+                </div>
+                
+                {/* Enable/Disable Toggle */}
+                <div className="flex items-center justify-between p-4 bg-slate-800 rounded-lg">
+                  <div>
+                    <Label className="text-base">Enable Notifications</Label>
+                    <p className="text-sm text-slate-400">
+                      Turn on to send webhooks for overtime and deployment events
+                    </p>
+                  </div>
+                  <Switch
+                    checked={webhookEnabled}
+                    onCheckedChange={setWebhookEnabled}
+                    data-testid="webhook-enabled-switch"
+                  />
+                </div>
+                
+                {/* Actions */}
+                <div className="flex items-center gap-3 pt-4 border-t border-slate-700">
+                  <Button 
+                    onClick={saveWebhookSettings} 
+                    disabled={savingWebhook}
+                    className="flex-1"
+                    data-testid="save-webhook-btn"
+                  >
+                    {savingWebhook ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={testWebhook}
+                    disabled={testingWebhook || !webhookUrl}
+                    data-testid="test-webhook-btn"
+                  >
+                    {testingWebhook ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Test Webhook
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {/* Payload Example */}
+                <div className="space-y-2">
+                  <Label className="text-sm text-slate-400">Example Payload Sent to Make.com</Label>
+                  <pre className="p-3 bg-slate-950 rounded-lg text-xs font-mono text-slate-400 overflow-x-auto">
+{`{
+  "event_id": "abc123...",
+  "event_type": "overtime.assigned",
+  "tenant_id": "${selectedTenant?.id || 'tenant-xxx'}",
+  "occurred_at": "2024-12-15T10:30:00Z",
+  "data": {
+    "personnel_name": "John Smith",
+    "personnel_email": "john@dept.gov",
+    "personnel_phone": "555-1234",
+    "date": "2024-12-16",
+    "hours": 8,
+    "approved_by": "Chief Admin"
+  }
+}`}
+                  </pre>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="history" className="mt-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-400">Recent webhook deliveries</p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => fetchWebhookDeliveries(selectedTenant?.id)}
+                      disabled={loadingDeliveries}
+                    >
+                      {loadingDeliveries ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Refresh'
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {webhookDeliveries.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No webhook deliveries yet</p>
+                      <p className="text-xs mt-1">Deliveries will appear here when events are triggered</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {webhookDeliveries.map((delivery) => (
+                        <div 
+                          key={delivery.event_id} 
+                          className="p-3 bg-slate-800 rounded-lg flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            {delivery.status === 'delivered' ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            ) : delivery.status === 'failed' ? (
+                              <XCircle className="h-5 w-5 text-red-500" />
+                            ) : (
+                              <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
+                            )}
+                            <div>
+                              <p className="font-medium text-sm">{delivery.event_type}</p>
+                              <p className="text-xs text-slate-500">
+                                {new Date(delivery.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant={delivery.status === 'delivered' ? 'default' : delivery.status === 'failed' ? 'destructive' : 'secondary'}
+                            className={delivery.status === 'delivered' ? 'bg-green-600' : ''}
+                          >
+                            {delivery.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </main>
