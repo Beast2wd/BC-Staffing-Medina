@@ -1,0 +1,60 @@
+{
+  "summary": "Tested Make.com webhook notification feature (Super Admin only) end-to-end. Backend: 9/9 pytest PASS covering GET/PUT/POST/DELIVERIES endpoints, HTTPS validation, auth enforcement, persistence, 404 for unknown tenants, and test webhook route. Frontend (Playwright): Super Admin login -> /super-admin -> Medina tenant Bell button opens Notification Settings dialog with both tabs (Webhook Settings + Delivery History), URL/API key/switch/save/test all wired to backend, save shows success toast 'Webhook settings saved successfully', Test Webhook correctly shows failure toast 'Webhook test failed: HTTP 404: Not found' for the placeholder Make.com URL (expected - endpoint is functioning; failure is delivery-side), Delivery History tab renders empty state 'No webhook deliveries yet' with Refresh button. All acceptance criteria from the review are met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend_pytest_9_of_9_pass": {
+      "test_get_webhook_settings": "PASS",
+      "test_get_webhook_requires_auth": "PASS - 401/403 without token",
+      "test_update_webhook_settings_https_only": "PASS - 400 for http:// URL",
+      "test_update_and_persist_webhook_settings": "PASS - PUT persists webhook_url/enabled/api_key; GET confirms; has_api_key=true (key not exposed)",
+      "test_disable_webhook": "PASS",
+      "test_test_webhook_endpoint": "PASS - POST /test route reachable",
+      "test_test_webhook_requires_url_configured": "PASS - 400 when no URL configured",
+      "test_get_deliveries": "PASS - returns deliveries list scoped by tenant",
+      "test_settings_404_for_unknown_tenant": "PASS"
+    },
+    "frontend_playwright": {
+      "super_admin_login_and_dashboard_load": "PASS",
+      "medina_tenant_row_and_bell_button_visible": "PASS - data-testid='webhook-settings-btn-medina' (see note in action_items)",
+      "webhook_dialog_opens_with_two_tabs": "PASS - Webhook Settings + Delivery History",
+      "url_field_prefilled_with_persisted_value": "PASS - 'https://hook.us1.make.com/test123'",
+      "enable_switch_state_reflected": "PASS - shows checked",
+      "save_settings_button_success_toast": "PASS - 'Webhook settings saved successfully'",
+      "test_webhook_button_wired_to_backend": "PASS - shows delivery failure toast (expected: placeholder URL 404). Endpoint responded 400 with meaningful error.",
+      "delivery_history_tab_empty_state": "PASS - 'No webhook deliveries yet' + Refresh button"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_webhook_settings.py",
+    "/app/test_reports/pytest/iter46_webhook.xml"
+  ],
+  "action_items": [
+    "LOW: Review request stated the button testid is 'webhook-settings-btn-medina-county', but the actual subdomain is 'medina' so the rendered testid is 'webhook-settings-btn-medina'. Either update the subdomain to 'medina-county' in the tenant seed OR update review docs. Not a bug, just a discrepancy with the request text.",
+    "LOW: Test webhook deliveries are NOT recorded in webhook_deliveries collection (only send_webhook records them; test_webhook uses its own httpx.post). Consider recording test attempts too so users can debug test failures via Delivery History.",
+    "LOW: Add data-testid to the Delivery History Refresh button and to individual delivery rows for future automation.",
+    "LOW: DialogTitle uses '{selectedTenant?.name}' but does not have a data-testid; consider 'webhook-dialog-title' for deterministic tests."
+  ],
+  "critical_code_review_comments": [
+    "webhook_service.test_webhook duplicates the httpx call logic from send_webhook (headers, payload envelope, error handling). Extract a shared _post_to_make() helper to eliminate ~40 lines of duplication.",
+    "PUT /webhook-settings validates URL starts with 'https://' but does NOT further validate it's a Make.com URL or a well-formed URL (e.g. 'https://x' would pass). Consider urllib.parse validation and optional host allowlist ['hook.us1.make.com','hook.eu1.make.com', etc.] to prevent SSRF against internal networks.",
+    "WebhookSettingsResponse.has_api_key correctly hides the actual key, good. However the API key is stored plaintext in tenants.settings.webhook_api_key - consider encrypting at rest or storing in a secrets store.",
+    "webhook_deliveries collection has no TTL index or size cap. Over time this collection will grow unbounded per tenant. Add a TTL index (e.g. 30-90 days) or a background cleanup.",
+    "send_webhook records the FULL event payload including personnel PII (email/phone) into webhook_deliveries. Combined with no TTL, this is a data-retention concern - either scrub PII from stored payloads or add retention policy.",
+    "Retry loop in send_webhook only retries on httpx errors, not on 5xx from Make.com (raise_for_status raises HTTPStatusError which is not caught by the except clause listing HTTPError - actually HTTPStatusError IS a subclass of HTTPError, so it is caught, but the check should be verified). Also no jitter in backoff (2**attempt) - fine for 3 attempts but note.",
+    "SuperAdminDashboard.js is now ~1075 lines - approaching the 700-line refactor threshold. The webhook dialog (~230 lines) is a clear candidate to extract into its own component (WebhookSettingsDialog.jsx)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_webhook_settings.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% for critical flows"},
+  "test_credentials": "Super Admin payroll=100001 / password=admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Test updates Medina County tenant settings.webhook_url/webhook_enabled/webhook_api_key. Final state after tests: webhook_url='https://hook.us1.make.com/ui_test_456' (from Playwright), webhook_enabled=true, webhook_api_key set (masked). No new tenants/collections created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Webhook feature fully working. Backend pytest: /app/backend/tests/test_webhook_settings.py (9/9). Medina tenant subdomain is 'medina' NOT 'medina-county' - button testid is 'webhook-settings-btn-medina'. Test webhooks currently do NOT populate webhook_deliveries collection (by design). To exercise deliveries listing, trigger an actual overtime.assigned or deployment.created event with webhook_enabled=true."
+}

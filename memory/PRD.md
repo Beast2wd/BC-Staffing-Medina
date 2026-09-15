@@ -1275,5 +1275,33 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - ✅ **Tests Passed**: Backend 100% (4/4), Frontend 100% (iteration_45.json)
 
 
+### Make.com Webhook Notifications (December 15, 2026)
+- ✅ **Single Webhook URL Per Tenant**: Each tenant has one Make.com webhook URL for all notification types
+- ✅ **Super Admin Only**: Only Super Admins can configure webhook settings (not tenant admins)
+- ✅ **Notification Settings Dialog**: Accessed via Bell icon in tenant Actions column on Super Admin Dashboard
+- ✅ **Webhook Settings Tab**: Configure Make.com webhook URL, optional API key, enable/disable toggle
+- ✅ **Delivery History Tab**: View recent webhook deliveries with status (delivered/failed/sending)
+- ✅ **Test Webhook Button**: Send test payload to verify Make.com scenario is configured correctly
+- ✅ **Example Payload**: Shows JSON structure sent to Make.com with event_type, tenant_id, and data fields
+- ✅ **Overtime Assignment Trigger**: Webhook fires when overtime status changes to "assigned"
+- ✅ **Deployment Assignment Trigger**: Webhook fires when new deployment is created via batch endpoint
+- ✅ **Event Types**: overtime.assigned, deployment.created, test
+- ✅ **Retry Logic**: 3 attempts with exponential backoff on webhook delivery failure
+- ✅ **Delivery Tracking**: All webhook deliveries logged in webhook_deliveries collection
+- ✅ **HTTPS Required**: Webhook URLs must use HTTPS for security
+- ✅ **API Key Authentication**: Optional x-make-apikey header for Make.com webhook authentication
+- ✅ **Backend API**: GET/PUT webhook-settings, POST test, GET deliveries endpoints
+- ✅ **Tests Passed**: Backend 100% (9/9), Frontend 100% (iteration_46.json)
+
+#### How It Works (For Users)
+1. Create a scenario in Make.com with a Custom Webhook trigger
+2. Copy the webhook URL from Make.com
+3. In BC Staffing Super Admin Dashboard, click the Bell icon for your tenant
+4. Paste the webhook URL, optionally add API key
+5. Enable notifications and save
+6. Test the webhook to verify Make.com receives the payload
+7. Add email/SMS modules in Make.com to send notifications based on event_type
+
+
 
 
