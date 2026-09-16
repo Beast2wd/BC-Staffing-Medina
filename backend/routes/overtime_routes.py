@@ -71,6 +71,13 @@ async def create_overtime_record(
     if not is_own_record and not has_permissions:
         raise HTTPException(status_code=403, detail="You can only submit availability for yourself")
     
+    duplicate_query = add_tenant_to_query({"personnel_id": data.personnel_id, "date": data.date}, current_user)
+    if await db.overtime_records.find_one(duplicate_query, {"_id": 0, "id": 1}):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{personnel.get('name', 'This person')} already has an overtime submission for {data.date}. Only one submission per calendar day is allowed."
+        )
+    
     record_id = str(uuid.uuid4())
     record_doc = {"id": record_id, **data.model_dump()}
     record_doc = add_tenant_to_doc(record_doc, current_user)

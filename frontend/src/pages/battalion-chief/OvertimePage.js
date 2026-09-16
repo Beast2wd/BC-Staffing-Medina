@@ -120,7 +120,7 @@ export const OvertimePage = () => {
       fetchOvertimeRecords();
       setFormData({ personnel_id: '', date: selectedDate, hours: 24, station_id: '', status: 'available', notes: '', phone_number: '', shift_type: '24' });
     } catch (error) {
-      toast.error('Failed to create overtime record');
+      toast.error(error.response?.data?.detail || 'Failed to create overtime record');
     } finally {
       setLoading(false);
     }

@@ -1311,3 +1311,4 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - Test Webhook now sends full sample `data` fields so Make.com can learn structure via "Redetermine data structure".
 - Verified via local capture endpoint: real overtime.assigned payload contains personnel_email + station name.
 - 2026-09-16 USER-CONFIRMED: Make.com overtime.assigned → Gmail email delivered end-to-end. Notes: Make scenario must be re-activated after any error stop; medinacountyesd1.org domain greylists external Gmail senders (needs IT allowlist or department sender account). Deployment route in Make still needs a Gmail module.
+- 2026-09-16: One overtime submission per person per calendar day enforced in POST /api/overtime (409 with clear message, tenant-scoped). BC OvertimePage now surfaces backend error detail. Curl-verified.
