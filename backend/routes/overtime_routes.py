@@ -141,17 +141,20 @@ async def update_overtime_record(
                 )
                 # Send Make.com webhook notification
                 if tenant_id:
+                    station = await db.stations.find_one(
+                        {"id": existing.get("station_id"), "tenant_id": tenant_id}, {"_id": 0, "name": 1}
+                    )
                     background_tasks.add_task(
                         webhook_service.send_overtime_notification,
                         tenant_id,
                         personnel_id,
                         personnel.get("name", ""),
-                        personnel.get("email"),
-                        personnel.get("phone"),
+                        personnel.get("contact_email") or existing.get("email") or data.email or None,
+                        personnel.get("contact_phone") or existing.get("phone_number") or data.phone_number or None,
                         existing.get("date"),
                         hours,
                         current_user.get("name", ""),
-                        existing.get("station_id"),
+                        station.get("name") if station else existing.get("station_id"),
                         data.notes
                     )
         elif new_status == "declined" and prev_status == "assigned":

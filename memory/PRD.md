@@ -1305,3 +1305,8 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 
 
 
+
+### 2026-06 Webhook payload fix
+- Bug: personnel records store `contact_email`/`contact_phone`; webhook triggers read `email`/`phone` → null recipients in Make.com. Fixed in overtime_routes.py (also falls back to OT record email/phone_number, resolves station name) and deployments_routes.py.
+- Test Webhook now sends full sample `data` fields so Make.com can learn structure via "Redetermine data structure".
+- Verified via local capture endpoint: real overtime.assigned payload contains personnel_email + station name.
