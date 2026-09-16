@@ -203,7 +203,21 @@ class WebhookService:
         test_data = {
             "test": True,
             "message": "This is a test notification from BC Staffing 360",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "personnel_id": "sample-personnel-id",
+            "personnel_name": "Sample Firefighter",
+            "personnel_email": "sample@example.com",
+            "personnel_phone": "+15555550100",
+            "date": "2026-01-01",
+            "hours": 12,
+            "station": "Station 1",
+            "approved_by": "Battalion Chief",
+            "deployment_type": "TIFMAS",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-14",
+            "location": "Sample County, TX",
+            "created_by": "Battalion Chief",
+            "notes": "Sample notes"
         }
         
         # Get tenant webhook config
