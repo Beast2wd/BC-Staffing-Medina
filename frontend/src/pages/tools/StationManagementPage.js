@@ -20,6 +20,7 @@ export const StationManagementPage = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingStation, setEditingStation] = useState(null);
   const [showNewBattalion, setShowNewBattalion] = useState(false);
+  const [showAddBattalionDialog, setShowAddBattalionDialog] = useState(false);
   const [newBattalionData, setNewBattalionData] = useState({ battalion_number: '', name: '' });
   const [editingBattalion, setEditingBattalion] = useState(null);
   const [showEditBattalionDialog, setShowEditBattalionDialog] = useState(false);
@@ -78,6 +79,7 @@ export const StationManagementPage = () => {
       // Select the newly created battalion
       setFormData(prev => ({ ...prev, battalion_id: response.data.id }));
       setShowNewBattalion(false);
+      setShowAddBattalionDialog(false);
       setNewBattalionData({ battalion_number: '', name: '' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create battalion');
@@ -551,6 +553,41 @@ export const StationManagementPage = () => {
                 <Shield className="h-5 w-5" />
                 Battalions ({battalions.length})
               </CardTitle>
+              <Dialog open={showAddBattalionDialog} onOpenChange={(open) => { setShowAddBattalionDialog(open); if (!open) setNewBattalionData({ battalion_number: '', name: '' }); }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="add-battalion-btn">
+                    <Plus className="h-4 w-4 mr-2" /> Add Battalion
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="font-heading uppercase">Add Battalion</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <Label>Battalion Number</Label>
+                      <Input
+                        placeholder="e.g. 8120"
+                        value={newBattalionData.battalion_number}
+                        onChange={(e) => setNewBattalionData({ ...newBattalionData, battalion_number: e.target.value })}
+                        data-testid="add-battalion-number-input"
+                      />
+                    </div>
+                    <div>
+                      <Label>Battalion Name</Label>
+                      <Input
+                        placeholder="e.g. North Battalion"
+                        value={newBattalionData.name}
+                        onChange={(e) => setNewBattalionData({ ...newBattalionData, name: e.target.value })}
+                        data-testid="add-battalion-name-input"
+                      />
+                    </div>
+                    <Button onClick={handleCreateBattalion} className="w-full" data-testid="add-battalion-save-btn">
+                      <Save className="h-4 w-4 mr-2" /> Create Battalion
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
