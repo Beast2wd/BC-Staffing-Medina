@@ -8,14 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useAuth } from '../../context/AuthContext';
 import { useStaffing } from '../../context/StaffingContext';
 import { toast } from 'sonner';
-import { Plus, Save, Edit2, Trash2, Truck, Shield, X } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, Truck, Shield, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 
 export const StationManagementPage = () => {
   const { api } = useAuth();
-  const { stations, battalions, fetchStations, fetchBattalions, personnel, fetchPersonnel } = useStaffing();
+  const { stations, battalions, fetchStations, fetchBattalions, personnel, fetchPersonnel, selectedBattalion, setSelectedBattalion } = useStaffing();
+  const [allStations, setAllStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingStation, setEditingStation] = useState(null);
@@ -36,22 +37,40 @@ export const StationManagementPage = () => {
 
   useEffect(() => {
     fetchBattalions();
-    fetchStations();
     fetchPersonnel();
   }, []);
+
+  useEffect(() => {
+    fetchStations();
+  }, [selectedBattalion]);
+
+  useEffect(() => {
+    api.get('/stations').then(res => setAllStations(res.data)).catch(() => {});
+  }, [stations, api]);
+
+  const selectedIndex = battalions.findIndex(b => b.id === selectedBattalion);
+  const cycleBattalion = (dir) => {
+    if (battalions.length === 0) return;
+    const next = (selectedIndex + dir + battalions.length) % battalions.length;
+    setSelectedBattalion(battalions[next].id);
+  };
+  const handleBattalionWheel = (e) => {
+    if (Math.abs(e.deltaY) < 10) return;
+    cycleBattalion(e.deltaY > 0 ? 1 : -1);
+  };
 
   // Set default battalion when battalions are loaded
   useEffect(() => {
     if (battalions.length > 0 && !formData.battalion_id) {
-      setFormData(prev => ({ ...prev, battalion_id: battalions[0].id }));
+      setFormData(prev => ({ ...prev, battalion_id: selectedBattalion || battalions[0].id }));
     }
-  }, [battalions]);
+  }, [battalions, selectedBattalion]);
 
   const resetForm = () => {
     setFormData({
       station_number: '',
       name: '',
-      battalion_id: battalions.length > 0 ? battalions[0].id : '',
+      battalion_id: selectedBattalion || (battalions.length > 0 ? battalions[0].id : ''),
       address: '',
       minimum_staffing: 3,
       apparatus: ''
@@ -154,7 +173,7 @@ export const StationManagementPage = () => {
   };
 
   const handleDeleteBattalion = async (battalion) => {
-    const stationsInBattalion = stations.filter(s => s.battalion_id === battalion.id);
+    const stationsInBattalion = allStations.filter(s => s.battalion_id === battalion.id);
     
     if (stationsInBattalion.length > 0) {
       toast.error(`Cannot delete Battalion ${battalion.battalion_number}. ${stationsInBattalion.length} station(s) are still assigned to it.`);
@@ -243,6 +262,36 @@ export const StationManagementPage = () => {
             <p className="text-muted-foreground mt-1">
               Manage fire stations and apparatus
             </p>
+          </div>
+
+          <div
+            className="flex items-center gap-2 select-none"
+            onWheel={handleBattalionWheel}
+            title="Scroll to switch battalion"
+            data-testid="battalion-toggle"
+          >
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => cycleBattalion(-1)} data-testid="battalion-prev-btn">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-1 rounded-full border bg-muted/30 p-1">
+              {battalions.map(b => {
+                const active = b.id === selectedBattalion;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBattalion(b.id)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-heading uppercase tracking-wider transition-colors duration-200 ${active ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                    data-testid={`battalion-toggle-${b.battalion_number}`}
+                  >
+                    {b.battalion_number}
+                  </button>
+                );
+              })}
+            </div>
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => cycleBattalion(1)} data-testid="battalion-next-btn">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
           
           <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
@@ -486,7 +535,7 @@ export const StationManagementPage = () => {
         <Card data-testid="stations-table-card">
           <CardHeader>
             <CardTitle className="font-heading uppercase">
-              All Stations ({stations.length})
+              Battalion {battalions.find(b => b.id === selectedBattalion)?.battalion_number || ''} Stations ({stations.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -593,7 +642,7 @@ export const StationManagementPage = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {battalions.map(battalion => {
-                const stationsInBattalion = stations.filter(s => s.battalion_id === battalion.id);
+                const stationsInBattalion = allStations.filter(s => s.battalion_id === battalion.id);
                 const canDelete = stationsInBattalion.length === 0;
                 return (
                   <div 
