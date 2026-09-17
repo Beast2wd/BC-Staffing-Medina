@@ -98,6 +98,31 @@ async def create_overtime_record(
     return OvertimeRecord(**record_doc)
 
 
+@router.post("/overtime/remove-duplicates")
+async def remove_duplicate_overtime(
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF]))
+):
+    """Keep one record per person per day (assigned > available > declined), delete the rest"""
+    priority = {"assigned": 0, "available": 1, "declined": 2}
+    query = add_tenant_to_query({}, current_user)
+    records = await db.overtime_records.find(query, {"_id": 0, "id": 1, "personnel_id": 1, "date": 1, "status": 1}).to_list(10000)
+    
+    groups: dict = {}
+    for r in records:
+        groups.setdefault((r.get("personnel_id"), r.get("date")), []).append(r)
+    
+    to_delete = []
+    for recs in groups.values():
+        if len(recs) > 1:
+            recs.sort(key=lambda r: priority.get(r.get("status"), 9))
+            to_delete.extend(r["id"] for r in recs[1:])
+    
+    if to_delete:
+        await db.overtime_records.delete_many({**query, "id": {"$in": to_delete}})
+    
+    return {"removed": len(to_delete), "groups_affected": sum(1 for g in groups.values() if len(g) > 1)}
+
+
 @router.put("/overtime/{record_id}", response_model=OvertimeRecord)
 async def update_overtime_record(
     record_id: str,

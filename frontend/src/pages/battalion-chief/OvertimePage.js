@@ -126,6 +126,20 @@ export const OvertimePage = () => {
     }
   };
 
+  const handleRemoveDuplicates = async () => {
+    if (!window.confirm('Remove duplicate overtime submissions? For each person/day, the assigned record is kept (otherwise available, then declined).')) return;
+    setLoading(true);
+    try {
+      const { data } = await api.post('/overtime/remove-duplicates');
+      toast.success(data.removed ? `Removed ${data.removed} duplicate record(s)` : 'No duplicates found');
+      fetchOvertimeRecords();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to remove duplicates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateStatus = async (recordId, newStatus) => {
     try {
       const record = overtimeRecords.find(r => r.id === recordId);
@@ -493,6 +507,14 @@ export const OvertimePage = () => {
             <BattalionSelector />
             {canEdit && (
               <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleRemoveDuplicates}
+                  disabled={loading}
+                  data-testid="remove-duplicates-btn"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Remove Duplicates
+                </Button>
                 <Button 
                   variant="outline" 
                   onClick={openBroadcastDialog}
