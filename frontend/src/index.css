@@ -222,23 +222,41 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   --offset: 16px !important;
 }
 
-/* Date input dark mode styling */
-input[type="date"] {
+/* Native date/time pickers: follow the active theme so icons & popups stay visible */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
   color-scheme: light;
 }
 
-.dark input[type="date"] {
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="week"] {
   color-scheme: dark;
+  color: hsl(var(--foreground));
 }
 
-/* Ensure date picker icons and dropdowns match theme */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: none;
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
+  opacity: 0.85;
 }
 
-.dark input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="week"]::-webkit-calendar-picker-indicator {
+  /* color-scheme: dark already renders the icon light; do NOT invert again */
+  filter: none;
+  opacity: 1;
 }
 
 @layer base {
