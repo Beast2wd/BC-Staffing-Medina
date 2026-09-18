@@ -25,6 +25,7 @@ export const OvertimePage = () => {
   const [overtimeRecords, setOvertimeRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [backfillPrompt, setBackfillPrompt] = useState(null);
   const [showBroadcastDialog, setShowBroadcastDialog] = useState(false);
   const [broadcastData, setBroadcastData] = useState({
     targetType: 'all', // 'all', 'rank', 'paramedic', 'individual'
@@ -141,13 +142,41 @@ export const OvertimePage = () => {
   };
 
   const handleUpdateStatus = async (recordId, newStatus) => {
+    const record = overtimeRecords.find(r => r.id === recordId);
+    if (!record) return;
+    if (newStatus === 'assigned' && record.status !== 'assigned') {
+      try {
+        const { data } = await api.get('/deployments/active', { params: { date: record.date } });
+        if (data.length > 0) {
+          setBackfillPrompt({ record, deployments: data, selected: data.length === 1 ? data[0].id : 'none' });
+          return;
+        }
+      } catch (error) {
+        // fall through to a normal assignment if the lookup fails
+      }
+    }
+    await applyStatusUpdate(record, newStatus);
+  };
+
+  const confirmBackfill = async () => {
+    const { record, deployments, selected } = backfillPrompt;
+    const dep = deployments.find(d => d.id === selected);
+    const extra = dep
+      ? { backfill_deployment_id: dep.id, backfill_deployment_type: dep.deployment_type, backfill_for_personnel_name: dep.personnel_name }
+      : { backfill_deployment_id: null, backfill_deployment_type: null, backfill_for_personnel_name: null };
+    setBackfillPrompt(null);
+    await applyStatusUpdate(record, 'assigned', extra);
+  };
+
+  const applyStatusUpdate = async (record, newStatus, extra = {}) => {
     try {
-      const record = overtimeRecords.find(r => r.id === recordId);
+      const recordId = record.id;
       const prevStatus = record.status;
       
       // Update the overtime record
       await api.put(`/overtime/${recordId}`, {
         ...record,
+        ...extra,
         status: newStatus
       });
       
@@ -1054,7 +1083,17 @@ export const OvertimePage = () => {
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(record.status)}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{record.notes || '-'}</TableCell>
+                        <TableCell className="max-w-[180px]">
+                          {record.backfill_deployment_id && (
+                            <Badge
+                              className={`mb-1 text-[10px] ${record.backfill_deployment_type === 'TIFMAS' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                              data-testid={`backfill-badge-${record.id}`}
+                            >
+                              Backfill {record.backfill_deployment_type}: {record.backfill_for_personnel_name}
+                            </Badge>
+                          )}
+                          <div className="truncate">{record.notes || '-'}</div>
+                        </TableCell>
                         {canEdit && (
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -1092,6 +1131,40 @@ export const OvertimePage = () => {
             </Table>
           </CardContent>
         </Card>
+
+        <Dialog open={!!backfillPrompt} onOpenChange={(open) => !open && setBackfillPrompt(null)}>
+          <DialogContent className="max-w-md" data-testid="backfill-dialog">
+            <DialogHeader>
+              <DialogTitle className="font-heading uppercase">Deployment Backfill?</DialogTitle>
+            </DialogHeader>
+            {backfillPrompt && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Personnel are deployed on {formatDisplayDate(backfillPrompt.record.date)}. Is this overtime shift backfilling for someone on deployment?
+                </p>
+                <RadioGroup value={backfillPrompt.selected} onValueChange={(v) => setBackfillPrompt({ ...backfillPrompt, selected: v })}>
+                  {backfillPrompt.deployments.map(dep => (
+                    <label key={dep.id} className="flex items-center gap-3 border rounded-md p-3 cursor-pointer hover:bg-muted/40" data-testid={`backfill-option-${dep.id}`}>
+                      <RadioGroupItem value={dep.id} />
+                      <div className="flex-1">
+                        <div className="font-medium">{dep.personnel_name}</div>
+                        <div className="text-xs text-muted-foreground">{dep.location || 'No location'} · {dep.start_date} → {dep.end_date}</div>
+                      </div>
+                      <Badge className={dep.deployment_type === 'TIFMAS' ? 'bg-orange-500' : 'bg-blue-500'}>{dep.deployment_type}</Badge>
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-3 border rounded-md p-3 cursor-pointer hover:bg-muted/40" data-testid="backfill-option-none">
+                    <RadioGroupItem value="none" />
+                    <span className="text-sm">Not a backfill — regular overtime</span>
+                  </label>
+                </RadioGroup>
+                <Button onClick={confirmBackfill} className="w-full" data-testid="backfill-confirm-btn">
+                  Assign Overtime
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

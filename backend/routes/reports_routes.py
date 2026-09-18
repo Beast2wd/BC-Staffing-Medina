@@ -466,6 +466,34 @@ async def get_deployment_summary(
             except (ValueError, TypeError):
                 pass
     
+    # Per-type sections (TIFMAS / EMTF) with backfill overtime and apparatus
+    from routes.deployments_routes import build_backfill_roster
+    roster = await build_backfill_roster(current_user, start_date, end_date)
+    apparatus_query = {"departure_date": {"$gte": start_date, "$lte": end_date}}
+    if tenant_id:
+        apparatus_query["tenant_id"] = tenant_id
+    apparatus = await db.deployment_apparatus.find(apparatus_query, {"_id": 0}).to_list(500)
+    apparatus.sort(key=lambda a: (a.get("departure_date", ""), a.get("departure_time", "")))
+    
+    def build_section(dtype: str):
+        deps = [r for r in roster if dtype in r["deployment_type"].upper()]
+        days = 0
+        for d in deps:
+            try:
+                days += (datetime.strptime(d["end_date"], "%Y-%m-%d") - datetime.strptime(d["start_date"], "%Y-%m-%d")).days + 1
+            except (ValueError, TypeError):
+                pass
+        return {
+            "deployment_type": dtype,
+            "deployments": deps,
+            "apparatus": [a for a in apparatus if dtype in a.get("deployment_type", "").upper()],
+            "total_deployments": len(deps),
+            "unique_personnel": len({d["personnel_id"] for d in deps if d["personnel_id"]}),
+            "total_deployment_days": days,
+            "total_backfill_shifts": sum(d["backfill_shifts"] for d in deps),
+            "total_backfill_hours": sum(d["backfill_hours"] for d in deps)
+        }
+    
     return {
         "start_date": start_date,
         "end_date": end_date,
@@ -476,6 +504,8 @@ async def get_deployment_summary(
         "unique_personnel_deployed": len(unique_personnel),
         "total_deployment_days": total_days,
         "deployments": deployment_summary,
+        "tifmas": build_section("TIFMAS"),
+        "emtf": build_section("EMTF"),
         "roster_count": len(roster_entries),
         "log_count": len(log_entries),
         "generated_by": current_user["payroll_number"],

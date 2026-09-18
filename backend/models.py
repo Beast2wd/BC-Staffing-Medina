@@ -414,6 +414,9 @@ class OvertimeRecord(BaseModel):
     phone_number: str = ""
     email: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
+    backfill_deployment_id: Optional[str] = None
+    backfill_deployment_type: Optional[str] = None
+    backfill_for_personnel_name: Optional[str] = None
 
 
 class OvertimeRecordCreate(BaseModel):
@@ -427,6 +430,37 @@ class OvertimeRecordCreate(BaseModel):
     phone_number: str = ""
     email: str = ""
     shift_type: str = "24"  # "12" or "24" hour shift
+    backfill_deployment_id: Optional[str] = None
+    backfill_deployment_type: Optional[str] = None
+    backfill_for_personnel_name: Optional[str] = None
+
+
+class DeploymentApparatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    deployment_type: str  # TIFMAS or EMTF
+    apparatus_name: str
+    location: str = ""
+    departure_date: str
+    departure_time: str = ""
+    return_date: str = ""
+    return_time: str = ""
+    personnel_names: List[str] = []
+    notes: str = ""
+    created_by: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class DeploymentApparatusCreate(BaseModel):
+    deployment_type: str
+    apparatus_name: str
+    location: str = ""
+    departure_date: str
+    departure_time: str = ""
+    return_date: str = ""
+    return_time: str = ""
+    personnel_names: List[str] = []
+    notes: str = ""
 
 
 class DeploymentRecord(BaseModel):

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { DeploymentTypeSummary } from '../components/reports/DeploymentTypeSummary';
 import { Navbar } from '../components/layout/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -1947,54 +1948,8 @@ export const ReportsPage = () => {
                     </div>
                   </div>
 
-                  {/* Deployment Details Table */}
-                  <div className="space-y-3">
-                    <h3 className="font-heading text-lg uppercase flex items-center gap-2">
-                      Deployment Details
-                    </h3>
-                    {reportData.deployments?.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b bg-muted/30">
-                              <th className="text-left p-3 font-semibold">Type</th>
-                              <th className="text-left p-3 font-semibold">Personnel</th>
-                              <th className="text-center p-3 font-semibold">Start Date</th>
-                              <th className="text-center p-3 font-semibold">End Date</th>
-                              <th className="text-center p-3 font-semibold">Status</th>
-                              <th className="text-left p-3 font-semibold">Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reportData.deployments.map((dep, idx) => (
-                              <tr key={idx} className="border-b border-muted hover:bg-muted/30">
-                                <td className={`p-3 font-bold ${dep.deployment_type?.includes('TIFMAS') ? 'text-red-500' : 'text-blue-500'}`}>
-                                  {dep.deployment_type || '-'}
-                                </td>
-                                <td className="p-3">{dep.personnel_name || '-'}</td>
-                                <td className="p-3 text-center">{dep.start_date || '-'}</td>
-                                <td className="p-3 text-center">{dep.end_date || '-'}</td>
-                                <td className="p-3 text-center">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    dep.status === 'active' 
-                                      ? 'bg-green-500/20 text-green-500' 
-                                      : 'bg-muted text-muted-foreground'
-                                  }`}>
-                                    {dep.status || 'N/A'}
-                                  </span>
-                                </td>
-                                <td className="p-3 text-muted-foreground text-xs">{dep.notes || '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="text-center text-muted-foreground py-8">
-                        No deployments found for this date range
-                      </p>
-                    )}
-                  </div>
+                  <DeploymentTypeSummary section={reportData.tifmas} color="orange" />
+                  <DeploymentTypeSummary section={reportData.emtf} color="blue" />
                 </div>
               ) : reportType === 'part-time-hours' ? (
                 <div className="space-y-6" data-testid="part-time-hours-report">

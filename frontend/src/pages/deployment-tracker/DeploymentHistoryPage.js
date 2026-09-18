@@ -43,6 +43,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../../components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { BackfillRoster } from '../../components/deployment/BackfillRoster';
+import { DeploymentApparatus } from '../../components/deployment/DeploymentApparatus';
 
 const getStatusBadge = (status) => {
   switch (status) {
@@ -173,16 +176,28 @@ export const DeploymentHistoryPage = () => {
             </h1>
             <p className="text-muted-foreground">Track and review all TIFMAS and EMTF deployments</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={exportToCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button variant="outline" onClick={() => { fetchHistory(); fetchStats(); }}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
+        </div>
+
+        <Tabs defaultValue="history" className="w-full">
+          <TabsList className="mb-6" data-testid="deployment-history-tabs">
+            <TabsTrigger value="history" data-testid="tab-history">Deployment History</TabsTrigger>
+            <TabsTrigger value="backfill" data-testid="tab-backfill">Overtime Backfill Roster</TabsTrigger>
+            <TabsTrigger value="apparatus" data-testid="tab-apparatus">Deployment Apparatus</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="backfill"><BackfillRoster /></TabsContent>
+          <TabsContent value="apparatus"><DeploymentApparatus /></TabsContent>
+
+          <TabsContent value="history">
+        <div className="flex justify-end gap-2 mb-4">
+          <Button variant="outline" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={() => { fetchHistory(); fetchStats(); }}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -435,6 +450,8 @@ export const DeploymentHistoryPage = () => {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

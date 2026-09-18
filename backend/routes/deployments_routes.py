@@ -9,7 +9,7 @@ import uuid
 from database import db
 from models import (
     UserRole, DeploymentRecord, DeploymentRoster, DeploymentLog,
-    TIFMASDeployRequest, EMTFDeployRequest
+    TIFMASDeployRequest, EMTFDeployRequest, DeploymentApparatus, DeploymentApparatusCreate
 )
 from auth import get_current_user, require_role, RANK_ORDER, get_last_name, sort_by_rank_and_name
 from tenant_utils import get_tenant_id, add_tenant_to_query, add_tenant_to_doc
@@ -19,6 +19,148 @@ router = APIRouter(tags=["Deployments"])
 
 
 # ===================== DEPLOYMENT ROUTES =====================
+
+@router.get("/deployments/active")
+async def get_active_deployments(date: str, current_user: dict = Depends(get_current_user)):
+    """Deployments covering the given date (used to tag overtime as deployment backfill)"""
+    query = add_tenant_to_query({"start_date": {"$lte": date}, "end_date": {"$gte": date}}, current_user)
+    records = await db.deployments.find(
+        query, {"_id": 0, "id": 1, "personnel_id": 1, "personnel_name": 1, "deployment_type": 1,
+                "start_date": 1, "end_date": 1, "location": 1}
+    ).to_list(200)
+    records.sort(key=lambda r: (r.get("deployment_type", ""), r.get("personnel_name", "")))
+    return records
+
+
+async def build_backfill_roster(current_user: dict, start_date: str, end_date: str, deployment_type: Optional[str] = None):
+    """Deployments in range, each with the assigned overtime records tagged as its backfill"""
+    tenant_id = get_tenant_id(current_user)
+    dep_query = add_tenant_to_query({"start_date": {"$lte": end_date}, "end_date": {"$gte": start_date}}, current_user)
+    if deployment_type:
+        dep_query["deployment_type"] = deployment_type
+    deployments = await db.deployments.find(dep_query, {"_id": 0}).to_list(500)
+    if not deployments:
+        return []
+    
+    dep_ids = [d["id"] for d in deployments]
+    ot_query = add_tenant_to_query({"backfill_deployment_id": {"$in": dep_ids}, "status": "assigned"}, current_user)
+    overtime = await db.overtime_records.find(ot_query, {"_id": 0}).to_list(2000)
+    
+    personnel_ids = list({o.get("personnel_id") for o in overtime})
+    personnel = await db.personnel.find(
+        add_tenant_to_query({"id": {"$in": personnel_ids}}, current_user), {"_id": 0, "id": 1, "name": 1, "rank": 1}
+    ).to_list(1000)
+    stations = await db.stations.find(add_tenant_to_query({}, current_user), {"_id": 0, "id": 1, "name": 1, "station_number": 1}).to_list(200)
+    p_map = {p["id"]: p for p in personnel}
+    s_map = {s["id"]: s for s in stations}
+    
+    by_dep: dict = {}
+    for o in overtime:
+        person = p_map.get(o.get("personnel_id"), {})
+        station = s_map.get(o.get("station_id"), {})
+        by_dep.setdefault(o["backfill_deployment_id"], []).append({
+            "overtime_id": o["id"],
+            "personnel_id": o.get("personnel_id"),
+            "personnel_name": person.get("name", "Unknown"),
+            "rank": person.get("rank", ""),
+            "date": o.get("date"),
+            "hours": o.get("hours", 0),
+            "shift_type": o.get("shift_type", ""),
+            "station_id": o.get("station_id"),
+            "station_name": station.get("name") or o.get("station_id"),
+            "notes": o.get("notes", "")
+        })
+    
+    result = []
+    for d in deployments:
+        backfills = sorted(by_dep.get(d["id"], []), key=lambda b: b["date"] or "")
+        result.append({
+            "deployment_id": d["id"],
+            "deployment_type": d.get("deployment_type", ""),
+            "personnel_id": d.get("personnel_id"),
+            "personnel_name": d.get("personnel_name", ""),
+            "start_date": d.get("start_date", ""),
+            "end_date": d.get("end_date", ""),
+            "location": d.get("location", ""),
+            "notes": d.get("notes", ""),
+            "backfills": backfills,
+            "backfill_shifts": len(backfills),
+            "backfill_hours": sum(b["hours"] for b in backfills)
+        })
+    result.sort(key=lambda r: (r["deployment_type"], r["start_date"], r["personnel_name"]))
+    return result
+
+
+@router.get("/deployments/backfill-roster")
+async def get_backfill_roster(
+    start_date: str,
+    end_date: str,
+    deployment_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    roster = await build_backfill_roster(current_user, start_date, end_date, deployment_type)
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "deployments": roster,
+        "total_backfill_shifts": sum(r["backfill_shifts"] for r in roster),
+        "total_backfill_hours": sum(r["backfill_hours"] for r in roster)
+    }
+
+
+@router.get("/deployment-apparatus", response_model=List[DeploymentApparatus])
+async def get_deployment_apparatus(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    deployment_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    query = add_tenant_to_query({}, current_user)
+    if start_date and end_date:
+        query["departure_date"] = {"$gte": start_date, "$lte": end_date}
+    if deployment_type:
+        query["deployment_type"] = deployment_type
+    records = await db.deployment_apparatus.find(query, {"_id": 0}).to_list(500)
+    records.sort(key=lambda r: (r.get("departure_date", ""), r.get("departure_time", "")), reverse=True)
+    return records
+
+
+@router.post("/deployment-apparatus", response_model=DeploymentApparatus)
+async def create_deployment_apparatus(
+    data: DeploymentApparatusCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    record = DeploymentApparatus(**data.model_dump(), created_by=current_user.get("name", ""))
+    doc = add_tenant_to_doc(record.model_dump(), current_user)
+    await db.deployment_apparatus.insert_one(doc)
+    return record
+
+
+@router.put("/deployment-apparatus/{entry_id}", response_model=DeploymentApparatus)
+async def update_deployment_apparatus(
+    entry_id: str,
+    data: DeploymentApparatusCreate,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    query = add_tenant_to_query({"id": entry_id}, current_user)
+    updated = await db.deployment_apparatus.find_one_and_update(
+        query, {"$set": data.model_dump()}, return_document=True, projection={"_id": 0}
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Apparatus entry not found")
+    return updated
+
+
+@router.delete("/deployment-apparatus/{entry_id}")
+async def delete_deployment_apparatus(
+    entry_id: str,
+    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.BATTALION_CHIEF, UserRole.CAPTAIN, UserRole.LIEUTENANT]))
+):
+    result = await db.deployment_apparatus.delete_one(add_tenant_to_query({"id": entry_id}, current_user))
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Apparatus entry not found")
+    return {"message": "Apparatus entry deleted"}
+
 
 @router.get("/deployments", response_model=List[DeploymentRecord])
 async def get_deployments(
