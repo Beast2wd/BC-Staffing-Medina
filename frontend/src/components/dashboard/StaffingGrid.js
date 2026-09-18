@@ -42,10 +42,12 @@ export const StaffingGrid = () => {
     currentShiftDay,
     selectedDate,
     selectedBattalion,
+    battalions,
     fetchStaffingRecords,
     fetchStations
   } = useStaffing();
   const { api, canEdit } = useAuth();
+  const selectedBattalionNumber = battalions?.find(b => b.id === selectedBattalion)?.battalion_number;
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [volunteerAssignments, setVolunteerAssignments] = useState([]);
@@ -331,8 +333,8 @@ export const StaffingGrid = () => {
     <Card className="h-full" data-testid="staffing-grid">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="font-heading text-lg uppercase tracking-wider">
-            Department Staffing
+          <CardTitle className="font-heading text-lg uppercase tracking-wider" data-testid="staffing-grid-title">
+            {selectedBattalionNumber ? `Battalion ${selectedBattalionNumber} Staffing` : 'Battalion Staffing'}
           </CardTitle>
           <Badge className={getShiftBadgeClass(currentShift)}>
             {currentShift} Shift (Day {currentShiftDay}) - {formatDisplayDate(selectedDate)}
