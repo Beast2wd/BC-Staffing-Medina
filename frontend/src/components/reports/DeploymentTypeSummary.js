@@ -63,7 +63,7 @@ export const DeploymentTypeSummary = ({ section, color }) => {
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/30">
                   <div>
                     <span className="font-semibold">{d.personnel_name}</span>
-                    <span className="text-muted-foreground text-sm"> · {d.location || 'No location'} · {d.start_date} → {d.end_date}</span>
+                    <span className="text-muted-foreground text-sm"> · {d.location || 'No location'} · {d.start_date} → {d.end_date || "ongoing"}</span>
                   </div>
                   <span className="text-sm">
                     Backfill: <span className="font-semibold text-yellow-500">{d.backfill_hours} hrs</span> ({d.backfill_shifts} shift{d.backfill_shifts === 1 ? '' : 's'})

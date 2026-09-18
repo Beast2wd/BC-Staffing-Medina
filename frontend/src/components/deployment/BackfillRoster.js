@@ -127,7 +127,7 @@ export const BackfillRoster = () => {
                 <Badge className={typeColor(d.deployment_type)}>{d.deployment_type}</Badge>
                 <div>
                   <p className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> {d.personnel_name}</p>
-                  <p className="text-xs text-muted-foreground">{d.location || 'No location'} · {d.start_date} → {d.end_date}</p>
+                  <p className="text-xs text-muted-foreground">{d.location || 'No location'} · {d.start_date} → {d.end_date || "ongoing"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm">

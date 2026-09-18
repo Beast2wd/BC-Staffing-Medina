@@ -1148,7 +1148,7 @@ export const OvertimePage = () => {
                       <RadioGroupItem value={dep.id} />
                       <div className="flex-1">
                         <div className="font-medium">{dep.personnel_name}</div>
-                        <div className="text-xs text-muted-foreground">{dep.location || 'No location'} · {dep.start_date} → {dep.end_date}</div>
+                        <div className="text-xs text-muted-foreground">{dep.location || 'No location'} · {dep.start_date} → {dep.end_date || "ongoing"}</div>
                       </div>
                       <Badge className={dep.deployment_type === 'TIFMAS' ? 'bg-orange-500' : 'bg-blue-500'}>{dep.deployment_type}</Badge>
                     </label>

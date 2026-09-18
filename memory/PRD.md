@@ -1322,3 +1322,4 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - Deployment History page now tabbed: Deployment History | Overtime Backfill Roster (filters, totals, CSV) | Deployment Apparatus (CRUD).
 - Reports → Deployment Summary split into TIFMAS and EMTF sections (components/reports/DeploymentTypeSummary.js): stats, apparatus sent out w/ departure time, deployed personnel with backfill OT shifts + hours.
 - Note: reports excel/pdf export does not yet include the new deployment sections (screen only).
+- 2026-09-18 FIX: backfill prompt/roster now unify both deployment sources (`deployments` per-person records AND grouped `deployment_history` entries via collect_deployments; history entries get ids `hist:{history_id}:{personnel_id}`) and treat empty end_date as ongoing. Verified: EMTF "TEST_Hurricane Response" (no end date) now prompts on 9/18 and tags Aj's OT as backfill.

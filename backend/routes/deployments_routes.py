@@ -20,25 +20,56 @@ router = APIRouter(tags=["Deployments"])
 
 # ===================== DEPLOYMENT ROUTES =====================
 
+async def collect_deployments(current_user: dict, start_date: str, end_date: str, deployment_type: Optional[str] = None):
+    """Unified per-person deployments overlapping the range, from both `deployments` and grouped `deployment_history`.
+    Open-ended deployments (no end_date) are treated as still active."""
+    overlap = {
+        "start_date": {"$lte": end_date},
+        "$or": [{"end_date": {"$gte": start_date}}, {"end_date": {"$in": ["", None]}}]
+    }
+    dep_query = add_tenant_to_query(dict(overlap), current_user)
+    hist_query = add_tenant_to_query({**overlap, "status": {"$ne": "cancelled"}}, current_user)
+    if deployment_type:
+        dep_query["deployment_type"] = deployment_type
+        hist_query["deployment_type"] = deployment_type
+    
+    result = []
+    for d in await db.deployments.find(dep_query, {"_id": 0}).to_list(500):
+        result.append({
+            "id": d["id"],
+            "personnel_id": d.get("personnel_id"),
+            "personnel_name": d.get("personnel_name", ""),
+            "deployment_type": d.get("deployment_type", ""),
+            "start_date": d.get("start_date", ""),
+            "end_date": d.get("end_date", "") or "",
+            "location": d.get("location", ""),
+            "notes": d.get("notes", "")
+        })
+    for h in await db.deployment_history.find(hist_query, {"_id": 0}).to_list(500):
+        for p in h.get("personnel", []):
+            result.append({
+                "id": f"hist:{h['id']}:{p.get('id', '')}",
+                "personnel_id": p.get("id"),
+                "personnel_name": p.get("name", ""),
+                "deployment_type": h.get("deployment_type", ""),
+                "start_date": h.get("start_date", ""),
+                "end_date": h.get("end_date", "") or "",
+                "location": h.get("incident_name") or h.get("location", ""),
+                "notes": h.get("notes", "")
+            })
+    result.sort(key=lambda r: (r["deployment_type"], r["start_date"], r["personnel_name"]))
+    return result
+
+
 @router.get("/deployments/active")
 async def get_active_deployments(date: str, current_user: dict = Depends(get_current_user)):
     """Deployments covering the given date (used to tag overtime as deployment backfill)"""
-    query = add_tenant_to_query({"start_date": {"$lte": date}, "end_date": {"$gte": date}}, current_user)
-    records = await db.deployments.find(
-        query, {"_id": 0, "id": 1, "personnel_id": 1, "personnel_name": 1, "deployment_type": 1,
-                "start_date": 1, "end_date": 1, "location": 1}
-    ).to_list(200)
-    records.sort(key=lambda r: (r.get("deployment_type", ""), r.get("personnel_name", "")))
-    return records
+    return await collect_deployments(current_user, date, date)
 
 
 async def build_backfill_roster(current_user: dict, start_date: str, end_date: str, deployment_type: Optional[str] = None):
     """Deployments in range, each with the assigned overtime records tagged as its backfill"""
-    tenant_id = get_tenant_id(current_user)
-    dep_query = add_tenant_to_query({"start_date": {"$lte": end_date}, "end_date": {"$gte": start_date}}, current_user)
-    if deployment_type:
-        dep_query["deployment_type"] = deployment_type
-    deployments = await db.deployments.find(dep_query, {"_id": 0}).to_list(500)
+    deployments = await collect_deployments(current_user, start_date, end_date, deployment_type)
     if not deployments:
         return []
     
