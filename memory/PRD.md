@@ -1315,3 +1315,10 @@ Updated Personnel Management (Add/Edit dialogs) to support P-021 policy workflow
 - 2026-09-16: Added POST /api/overtime/remove-duplicates (Admin/BC, tenant-scoped; keeps assigned > available > declined per person/day) + "Remove Duplicates" button on BC Overtime page (data-testid remove-duplicates-btn). Verified with seeded dupes (3→1) and UI click.
 - 2026-09-16: Added "Add Battalion" button + dialog on Station Management → Battalions card (data-testid add-battalion-btn / add-battalion-number-input / add-battalion-name-input / add-battalion-save-btn). Reuses existing POST /api/battalions. UI-verified.
 - 2026-09-16: Station Management now has a battalion toggle strip (pill buttons + prev/next arrows + mouse-wheel cycling) bound to global selectedBattalion; station cards/table filter per battalion. Battalions overview card uses all-tenant stations for counts. Add Station defaults to selected battalion. UI-verified.
+
+### 2026-09-18 Deployment Overtime Backfill Tracking (iteration_47: all backend+frontend pass)
+- Overtime records carry backfill_deployment_id / backfill_deployment_type / backfill_for_personnel_name. BC Overtime page: assigning on a date with an active deployment opens "Deployment Backfill?" dialog (deployed person radio list + "Not a backfill"); badge shown in Notes column.
+- New endpoints: GET /api/deployments/active?date=, GET /api/deployments/backfill-roster?start_date&end_date[&deployment_type], CRUD /api/deployment-apparatus (type, apparatus from station lists, location, departure/return date+time, notes).
+- Deployment History page now tabbed: Deployment History | Overtime Backfill Roster (filters, totals, CSV) | Deployment Apparatus (CRUD).
+- Reports → Deployment Summary split into TIFMAS and EMTF sections (components/reports/DeploymentTypeSummary.js): stats, apparatus sent out w/ departure time, deployed personnel with backfill OT shifts + hours.
+- Note: reports excel/pdf export does not yet include the new deployment sections (screen only).

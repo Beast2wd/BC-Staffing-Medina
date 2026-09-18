@@ -1,0 +1,38 @@
+{
+  "summary": "Full backend + frontend testing of the Deployment Overtime Backfill Tracking feature. All 13 backend tests pass, and all frontend flows (Deployment History tabs, Backfill Roster, Deployment Apparatus CRUD, Reports Deployment Summary split TIFMAS/EMTF, and the OT backfill dialog + no-dialog paths) work as specified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/deployments/{id}", "issue": "No DELETE endpoint exists (returns 405). Only PUT is available. Cleanup of test deployments had to be done directly in Mongo. Not part of this feature, but worth noting for future test hygiene."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (console)", "issues": ["React warning repeatedly logged: 'Invalid prop data-state supplied to React.Fragment'. Non-blocking but should be cleaned up; likely coming from a Radix Tabs/Select wrapper spreading data-state onto a Fragment."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_deployment_backfill.py",
+    "/app/test_reports/pytest/deployment_backfill.xml"
+  ],
+  "action_items": [
+    "Investigate & fix the 'Invalid prop data-state on React.Fragment' console warnings (likely in a Radix wrapper component)."
+  ],
+  "critical_code_review_comments": [
+    "deployments_routes.py file is >1900 lines and mixes many features (deployments, roster, log, apparatus, batch). Consider splitting into focused modules.",
+    "PUT /api/deployment-apparatus/{id} replaces the whole doc with model_dump() but preserves nothing tenant-scoped is dropped only because upsert isn't used and $set keeps id/tenant_id — fine, but be cautious.",
+    "No DELETE /deployments/{id} makes cleanup of ad-hoc/test deployments awkward; consider adding one behind Admin/BC role."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_deployment_backfill.py"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% (all scripted flows passed)"},
+  "test_credentials": "100001/admin123 (Admin). Firefighter 200003/firefighter123 works and correctly gets 403 on POST /deployment-apparatus.",
+  "seed_data_creation": "Only transient TEST data was created (deployment 'TEST_TempComplex' + one OT for Aj on today+2 and today+5). All test data was cleaned up (OTs via DELETE API; the transient deployment was removed directly via Mongo since no DELETE endpoint exists). Seeded data preserved: TIFMAS deployment 'Test User' 2030-03-01..14, Aj's OT on 2030-03-05 with backfill tag, 'Engine 10' apparatus 2030-03-01→14.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test file /app/backend/tests/test_deployment_backfill.py covers all endpoints for this feature (active deployments, backfill roster, deployment-apparatus CRUD + RBAC, deployment summary with tifmas/emtf, overtime backfill fields, 409 duplicate rule). Frontend: OT page has NO free-form date input; navigation is via prev-date/next-date buttons only. To exercise the backfill dialog without navigating years of clicks, create temporary deployment + OT via API for today+N and click next-date N times. Seed OT for Aj on 2030-03-05 is currently 'assigned' with a backfill tag — badge is visible if the page is navigated there.",
+  "rca of the issue": "No functional bugs found. Feature works end-to-end. The only nit is a stray React 'Invalid prop data-state on Fragment' warning that repeats in the console; investigate the wrapping component (likely in components/ui/tabs.jsx or select.jsx) that forwards data-state onto a Fragment instead of a real DOM node."
+}
