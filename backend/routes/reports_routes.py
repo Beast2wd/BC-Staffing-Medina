@@ -469,6 +469,28 @@ async def get_deployment_summary(
     # Per-type sections (TIFMAS / EMTF) with backfill overtime and apparatus
     from routes.deployments_routes import build_backfill_roster
     roster = await build_backfill_roster(current_user, start_date, end_date)
+    
+    def deployment_days(d):
+        try:
+            start = datetime.strptime(max(d["start_date"], start_date), "%Y-%m-%d")
+            end = datetime.strptime(min(d["end_date"] or end_date, end_date), "%Y-%m-%d")
+            return max((end - start).days + 1, 0)
+        except (ValueError, TypeError):
+            return 0
+    
+    # Header stats derived from the same unified list as the sections
+    tifmas_count = len([r for r in roster if "TIFMAS" in r["deployment_type"].upper()])
+    emtf_count = len([r for r in roster if "EMTF" in r["deployment_type"].upper()])
+    other_count = len(roster) - tifmas_count - emtf_count
+    unique_personnel = {r["personnel_id"] for r in roster if r["personnel_id"]}
+    total_days = sum(deployment_days(r) for r in roster)
+    deployment_summary = [{
+        "id": r["deployment_id"], "deployment_type": r["deployment_type"], "personnel_id": r["personnel_id"],
+        "personnel_name": r["personnel_name"], "start_date": r["start_date"], "end_date": r["end_date"],
+        "status": "active" if not r["end_date"] or r["end_date"] >= datetime.now(timezone.utc).strftime("%Y-%m-%d") else "completed",
+        "notes": r["notes"], "created_at": ""
+    } for r in roster]
+    
     apparatus_query = {"departure_date": {"$gte": start_date, "$lte": end_date}}
     if tenant_id:
         apparatus_query["tenant_id"] = tenant_id
@@ -477,12 +499,7 @@ async def get_deployment_summary(
     
     def build_section(dtype: str):
         deps = [r for r in roster if dtype in r["deployment_type"].upper()]
-        days = 0
-        for d in deps:
-            try:
-                days += (datetime.strptime(d["end_date"], "%Y-%m-%d") - datetime.strptime(d["start_date"], "%Y-%m-%d")).days + 1
-            except (ValueError, TypeError):
-                pass
+        days = sum(deployment_days(d) for d in deps)
         return {
             "deployment_type": dtype,
             "deployments": deps,
