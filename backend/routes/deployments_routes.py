@@ -1790,6 +1790,70 @@ async def update_deployment_history(
     return result
 
 
+async def delete_aggregated_deployment(record_id: str, current_user: dict):
+    """Delete a deployment group that came from `deployments` / `deployment_log` (BC Deployments or rank deploy)."""
+    tenant_id = get_tenant_id(current_user)
+    q = add_tenant_to_query({"id": record_id}, current_user)
+    seed = await db.deployments.find_one(q, {"_id": 0})
+    source = "deployments"
+    if not seed:
+        seed = await db.deployment_log.find_one(q, {"_id": 0})
+        source = "deployment_log"
+    if not seed:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    dtype = (seed.get("deployment_type") or seed.get("incident_type") or "").upper()
+    start = seed.get("start_date") or seed.get("date") or ""
+    incident = (seed.get("location") or seed.get("incident_name") or "").strip().lower()
+    
+    def same_group(r, type_key, incident_keys):
+        r_incident = ""
+        for k in incident_keys:
+            if r.get(k):
+                r_incident = r[k]
+                break
+        return ((r.get(type_key) or "").upper() == dtype
+                and (r.get("start_date") or r.get("date") or "") == start
+                and r_incident.strip().lower() == incident)
+    
+    dep_docs = [r for r in await db.deployments.find(add_tenant_to_query({}, current_user), {"_id": 0}).to_list(1000)
+                if same_group(r, "deployment_type", ["location", "incident_name"])]
+    log_docs = [r for r in await db.deployment_log.find(add_tenant_to_query({}, current_user), {"_id": 0}).to_list(1000)
+                if same_group(r, "incident_type", ["incident_name", "location"])]
+    
+    personnel_ids = {r.get("personnel_id") for r in dep_docs + log_docs if r.get("personnel_id")}
+    if dep_docs:
+        await db.deployments.delete_many({"id": {"$in": [r["id"] for r in dep_docs]}})
+    if log_docs:
+        await db.deployment_log.delete_many({"id": {"$in": [r["id"] for r in log_docs]}})
+    await db.overtime_records.update_many(
+        add_tenant_to_query({"backfill_deployment_id": {"$in": [r["id"] for r in dep_docs]}}, current_user),
+        {"$set": {"backfill_deployment_id": None, "backfill_deployment_type": None, "backfill_for_personnel_name": None}}
+    )
+    
+    last_field = "last_tifmas_deploy" if dtype == "TIFMAS" else "last_emtf_deploy" if dtype == "EMTF" else None
+    for pid in personnel_ids:
+        pq = add_tenant_to_query({"id": pid}, current_user)
+        await db.deployment_roster.update_one(pq, {
+            "$inc": {"deployments_last_12mo": -1},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+        })
+        await db.deployment_roster.update_one({**pq, "deployments_last_12mo": {"$lt": 0}}, {"$set": {"deployments_last_12mo": 0}})
+        if last_field:
+            remaining = await db.deployments.find(
+                add_tenant_to_query({"personnel_id": pid, "deployment_type": dtype}, current_user), {"_id": 0, "start_date": 1}
+            ).sort("start_date", -1).limit(1).to_list(1)
+            await db.deployment_roster.update_one(pq, {"$set": {last_field: remaining[0]["start_date"] if remaining else ""}})
+    
+    return {
+        "message": "Deployment deleted and rotation stats reverted",
+        "deleted_id": record_id,
+        "source": source,
+        "records_removed": len(dep_docs) + len(log_docs),
+        "personnel_updated": len(personnel_ids)
+    }
+
+
 @router.delete("/deployment-history/{history_id}")
 async def delete_deployment_history(
     history_id: str,
@@ -1804,7 +1868,7 @@ async def delete_deployment_history(
     # First, get the deployment to know who was deployed
     deployment = await db.deployment_history.find_one(query)
     if not deployment:
-        raise HTTPException(status_code=404, detail="Deployment history not found")
+        return await delete_aggregated_deployment(history_id, current_user)
     
     deploy_type = deployment.get("deployment_type", "").upper()
     personnel_list = deployment.get("personnel", [])
