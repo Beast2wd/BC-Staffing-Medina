@@ -15,7 +15,7 @@ import { Badge } from '../../components/ui/badge';
 import { Checkbox } from '../../components/ui/checkbox';
 
 export const UserManagementPage = () => {
-  const { api } = useAuth();
+  const { api, user: currentUser } = useAuth();
   const { stations, fetchAllData } = useStaffing();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,6 +29,8 @@ export const UserManagementPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [formData, setFormData] = useState({
     payroll_number: '',
     password: '',
@@ -155,21 +157,33 @@ export const UserManagementPage = () => {
     }
   };
 
-  const handlePermanentDeleteUser = async (userId, userName) => {
-    // Double confirmation for permanent delete
-    const firstConfirm = confirm(`⚠️ WARNING: You are about to PERMANENTLY DELETE "${userName}".\n\nThis action CANNOT be undone. All user data will be removed from the system.\n\nAre you sure you want to continue?`);
-    if (!firstConfirm) return;
+  const toggleSelect = (userId) => {
+    setSelectedIds(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
+  };
+
+  const handleBulkDelete = async () => {
+    const targets = users.filter(u => selectedIds.includes(u.id));
+    if (targets.length === 0) return;
+    const names = targets.map(u => u.name).join(', ');
+    if (!confirm(`⚠️ WARNING: You are about to PERMANENTLY DELETE ${targets.length} user(s):\n\n${names}\n\nThis action CANNOT be undone. Continue?`)) return;
+    if (!confirm(`Final confirmation: permanently remove ${targets.length} user(s) from the system?`)) return;
     
-    const secondConfirm = confirm(`Final confirmation: Type "DELETE" mentally and click OK to permanently remove "${userName}" from the system.`);
-    if (!secondConfirm) return;
-    
-    try {
-      await api.delete(`/users/${userId}/permanent`);
-      toast.success('User permanently deleted');
-      fetchUsers();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to delete user');
+    setBulkDeleting(true);
+    let removed = 0;
+    const failed = [];
+    for (const u of targets) {
+      try {
+        await api.delete(`/users/${u.id}/permanent`);
+        removed += 1;
+      } catch (error) {
+        failed.push(u.name);
+      }
     }
+    setBulkDeleting(false);
+    setSelectedIds([]);
+    fetchUsers();
+    if (removed) toast.success(`Permanently deleted ${removed} user(s)`);
+    if (failed.length) toast.error(`Failed to delete: ${failed.join(', ')}`);
   };
 
   const handleOpenEdit = (user) => {
@@ -276,6 +290,10 @@ export const UserManagementPage = () => {
       const lastNameB = getLastName(b.name).toLowerCase();
       return lastNameA.localeCompare(lastNameB);
     });
+
+  const selectableUsers = filteredUsers.filter(u => u.id !== currentUser?.id);
+  const allSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedIds.includes(u.id));
+  const toggleSelectAll = () => setSelectedIds(allSelected ? [] : selectableUsers.map(u => u.id));
 
   const getStationName = (stationId) => {
     if (!stationId) return '-';
@@ -526,14 +544,33 @@ export const UserManagementPage = () => {
         {/* Users Table */}
         <Card data-testid="users-table-card">
           <CardHeader>
-            <CardTitle className="font-heading uppercase">
-              System Users ({filteredUsers.length})
-            </CardTitle>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="font-heading uppercase">
+                System Users ({filteredUsers.length})
+              </CardTitle>
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-3" data-testid="bulk-action-bar">
+                  <span className="text-sm text-muted-foreground" data-testid="selected-count">{selectedIds.length} selected</span>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])} data-testid="clear-selection-btn">Clear</Button>
+                  <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting} data-testid="bulk-delete-btn">
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete Selected ({selectedIds.length})
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all users"
+                      data-testid="select-all-users"
+                    />
+                  </TableHead>
                   <TableHead>Emp #</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
@@ -548,13 +585,23 @@ export const UserManagementPage = () => {
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No users found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredUsers.map(user => (
-                    <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
+                    <TableRow key={user.id} data-testid={`user-row-${user.id}`} className={selectedIds.includes(user.id) ? 'bg-red-500/5' : ''}>
+                      <TableCell>
+                        {user.id !== currentUser?.id && (
+                          <Checkbox
+                            checked={selectedIds.includes(user.id)}
+                            onCheckedChange={() => toggleSelect(user.id)}
+                            aria-label={`Select ${user.name}`}
+                            data-testid={`select-user-${user.id}`}
+                          />
+                        )}
+                      </TableCell>
                       <TableCell className="font-mono">{user.payroll_number}</TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>
@@ -626,16 +673,6 @@ export const UserManagementPage = () => {
                               <UserX className="h-4 w-4" />
                             </Button>
                           ) : null}
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-red-500"
-                            onClick={() => handlePermanentDeleteUser(user.id, user.name)}
-                            title="Permanently Delete User"
-                            data-testid={`delete-${user.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
