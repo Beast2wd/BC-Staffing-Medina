@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -67,7 +67,20 @@ const NavLink = ({ to, children, active, disabled, primaryColor }) => (
 );
 
 export const Navbar = () => {
-  const { user, logout, isAdmin, isFirefighter, isVolunteer, isPartTime, isEngineer, isViewOnly, isSuperAdmin, tenant } = useAuth();
+  const { user, logout, isAdmin, isFirefighter, isVolunteer, isPartTime, isEngineer, isViewOnly, isSuperAdmin, tenant, api } = useAuth();
+  const [userStation, setUserStation] = useState(null);
+
+  useEffect(() => {
+    if (!user?.station_id) { setUserStation(null); return; }
+    api.get('/stations').then(res => {
+      setUserStation(res.data.find(s => s.id === user.station_id) || null);
+    }).catch(() => setUserStation(null));
+  }, [api, user?.station_id]);
+
+  const assignmentLabel = [
+    userStation ? `Station ${userStation.station_number}` : null,
+    user?.shift ? `${user.shift} Shift` : null
+  ].filter(Boolean).join(' · ');
   const { theme, toggleTheme } = useTheme();
   const { logoUrl: brandingLogo, tenantName, primaryColor } = useBranding();
   const location = useLocation();
@@ -374,8 +387,10 @@ export const Navbar = () => {
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5">
                 <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-muted-foreground">{user?.rank}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ')}</p>
+                <p className="text-xs text-muted-foreground" data-testid="user-menu-rank">{user?.rank}</p>
+                {assignmentLabel && (
+                  <p className="text-xs text-muted-foreground" data-testid="user-menu-assignment">{assignmentLabel}</p>
+                )}
               </div>
               <DropdownMenuSeparator />
               {isSuperAdmin && (
