@@ -19,6 +19,8 @@ export const ApparatusPage = () => {
   const { stations, personnel, fetchAllData, selectedDate, setSelectedDate, selectedBattalion, currentShift } = useStaffing();
   const [assignments, setAssignments] = useState([]);
   const [volunteerAssignments, setVolunteerAssignments] = useState([]);
+  const [overtimeAssignments, setOvertimeAssignments] = useState([]);
+  const [overtimePersonnelMap, setOvertimePersonnelMap] = useState({});
   const [partTimeAssignments, setPartTimeAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -50,7 +52,24 @@ export const ApparatusPage = () => {
     fetchAssignments();
     fetchVolunteerAssignments();
     fetchPartTimeAssignments();
+    fetchOvertimeAssignments();
   }, [selectedDate, selectedBattalion, currentShift]);
+
+  const fetchOvertimeAssignments = async () => {
+    try {
+      const response = await api.get('/overtime', {
+        params: { date: selectedDate, battalion_id: selectedBattalion, status: 'assigned' }
+      });
+      setOvertimeAssignments(response.data);
+      const missing = response.data.filter(o => !personnel.some(p => p.id === o.personnel_id));
+      if (missing.length > 0) {
+        const all = await api.get('/personnel');
+        setOvertimePersonnelMap(Object.fromEntries(all.data.map(p => [p.id, p])));
+      }
+    } catch (error) {
+      console.error('Error fetching overtime assignments:', error);
+    }
+  };
 
   const fetchAssignments = async () => {
     try {
@@ -271,10 +290,11 @@ export const ApparatusPage = () => {
         return `PT ${ptRecord.pt_employee_name || ptRecord.employee_name}`;
       }
     }
-    // Check regular personnel
-    const person = personnel.find(p => p.id === personnelId);
+    // Check regular personnel (flag if working this date on overtime)
+    const person = personnel.find(p => p.id === personnelId) || overtimePersonnelMap[personnelId];
     if (person) {
-      return `${person.rank} ${person.name}`;
+      const onOvertime = overtimeAssignments.some(o => o.personnel_id === personnelId);
+      return `${onOvertime ? 'OT ' : ''}${person.rank} ${person.name}`;
     }
     // Check volunteers from current assignments
     const volunteer = volunteerAssignments.find(v => v.personnel_id === personnelId);
@@ -307,6 +327,22 @@ export const ApparatusPage = () => {
       phone: v.volunteer_phone || v.phone_number
     }));
     
+    // Get personnel assigned overtime at this station on this date (any home shift)
+    const overtimePersonnel = overtimeAssignments
+      .filter(o => o.station_id === stationId && !regularPersonnel.some(p => p.id === o.personnel_id))
+      .map(o => {
+        const p = personnel.find(x => x.id === o.personnel_id) || overtimePersonnelMap[o.personnel_id];
+        return {
+          id: o.personnel_id,
+          name: p?.name || 'Unknown',
+          rank: p?.rank || '',
+          isOvertime: true,
+          overtimeHours: o.hours,
+          homeShift: p?.shift,
+          phone: p?.phone || o.phone_number || ''
+        };
+      });
+    
     // Get part-time employees assigned to this station for this date/shift
     const partTimeEmployees = getStationPartTime(stationId).map(pt => ({
       id: `pt-${pt.id}`,  // Prefix to distinguish from regular personnel
@@ -318,7 +354,7 @@ export const ApparatusPage = () => {
     }));
     
     // Combine all lists
-    return [...regularPersonnel, ...volunteers, ...partTimeEmployees];
+    return [...regularPersonnel, ...overtimePersonnel, ...volunteers, ...partTimeEmployees];
   };
 
   const handlePersonnelToggle = (personId, isChecked) => {
@@ -461,7 +497,8 @@ export const ApparatusPage = () => {
                             key={person.id} 
                             className={`flex items-center gap-2 p-1 hover:bg-muted rounded ${
                               person.isVolunteer ? 'bg-green-500/10 border-l-2 border-green-500' : 
-                              person.isPartTime ? 'bg-purple-500/10 border-l-2 border-purple-500' : ''
+                              person.isPartTime ? 'bg-purple-500/10 border-l-2 border-purple-500' : 
+                              person.isOvertime ? 'bg-yellow-500/10 border-l-2 border-yellow-500' : ''
                             }`}
                           >
                             <input
@@ -472,10 +509,12 @@ export const ApparatusPage = () => {
                             />
                             <span className={`text-sm flex-1 ${
                               person.isVolunteer ? 'text-green-600 dark:text-green-400' : 
-                              person.isPartTime ? 'text-purple-600 dark:text-purple-400' : ''
+                              person.isPartTime ? 'text-purple-600 dark:text-purple-400' : 
+                              person.isOvertime ? 'text-yellow-600 dark:text-yellow-400' : ''
                             }`}>
                               {person.isVolunteer ? `Vol. ${person.name}` : 
-                               person.isPartTime ? `PT ${person.name}` : `${person.rank} ${person.name}`}
+                               person.isPartTime ? `PT ${person.name}` : 
+                               person.isOvertime ? `OT ${person.rank} ${person.name}` : `${person.rank} ${person.name}`}
                             </span>
                             {assignedPersonnel.includes(person.id) && (
                               <Select 
@@ -632,7 +671,8 @@ export const ApparatusPage = () => {
                       key={person.id} 
                       className={`flex items-center gap-2 p-2 hover:bg-muted rounded ${
                         person.isVolunteer ? 'bg-green-500/10 border-l-2 border-green-500' : 
-                        person.isPartTime ? 'bg-purple-500/10 border-l-2 border-purple-500' : ''
+                        person.isPartTime ? 'bg-purple-500/10 border-l-2 border-purple-500' : 
+                        person.isOvertime ? 'bg-yellow-500/10 border-l-2 border-yellow-500' : ''
                       }`}
                     >
                       <input
@@ -644,10 +684,12 @@ export const ApparatusPage = () => {
                       />
                       <span className={`text-sm flex-1 ${
                         person.isVolunteer ? 'text-green-600 dark:text-green-400' : 
-                        person.isPartTime ? 'text-purple-600 dark:text-purple-400' : ''
+                        person.isPartTime ? 'text-purple-600 dark:text-purple-400' : 
+                        person.isOvertime ? 'text-yellow-600 dark:text-yellow-400' : ''
                       }`}>
                         {person.isVolunteer ? `Vol. ${person.name}` : 
-                         person.isPartTime ? `PT ${person.name}` : `${person.rank} ${person.name}`}
+                         person.isPartTime ? `PT ${person.name}` : 
+                         person.isOvertime ? `OT ${person.rank} ${person.name}` : `${person.rank} ${person.name}`}
                       </span>
                       {assignedPersonnel.includes(person.id) && (
                         <Select 
