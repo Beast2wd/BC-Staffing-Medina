@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import { 
   ArrowLeft, Save, Upload, Trash2, Image as ImageIcon, Palette, 
-  Layout, RotateCcw, Plus, GripVertical, Loader2, Video, Play
+  Layout, RotateCcw, Plus, GripVertical, Loader2, Video, Play, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -154,6 +154,25 @@ export const PlatformSettingsPage = () => {
       ...prev,
       hero_backgrounds: prev.hero_backgrounds.filter((_, i) => i !== index)
     }));
+  };
+
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const moveHeroImage = (from, to) => {
+    setSettings(prev => {
+      const list = [...(prev.hero_backgrounds || [])];
+      if (to < 0 || to >= list.length || from === to) return prev;
+      const [item] = list.splice(from, 1);
+      list.splice(to, 0, item);
+      return { ...prev, hero_backgrounds: list };
+    });
+  };
+
+  const handleHeroDrop = (targetIndex) => {
+    if (dragIndex !== null) moveHeroImage(dragIndex, targetIndex);
+    setDragIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleVideoUpload = async (e) => {
@@ -552,23 +571,56 @@ export const PlatformSettingsPage = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {settings.hero_backgrounds?.map((img, index) => (
-                    <div key={index} className="relative group">
+                    <div
+                      key={index}
+                      className={`relative group cursor-grab active:cursor-grabbing transition-transform ${dragIndex === index ? 'opacity-50 scale-95' : ''} ${dragOverIndex === index && dragIndex !== index ? 'ring-2 ring-red-500 rounded-lg' : ''}`}
+                      draggable
+                      onDragStart={() => setDragIndex(index)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index); }}
+                      onDragLeave={() => setDragOverIndex(null)}
+                      onDrop={() => handleHeroDrop(index)}
+                      onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                      data-testid={`hero-image-${index}`}
+                    >
                       <div className="aspect-video rounded-lg overflow-hidden border-2 border-slate-600 bg-slate-900">
                         <img 
                           src={img} 
                           alt={`Hero ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover pointer-events-none"
                         />
                       </div>
-                      <div className="absolute top-1 left-1 bg-black/70 px-2 py-0.5 rounded text-xs text-white">
+                      <div className="absolute top-1 left-1 bg-black/70 px-2 py-0.5 rounded text-xs text-white flex items-center gap-1">
+                        <GripVertical className="h-3 w-3 text-slate-300" />
                         {index + 1}
                       </div>
                       <button
                         onClick={() => removeHeroImage(index)}
                         className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove"
+                        data-testid={`hero-image-remove-${index}`}
                       >
                         <Trash2 className="h-3 w-3 text-white" />
                       </button>
+                      <div className="absolute bottom-1 inset-x-1 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => moveHeroImage(index, index - 1)}
+                          disabled={index === 0}
+                          className="bg-black/70 hover:bg-black/90 disabled:opacity-30 p-1 rounded"
+                          title="Move earlier"
+                          data-testid={`hero-image-left-${index}`}
+                        >
+                          <ChevronLeft className="h-3 w-3 text-white" />
+                        </button>
+                        <button
+                          onClick={() => moveHeroImage(index, index + 1)}
+                          disabled={index === settings.hero_backgrounds.length - 1}
+                          className="bg-black/70 hover:bg-black/90 disabled:opacity-30 p-1 rounded"
+                          title="Move later"
+                          data-testid={`hero-image-right-${index}`}
+                        >
+                          <ChevronRight className="h-3 w-3 text-white" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                   
@@ -591,7 +643,7 @@ export const PlatformSettingsPage = () => {
                 />
                 
                 <p className="text-xs text-slate-500">
-                  Recommended: High resolution images (1920x1080 or larger). Images will auto-rotate every 6 seconds.
+                  Recommended: High resolution images (1920x1080 or larger). Images auto-rotate every 6 seconds in the order shown — drag a tile or use the arrows to reorder, then Save.
                 </p>
               </CardContent>
             </Card>
